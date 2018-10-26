@@ -30,6 +30,7 @@ impl OutputBuf {
         buf.put_u32_be(length as u32);
         write!(buf, "{}\0", entry.name);
         println!("{:?}", &buf);
+        unimplemented!();
     }
 }
 pub struct EndpointIP {

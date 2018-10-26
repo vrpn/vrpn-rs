@@ -83,7 +83,7 @@ pub trait Connection {
     fn get_type_id(&self, name: &str) -> Option<TypeId> {
         self.dispatcher().get_type_id(name)
     }
-    
+
     fn get_sender_id(&self, name: &str) -> Option<SenderId> {
         self.dispatcher().get_sender_id(name)
     }
@@ -125,5 +125,19 @@ pub trait Connection {
                 Ok(message_type)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use connection::*;
+    #[test]
+    fn log_names() {
+        assert_eq!(make_log_name(None), None);
+        assert_eq!(make_log_name(Some(String::from(""))), None);
+        assert_eq!(
+            make_log_name(Some(String::from("asdf"))),
+            Some(String::from("asdf"))
+        );
     }
 }

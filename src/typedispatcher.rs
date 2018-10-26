@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use constants;
 use std::error;
 use std::fmt;
-use constants;
 use types::*;
 extern crate bytes;
 
@@ -73,12 +73,16 @@ impl From<MappingError> for HandlerError {
 }
 type HandlerFnMut = FnMut(&HandlerParams) -> HandlerResult<()>;
 
+/// Type storing a boxed callback function, an optional sender ID filter,
+/// and the unique-per-LocalMapping handle that can be used to unregister a handler.
 struct MsgCallbackEntry {
     handle: HandlerHandle,
     pub handler: Box<HandlerFnMut>,
     pub sender: IdToHandle<SenderId>,
 }
+
 impl MsgCallbackEntry {
+    /// Invokes the callback with the given params, if the sender filter (if not None) matches.
     pub fn call(&mut self, params: &HandlerParams) -> HandlerResult<()> {
         let should_call = match self.sender {
             AnyId => true,
@@ -92,6 +96,8 @@ impl MsgCallbackEntry {
     }
 }
 
+/// Stores a collection of callbacks with a name, associated with either a message type,
+/// or as a "global" handler mapping called for all message types.
 struct LocalMapping {
     name: String,
     callbacks: Vec<MsgCallbackEntry>,
@@ -99,6 +105,7 @@ struct LocalMapping {
 }
 
 impl LocalMapping {
+    /// Create LocalMapping instance
     fn new(name: &str) -> LocalMapping {
         LocalMapping {
             name: String::from(name),
@@ -107,7 +114,7 @@ impl LocalMapping {
         }
     }
 
-    /// Add a callback
+    /// Add a callback with optional sender ID filter
     fn add(
         &mut self,
         handler: Box<HandlerFnMut>,
@@ -137,13 +144,10 @@ impl LocalMapping {
         }
     }
 
-    /// Call all callbacks
+    /// Call all callbacks (subject to sender filters)
     fn call(&mut self, params: &HandlerParams) -> HandlerResult<()> {
         for ref mut entry in self.callbacks.iter_mut() {
-            match entry.call(params) {
-                Err(e) => return Err(e),
-                _ => {}
-            }
+            entry.call(params)?;
         }
         Ok(())
     }
@@ -373,5 +377,18 @@ impl TypeDispatcher {
         }
         self.system_callbacks[real_index] = Some(Box::new(handler));
         Ok(())
+    }
+}
+#[cfg(test)]
+mod tests {
+    use typedispatcher::*;
+    #[test]
+    fn dispatcher() {
+        assert_eq!(make_log_name(None), None);
+        assert_eq!(make_log_name(Some(String::from(""))), None);
+        assert_eq!(
+            make_log_name(Some(String::from("asdf"))),
+            Some(String::from("asdf"))
+        );
     }
 }
