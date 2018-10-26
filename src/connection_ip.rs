@@ -5,13 +5,13 @@
 use connection;
 use connection::Endpoint;
 use connection::LogFileNames;
+
 use endpoint_ip::EndpointIP;
-use typedispatcher::HandlerResult;
-use typedispatcher::TypeDispatcher;
-use types::HandlerParams;
+use typedispatcher::{HandlerResult, MappingResult, TypeDispatcher};
+use types::{HandlerParams, SenderId, TypeId};
 
 pub struct ConnectionIP {
-    dispatcher: TypeDispatcher,
+    dispatcher: TypeDispatcher<'static>,
     remote_log_names: LogFileNames,
     local_log_names: LogFileNames,
     endpoints: Vec<Option<EndpointIP>>,
@@ -61,12 +61,20 @@ impl ConnectionIP {
 }
 
 impl connection::Connection for ConnectionIP {
-    fn dispatcher_mut(&mut self) -> &mut TypeDispatcher {
-        &mut self.dispatcher
+    fn add_type(&mut self, name: &str) -> MappingResult<TypeId> {
+        self.dispatcher.add_type(name)
     }
 
-    fn dispatcher(&self) -> &TypeDispatcher {
-        &self.dispatcher
+    fn add_sender(&mut self, name: &str) -> MappingResult<SenderId> {
+        self.dispatcher.add_sender(name)
+    }
+    /// Returns the ID for the type name, if found.
+    fn get_type_id(&self, name: &str) -> Option<TypeId> {
+        self.dispatcher.get_type_id(name)
+    }
+    /// Returns the ID for the sender name, if found.
+    fn get_sender_id(&self, name: &str) -> Option<SenderId> {
+        self.dispatcher.get_sender_id(name)
     }
 
     fn call_on_each_mut_endpoint<'a, F: 'a + FnMut(&mut dyn Endpoint)>(&'a mut self, mut f: F) {
@@ -77,7 +85,7 @@ impl connection::Connection for ConnectionIP {
             }
         }
     }
-    fn call_on_each_endpoint<'a, F: 'a + Fn(&dyn Endpoint)>(&self,  f: F) {
+    fn call_on_each_endpoint<'a, F: 'a + Fn(&dyn Endpoint)>(&self, f: F) {
         for ref e in self.endpoints.iter() {
             match e {
                 Some(ref endpoint) => (f)(endpoint),

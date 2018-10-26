@@ -76,17 +76,16 @@ pub trait Connection {
         disp.set_system_handler(constants::TYPE_DESCRIPTION, handle_type_message);
         disp.set_system_handler(constants::DISCONNECT_MESSAGE, handle_disconnect_message);
 */
-    fn dispatcher_mut(&mut self) -> &mut TypeDispatcher;
-    fn dispatcher(&self) -> &TypeDispatcher;
+    fn add_type(&mut self, name: &str) -> MappingResult<TypeId>;
+
+    fn add_sender(&mut self, name: &str) -> MappingResult<SenderId>;
+
+    /// Returns the ID for the type name, if found.
+    fn get_type_id(&self, name: &str) -> Option<TypeId>;
+    /// Returns the ID for the sender name, if found.
+    fn get_sender_id(&self, name: &str) -> Option<SenderId>;
     fn call_on_each_mut_endpoint<'a, F: 'a + FnMut(&mut dyn Endpoint)>(&'a mut self, f: F);
     fn call_on_each_endpoint<'a, F: 'a + Fn(&dyn Endpoint)>(&self, f: F);
-    fn get_type_id(&self, name: &str) -> Option<TypeId> {
-        self.dispatcher().get_type_id(name)
-    }
-
-    fn get_sender_id(&self, name: &str) -> Option<SenderId> {
-        self.dispatcher().get_sender_id(name)
-    }
 
     fn pack_sender_description(&mut self, sender: SenderId) {
         self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
@@ -104,7 +103,7 @@ pub trait Connection {
         match self.get_sender_id(name) {
             Some(id) => Ok(id),
             None => {
-                let sender = self.dispatcher_mut().add_sender(name)?;
+                let sender = self.add_sender(name)?;
                 self.pack_sender_description(sender);
                 self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
                     e.new_local_sender(&name, LocalId(sender));
@@ -117,7 +116,7 @@ pub trait Connection {
         match self.get_type_id(name) {
             Some(id) => Ok(id),
             None => {
-                let message_type = self.dispatcher_mut().add_type(name)?;
+                let message_type = self.add_type(name)?;
                 self.pack_type_description(message_type);
                 self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
                     e.new_local_type(&name, LocalId(message_type));

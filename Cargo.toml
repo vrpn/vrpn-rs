@@ -5,5 +5,10 @@ authors = ["Ryan Pavlik <ryan.pavlik@collabora.com>"]
 license = "BSL-1.0"
 
 [dependencies]
-bytes = "*"
-bitmask = "*"
+bytes = "^0.4.10"
+bitmask = "^0.4.0"
+tokio = "^0.1.11"
+futures = "^0.1.25"
+quick-error = "^1.2.2"
+socket2 = "^0.3.8"
+mio = "^0.6.16"

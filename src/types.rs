@@ -108,18 +108,43 @@ pub struct HandlerParams {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-pub struct CookieData {
+pub struct Version {
     pub major: u8,
     pub minor: u8,
+}
+
+impl Default for Version {
+    fn default() -> Version {
+        Version { major: 0, minor: 0 }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+pub struct CookieData {
+    pub version: Version,
     pub log_mode: Option<u8>,
 }
 
 impl Default for CookieData {
     fn default() -> CookieData {
         CookieData {
-            major: 0,
-            minor: 0,
+            version: Default::default(),
             log_mode: None,
         }
+    }
+}
+
+impl From<Version> for CookieData {
+    fn from(version: Version) -> CookieData {
+        CookieData {
+            version,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<CookieData> for Version {
+    fn from(data: CookieData) -> Version {
+        data.version
     }
 }

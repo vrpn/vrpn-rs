@@ -4,12 +4,11 @@
 
 use connection::Endpoint;
 use constants;
+use translationtable::TranslationTable;
 use typedispatcher::HandlerResult;
 use types::*;
-use translationtable::TranslationTable;
 extern crate bytes;
-use self::bytes::BufMut;
-use self::bytes::BytesMut;
+use bytes::BufMut;
 use std::fmt::Write;
 
 struct OutputBuf {}
