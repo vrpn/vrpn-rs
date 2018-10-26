@@ -8,6 +8,8 @@ extern crate bytes;
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
 
+pub const MAX_VEC_USIZE: usize = (IdType::max_value() - 2) as usize;
+
 pub trait TypeSafeId: Clone + Eq + PartialEq + Ord + PartialOrd {
     fn unwrap(&self) -> IdType;
     fn new(val: IdType) -> Self;
