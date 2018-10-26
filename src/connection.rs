@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use vrpn::endpoint_ip::EndpointIP;
-use vrpn::typedispatcher::HandlerResult;
-use vrpn::typedispatcher::MappingResult;
-use vrpn::typedispatcher::TypeDispatcher;
-use vrpn::types::*;
+use endpoint_ip::EndpointIP;
+use typedispatcher::HandlerResult;
+use typedispatcher::MappingResult;
+use typedispatcher::TypeDispatcher;
+use types::*;
 extern crate bytes;
 
 #[derive(Debug, Clone)]

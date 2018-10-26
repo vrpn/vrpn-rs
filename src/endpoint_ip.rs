@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use vrpn::connection::Endpoint;
-use vrpn::constants;
-use vrpn::typedispatcher::HandlerResult;
-use vrpn::types::*;
-use vrpn::TranslationTable;
+use connection::Endpoint;
+use constants;
+use typedispatcher::HandlerResult;
+use types::*;
+use translationtable::TranslationTable;
 extern crate bytes;
 use self::bytes::BufMut;
 use self::bytes::BytesMut;

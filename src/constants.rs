@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use vrpn::types::SenderId;
-use vrpn::types::CookieData;
+use types::SenderId;
+use types::CookieData;
 
 // Constants in this file must remain unchanged so that they match the C++ implementation.
 pub const GOT_FIRST_CONNECTION: &str = "VRPN_Connection_Got_First_Connection";

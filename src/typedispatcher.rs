@@ -4,8 +4,8 @@
 
 use std::error;
 use std::fmt;
-use vrpn::constants;
-use vrpn::types::*;
+use constants;
+use types::*;
 extern crate bytes;
 
 #[derive(Debug, Clone)]

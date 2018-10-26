@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use vrpn::connection;
-use vrpn::connection::Endpoint;
-use vrpn::connection::LogFileNames;
-use vrpn::endpoint_ip::EndpointIP;
-use vrpn::typedispatcher::HandlerResult;
-use vrpn::typedispatcher::TypeDispatcher;
-use vrpn::types::HandlerParams;
+use connection;
+use connection::Endpoint;
+use connection::LogFileNames;
+use endpoint_ip::EndpointIP;
+use typedispatcher::HandlerResult;
+use typedispatcher::TypeDispatcher;
+use types::HandlerParams;
 
 pub struct ConnectionIP {
     dispatcher: TypeDispatcher,

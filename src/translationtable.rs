@@ -4,10 +4,10 @@
 
 use std::error;
 use std::fmt;
-use vrpn::types::IdType;
-use vrpn::types::LocalId;
-use vrpn::types::RemoteId;
-use vrpn::types::TypeSafeId;
+use types::IdType;
+use types::LocalId;
+use types::RemoteId;
+use types::TypeSafeId;
 
 #[derive(Debug, Clone)]
 pub enum TranslationTableError {
