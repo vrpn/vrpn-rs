@@ -15,22 +15,29 @@ pub trait TypeSafeId: Clone + Eq + PartialEq + Ord + PartialOrd {
     fn new(val: IdType) -> Self;
 }
 
-pub trait BaseTypeSafeId: TypeSafeId {}
+pub trait BaseTypeSafeId
+where
+    Self: TypeSafeId,
+    Self::Name: TypedName,
+{
+    type Name;
+    fn name_to_bytes(name: Self::Name) -> Bytes;
+}
 
 /// Local-side ID in the translation table
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct LocalId<T: TypeSafeId>(pub T);
 
 /// Remote-side ID in the translation table
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct RemoteId<T: TypeSafeId>(pub T);
 
 /// ID for a message type
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct TypeId(pub IdType);
 
 /// ID for a sender
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SenderId(pub IdType);
 
 impl<T: TypeSafeId> TypeSafeId for LocalId<T> {
@@ -59,7 +66,12 @@ impl TypeSafeId for TypeId {
         TypeId(val)
     }
 }
-impl BaseTypeSafeId for TypeId {}
+impl BaseTypeSafeId for TypeId {
+    type Name = TypeName;
+    fn name_to_bytes(name: Self::Name) -> Bytes {
+        Bytes::from_static(name.0)
+    }
+}
 
 impl TypeSafeId for SenderId {
     fn get(&self) -> IdType {
@@ -69,7 +81,13 @@ impl TypeSafeId for SenderId {
         SenderId(val)
     }
 }
-impl BaseTypeSafeId for SenderId {}
+
+impl BaseTypeSafeId for SenderId {
+    type Name = SenderName;
+    fn name_to_bytes(name: Self::Name) -> Bytes {
+        Bytes::from_static(name.0)
+    }
+}
 
 /// Wrapper for an id associated with a handler.
 ///
@@ -103,6 +121,8 @@ pub struct HandlerParams {
     pub buffer: bytes::Bytes,
 }
 
+pub trait TypedName {}
+
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct SenderName(pub &'static [u8]);
 impl From<SenderName> for Bytes {
@@ -110,6 +130,7 @@ impl From<SenderName> for Bytes {
         Bytes::from_static(val.0)
     }
 }
+impl TypedName for SenderName {}
 
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct TypeName(pub &'static [u8]);
@@ -118,3 +139,5 @@ impl From<TypeName> for Bytes {
         Bytes::from_static(val.0)
     }
 }
+
+impl TypedName for TypeName {}

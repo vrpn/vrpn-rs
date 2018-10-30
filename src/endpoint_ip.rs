@@ -8,7 +8,7 @@ use translationtable::TranslationTable;
 use typedispatcher::HandlerResult;
 use types::*;
 extern crate bytes;
-use bytes::BufMut;
+use bytes::{BufMut, Bytes, BytesMut};
 use std::fmt::Write;
 
 struct OutputBuf {}
@@ -25,7 +25,7 @@ impl OutputBuf {
     ) {
         let entry = table.get_by_local_id(local_id).unwrap();
         let length = entry.name.len() + 1; // + 1 is for null-terminator.
-        let mut buf = bytes::BytesMut::with_capacity(length);
+        let mut buf = BytesMut::with_capacity(length);
         buf.put_u32_be(length as u32);
         buf.put(&entry.name);
         buf.put_u8(0);
@@ -72,7 +72,7 @@ impl Endpoint for EndpointIP {
             Err(_) => None,
         }
     }
-    
+
     fn new_local_sender(&mut self, name: SenderName, local_sender: LocalId<SenderId>) -> bool {
         self.senders.add_local_id(name.into(), local_sender)
     }

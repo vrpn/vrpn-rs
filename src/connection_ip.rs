@@ -60,7 +60,19 @@ impl ConnectionIP {
     }
 }
 
-impl connection::Connection for ConnectionIP {
+impl<'a> connection::Connection<'a> for ConnectionIP {
+    type EndpointItem = EndpointIP;
+    type EndpointIteratorMut = std::slice::IterMut<'a, Option<EndpointIP>>;
+    type EndpointIterator = std::slice::Iter<'a, Option<EndpointIP>>;
+
+    fn endpoints_iter_mut(&'a mut self) -> Self::EndpointIteratorMut {
+        self.endpoints.iter_mut()
+    }
+
+    fn endpoints_iter(&'a self) -> Self::EndpointIterator {
+        self.endpoints.iter()
+    }
+
     fn add_type(&mut self, name: TypeName) -> MappingResult<TypeId> {
         self.dispatcher.add_type(name)
     }
@@ -75,29 +87,5 @@ impl connection::Connection for ConnectionIP {
     /// Returns the ID for the sender name, if found.
     fn get_sender_id(&self, name: &SenderName) -> Option<SenderId> {
         self.dispatcher.get_sender_id(name)
-    }
-    /*
-        fn endpoints_iter_mut<'a>(&'a mut self) -> impl Iterator<Item = &mut impl Endpoint> {
-            self.endpoints.iter_mut()
-        }
-        fn endpoints_iter<'a>(&'a mut self) -> impl Iterator<Item = &impl Endpoint> {
-            self.endpoints.iter()
-        }
-    */
-    fn call_on_each_mut_endpoint<'a, F: 'a + FnMut(&mut dyn Endpoint)>(&'a mut self, mut f: F) {
-        for ref mut e in self.endpoints.iter_mut() {
-            match e {
-                Some(ref mut endpoint) => (f)(endpoint),
-                _ => {}
-            }
-        }
-    }
-    fn call_on_each_endpoint<'a, F: 'a + Fn(&dyn Endpoint)>(&self, f: F) {
-        for ref e in self.endpoints.iter() {
-            match e {
-                Some(ref endpoint) => (f)(endpoint),
-                _ => {}
-            }
-        }
     }
 }

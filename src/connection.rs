@@ -67,60 +67,61 @@ pub trait Endpoint {
     fn pack_type_description(&mut self, local_type: LocalId<TypeId>);
 }
 
-pub trait Connection {
+pub trait Connection<'a> {
     /*
             disp.set_system_handler(constants::SENDER_DESCRIPTION, handle_sender_message);
             disp.set_system_handler(constants::TYPE_DESCRIPTION, handle_type_message);
             disp.set_system_handler(constants::DISCONNECT_MESSAGE, handle_disconnect_message);
     */
+    type EndpointItem: 'a + Endpoint;
+    type EndpointIterator: std::iter::Iterator<Item = &'a Option<Self::EndpointItem>>;
+    type EndpointIteratorMut: std::iter::Iterator<Item = &'a mut Option<Self::EndpointItem>>;
+
+    fn endpoints_iter_mut(&'a mut self) -> Self::EndpointIteratorMut;
+    fn endpoints_iter(&'a self) -> Self::EndpointIterator;
+
     fn add_type(&mut self, name: TypeName) -> MappingResult<TypeId>;
 
     fn add_sender(&mut self, name: SenderName) -> MappingResult<SenderId>;
 
     /// Returns the ID for the type name, if found.
     fn get_type_id(&self, name: &TypeName) -> Option<TypeId>;
+
     /// Returns the ID for the sender name, if found.
     fn get_sender_id(&self, name: &SenderName) -> Option<SenderId>;
-    fn call_on_each_mut_endpoint<'a, F: 'a + FnMut(&mut dyn Endpoint)>(&'a mut self, f: F);
-    fn call_on_each_endpoint<'a, F: 'a + Fn(&dyn Endpoint)>(&self, f: F);
-    /*
-    fn endpoints_iter_mut<'a>(&'a mut self) -> impl Iterator<Item = &mut impl Endpoint>;
-    fn endpoints_iter<'a>(&'a mut self) -> impl Iterator<Item = &dyn Endpoint>;
-    */
-    fn pack_sender_description(&mut self, sender: SenderId) {
-        self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
-            e.pack_sender_description(LocalId(sender))
-        })
+
+    fn pack_sender_description(&'a mut self, name: SenderName, sender: SenderId) {
+        let sender = LocalId(sender);
+        for endpoint in self.endpoints_iter_mut().flatten() {
+            endpoint.pack_sender_description(sender);
+            endpoint.new_local_sender(name.clone(), sender);
+        }
     }
 
-    fn pack_type_description(&mut self, message_type: TypeId) {
-        self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
-            e.pack_type_description(LocalId(message_type))
-        })
+    fn pack_type_description(&'a mut self, name: TypeName, message_type: TypeId) {
+        let message_type = LocalId(message_type);
+        for endpoint in self.endpoints_iter_mut().flatten() {
+            endpoint.pack_type_description(message_type);
+            endpoint.new_local_type(name.clone(), message_type);
+        }
     }
 
-    fn register_sender(&mut self, name: SenderName) -> MappingResult<SenderId> {
+    fn register_sender(&'a mut self, name: SenderName) -> MappingResult<SenderId> {
         match self.get_sender_id(&name) {
             Some(id) => Ok(id),
             None => {
                 let sender = self.add_sender(name.clone())?;
-                self.pack_sender_description(sender);
-                self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
-                    e.new_local_sender(name.clone(), LocalId(sender));
-                });
+                self.pack_sender_description(name, sender);
                 Ok(sender)
             }
         }
     }
-    fn register_type(&mut self, name: TypeName) -> MappingResult<TypeId> {
+    fn register_type(&'a mut self, name: TypeName) -> MappingResult<TypeId> {
         match self.get_type_id(&name) {
             Some(id) => Ok(id),
             None => {
                 let message_type = self.add_type(name.clone())?;
-                self.pack_type_description(message_type);
-                self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
-                    e.new_local_type(name.clone(), LocalId(message_type));
-                });
+                self.pack_type_description(name, message_type);
                 Ok(message_type)
             }
         }

@@ -72,8 +72,7 @@ pub fn connect_tcp(
                                 Err((e, _)) => Err(e),
                             }
                         },
-                    )
-                    .map_err(|e| io::Error::new(tokio::io::ErrorKind::InvalidData, e))
+                    ).map_err(|e| io::Error::new(tokio::io::ErrorKind::InvalidData, e))
             });
         return inner;
     });
@@ -87,8 +86,11 @@ fn main() {
     tokio::run(client);
     let mut table: TranslationTable<SenderId> = TranslationTable::new();
     table
-        .add_remote_entry("asdf", RemoteId(SenderId(0)), LocalId(SenderId(0)))
-        .expect("Failed adding remote entry");
+        .add_remote_entry(
+            SenderName(b"asdf"),
+            RemoteId(SenderId(0)),
+            LocalId(SenderId(0)),
+        ).expect("Failed adding remote entry");
     let mut conn = ConnectionIP::new_client(None, None);
     println!("Hello, world!");
 }

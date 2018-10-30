@@ -5,7 +5,7 @@
 use bytes::Bytes;
 use std::error;
 use std::fmt;
-use types::{IdType, LocalId, RemoteId, TypeSafeId};
+use types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId};
 
 #[derive(Debug, Clone)]
 pub enum TranslationTableError {
@@ -30,31 +30,32 @@ impl error::Error for TranslationTableError {
 
 pub type TranslationResult<T> = Result<T, TranslationTableError>;
 
-#[derive(Debug, Clone)]
-pub struct TranslationEntry<T: TypeSafeId> {
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct TranslationEntry<T: BaseTypeSafeId> {
     pub name: Bytes,
     pub local_id: LocalId<T>,
     pub remote_id: RemoteId<T>,
 }
 
-impl<T> TranslationEntry<T>
-where
-    T: TypeSafeId,
-{
+impl<T: BaseTypeSafeId> TranslationEntry<T> {
+    pub fn new(name: Bytes, local_id: LocalId<T>, remote_id: RemoteId<T>) -> TranslationEntry<T> {
+        TranslationEntry {
+            name,
+            local_id,
+            remote_id,
+        }
+    }
     pub fn set_local_id(&mut self, local_id: LocalId<T>) {
         self.local_id = local_id;
     }
 }
 
-#[derive(Debug)]
-pub struct TranslationTable<T: TypeSafeId> {
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct TranslationTable<T: BaseTypeSafeId> {
     entries: Vec<Option<TranslationEntry<T>>>,
 }
 
-impl<T> TranslationTable<T>
-where
-    T: TypeSafeId,
-{
+impl<T: BaseTypeSafeId> TranslationTable<T> {
     pub fn new() -> TranslationTable<T> {
         TranslationTable {
             entries: Vec::new(),
@@ -130,5 +131,18 @@ where
             },
             None => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn simple() {
+        use super::*;
+        use types::{RemoteId, SenderId, SenderName};
+        let mut table: TranslationTable<SenderId> = TranslationTable::new();
+        table
+            .add_remote_entry(b"asdf", RemoteId(SenderId(0)), LocalId(SenderId(0)))
+            .expect("Failed adding remote entry");
     }
 }
