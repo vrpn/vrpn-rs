@@ -53,34 +53,30 @@ pub fn connect_tcp(
     };
 
     let stream_future = TcpStream::connect_std(sock, &addr, &tokio::reactor::Handle::default());
-    let handshake_future = stream_future
-        .and_then(|stream| {
-            let inner =
-                MagicCookie
-                    .framed(stream)
-                    .send(CookieData::from(constants::MAGIC_DATA))
-                    .and_then(|s| {
-                        s.into_future()
-                            .then(
-                                |result| -> std::result::Result<
-                                    tokio::net::TcpStream,
-                                    codec::CodecError,
-                                > {
-                                    println!("read; {:?}", result);
-                                    match result {
-                                        Ok((Some(data), _)) => {
-                                            match check_ver_nonfile_compatible(data.version) {
-                                                Err(e) => Err(e),
-                                                Ok(()) => Ok(stream),
-                                            }
-                                        }
-                                        Err((e, _)) => Err(e),
+    let handshake_future = stream_future.and_then(|stream| {
+        let inner = MagicCookie
+            .framed(stream)
+            .send(CookieData::from(constants::MAGIC_DATA))
+            .and_then(|s| {
+                s.into_future()
+                    .then(
+                        |result| -> std::result::Result<tokio::net::TcpStream, codec::CodecError> {
+                            println!("read; {:?}", result);
+                            match result {
+                                Ok((Some(data), _)) => {
+                                    match check_ver_nonfile_compatible(data.version) {
+                                        Err(e) => Err(e),
+                                        Ok(()) => Ok(stream),
                                     }
-                                },
-                            ).map_err(|e| io::Error::new(tokio::io::ErrorKind::InvalidData, e))
-                    });
-            return inner;
-        });
+                                }
+                                Err((e, _)) => Err(e),
+                            }
+                        },
+                    )
+                    .map_err(|e| io::Error::new(tokio::io::ErrorKind::InvalidData, e))
+            });
+        return inner;
+    });
     return handshake_future;
 }
 

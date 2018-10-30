@@ -2,12 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use bytes::Bytes;
 use std::error;
 use std::fmt;
-use types::IdType;
-use types::LocalId;
-use types::RemoteId;
-use types::TypeSafeId;
+use types::{IdType, LocalId, RemoteId, TypeSafeId};
 
 #[derive(Debug, Clone)]
 pub enum TranslationTableError {
@@ -34,7 +32,7 @@ pub type TranslationResult<T> = Result<T, TranslationTableError>;
 
 #[derive(Debug, Clone)]
 pub struct TranslationEntry<T: TypeSafeId> {
-    pub name: String,
+    pub name: Bytes,
     pub local_id: LocalId<T>,
     pub remote_id: RemoteId<T>,
 }
@@ -65,7 +63,7 @@ where
 
     /// Converts a remote ID to the corresponding local ID
     pub fn map_to_local_id(&self, id: RemoteId<T>) -> TranslationResult<Option<LocalId<T>>> {
-        let index = id.unwrap();
+        let index = id.get();
         if index < 0 {
             return Ok(None);
         }
@@ -81,11 +79,11 @@ where
 
     pub fn add_remote_entry(
         &mut self,
-        name: &str,
+        name: Bytes,
         remote_id: RemoteId<T>,
         local_id: LocalId<T>,
     ) -> TranslationResult<RemoteId<T>> {
-        let real_index = remote_id.unwrap();
+        let real_index = remote_id.get();
         if real_index < 0 {
             return Err(TranslationTableError::InvalidRemoteId(real_index));
         }
@@ -93,14 +91,14 @@ where
             self.entries.push(None);
         }
         self.entries[real_index as usize] = Some(TranslationEntry {
-            name: String::from(name),
+            name,
             local_id,
             remote_id: remote_id.clone(),
         });
         Ok(remote_id)
     }
 
-    pub fn add_local_id(&mut self, name: &str, local_id: LocalId<T>) -> bool {
+    pub fn add_local_id(&mut self, name: Bytes, local_id: LocalId<T>) -> bool {
         let find_result = self.entries.iter().position(|ref x| match x {
             Some(entry) => entry.name == name,
             _ => false,

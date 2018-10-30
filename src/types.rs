@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 pub use self::IdToHandle::*;
-extern crate bytes;
+use bytes::Bytes;
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
@@ -11,9 +11,10 @@ pub type IdType = i32;
 pub const MAX_VEC_USIZE: usize = (IdType::max_value() - 2) as usize;
 
 pub trait TypeSafeId: Clone + Eq + PartialEq + Ord + PartialOrd {
-    fn unwrap(&self) -> IdType;
+    fn get(&self) -> IdType;
     fn new(val: IdType) -> Self;
 }
+
 pub trait BaseTypeSafeId: TypeSafeId {}
 
 /// Local-side ID in the translation table
@@ -33,8 +34,8 @@ pub struct TypeId(pub IdType);
 pub struct SenderId(pub IdType);
 
 impl<T: TypeSafeId> TypeSafeId for LocalId<T> {
-    fn unwrap(&self) -> IdType {
-        self.0.unwrap()
+    fn get(&self) -> IdType {
+        self.0.get()
     }
     fn new(val: IdType) -> LocalId<T> {
         LocalId(T::new(val))
@@ -42,8 +43,8 @@ impl<T: TypeSafeId> TypeSafeId for LocalId<T> {
 }
 
 impl<T: TypeSafeId> TypeSafeId for RemoteId<T> {
-    fn unwrap(&self) -> IdType {
-        self.0.unwrap()
+    fn get(&self) -> IdType {
+        self.0.get()
     }
     fn new(val: IdType) -> RemoteId<T> {
         RemoteId(T::new(val))
@@ -51,7 +52,7 @@ impl<T: TypeSafeId> TypeSafeId for RemoteId<T> {
 }
 
 impl TypeSafeId for TypeId {
-    fn unwrap(&self) -> IdType {
+    fn get(&self) -> IdType {
         self.0
     }
     fn new(val: IdType) -> TypeId {
@@ -61,7 +62,7 @@ impl TypeSafeId for TypeId {
 impl BaseTypeSafeId for TypeId {}
 
 impl TypeSafeId for SenderId {
-    fn unwrap(&self) -> IdType {
+    fn get(&self) -> IdType {
         self.0
     }
     fn new(val: IdType) -> SenderId {
@@ -69,11 +70,6 @@ impl TypeSafeId for SenderId {
     }
 }
 impl BaseTypeSafeId for SenderId {}
-/*
-impl<T> std::cmp::PartialEq for T where T: TypeSafeId {
-
-}
-*/
 
 /// Wrapper for an id associated with a handler.
 ///
@@ -107,44 +103,18 @@ pub struct HandlerParams {
     pub buffer: bytes::Bytes,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Version {
-    pub major: u8,
-    pub minor: u8,
-}
-
-impl Default for Version {
-    fn default() -> Version {
-        Version { major: 0, minor: 0 }
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+pub struct SenderName(pub &'static [u8]);
+impl From<SenderName> for Bytes {
+    fn from(val: SenderName) -> Bytes {
+        Bytes::from_static(val.0)
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-pub struct CookieData {
-    pub version: Version,
-    pub log_mode: Option<u8>,
-}
-
-impl Default for CookieData {
-    fn default() -> CookieData {
-        CookieData {
-            version: Default::default(),
-            log_mode: None,
-        }
-    }
-}
-
-impl From<Version> for CookieData {
-    fn from(version: Version) -> CookieData {
-        CookieData {
-            version,
-            ..Default::default()
-        }
-    }
-}
-
-impl From<CookieData> for Version {
-    fn from(data: CookieData) -> Version {
-        data.version
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+pub struct TypeName(pub &'static [u8]);
+impl From<TypeName> for Bytes {
+    fn from(val: TypeName) -> Bytes {
+        Bytes::from_static(val.0)
     }
 }

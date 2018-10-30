@@ -27,7 +27,8 @@ impl OutputBuf {
         let length = entry.name.len() + 1; // + 1 is for null-terminator.
         let mut buf = bytes::BytesMut::with_capacity(length);
         buf.put_u32_be(length as u32);
-        write!(buf, "{}\0", entry.name);
+        buf.put(&entry.name);
+        buf.put_u8(0);
         println!("{:?}", &buf);
         unimplemented!();
     }
@@ -56,8 +57,7 @@ impl Endpoint for EndpointIP {
         buffer: bytes::Bytes,
         class: ClassOfService,
     ) -> HandlerResult<()> {
-        /// @todo
-        Ok(())
+        unimplemented!();
     }
 
     fn local_type_id(&self, remote_type: RemoteId<TypeId>) -> Option<LocalId<TypeId>> {
@@ -72,11 +72,13 @@ impl Endpoint for EndpointIP {
             Err(_) => None,
         }
     }
-    fn new_local_sender(&mut self, name: &'static str, local_sender: LocalId<SenderId>) -> bool {
-        self.senders.add_local_id(name, local_sender)
+    
+    fn new_local_sender(&mut self, name: SenderName, local_sender: LocalId<SenderId>) -> bool {
+        self.senders.add_local_id(name.into(), local_sender)
     }
-    fn new_local_type(&mut self, name: &'static str, local_type: LocalId<TypeId>) -> bool {
-        self.types.add_local_id(name, local_type)
+
+    fn new_local_type(&mut self, name: TypeName, local_type: LocalId<TypeId>) -> bool {
+        self.types.add_local_id(name.into(), local_type)
     }
 
     fn pack_sender_description(&mut self, local_sender: LocalId<SenderId>) {

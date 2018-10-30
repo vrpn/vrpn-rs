@@ -112,16 +112,16 @@ impl<'a> MsgCallbackEntry<'a> {
 /// Stores a collection of callbacks with a name, associated with either a message type,
 /// or as a "global" handler mapping called for all message types.
 struct CallbackCollection<'a> {
-    name: String,
+    name: TypeName,
     callbacks: Vec<MsgCallbackEntry<'a>>,
     next_handle: HandlerInnerType,
 }
 
 impl<'a> CallbackCollection<'a> {
     /// Create CallbackCollection instance
-    fn new(name: String) -> CallbackCollection<'a> {
+    pub fn new(name: TypeName) -> CallbackCollection<'a> {
         CallbackCollection {
-            name: name,
+            name,
             callbacks: Vec::new(),
             next_handle: 0,
         }
@@ -166,15 +166,15 @@ impl<'a> CallbackCollection<'a> {
 pub struct TypeDispatcher<'a> {
     types: Vec<CallbackCollection<'a>>,
     generic_callbacks: CallbackCollection<'a>,
-    senders: Vec<String>,
+    senders: Vec<SenderName>,
     system_callbacks: Vec<Option<Box<HandlerFnMut>>>,
 }
 
 impl<'a> TypeDispatcher<'a> {
-    pub fn create() -> HandlerResult<TypeDispatcher<'a>> {
+    pub fn new() -> HandlerResult<TypeDispatcher<'a>> {
         let mut disp = TypeDispatcher {
             types: Vec::new(),
-            generic_callbacks: CallbackCollection::new(String::from("generic")),
+            generic_callbacks: CallbackCollection::new(constants::GENERIC),
             senders: Vec::new(),
             system_callbacks: Vec::new(),
         };
@@ -229,53 +229,52 @@ impl<'a> TypeDispatcher<'a> {
         }
     }
 
-    pub fn add_type(&mut self, name: &str) -> MappingResult<TypeId> {
+    pub fn add_type(&mut self, name: TypeName) -> MappingResult<TypeId> {
         if self.types.len() > MAX_VEC_USIZE {
             return Err(MappingError::TooManyMappings);
         }
-        self.types.push(CallbackCollection::new(String::from(name)));
+        self.types.push(CallbackCollection::new(name));
         Ok(TypeId((self.types.len() - 1) as IdType))
     }
 
-    pub fn add_sender(&mut self, name: &str) -> MappingResult<SenderId> {
+    pub fn add_sender(&mut self, name: SenderName) -> MappingResult<SenderId> {
         if self.senders.len() > (IdType::max_value() - 2) as usize {
             return Err(MappingError::TooManyMappings);
         }
-        self.senders.push(String::from(name));
+        self.senders.push(name);
         Ok(SenderId((self.senders.len() - 1) as IdType))
     }
 
     /// Returns the ID for the type name, if found.
-    pub fn get_type_id(&self, name: &str) -> Option<TypeId> {
+    pub fn get_type_id(&self, name: &TypeName) -> Option<TypeId> {
         self.types
             .iter()
-            .position(|ref x| x.name == name)
+            .position(|ref x| x.name == *name)
             .map(|i| TypeId(i as IdType))
     }
 
     /// Calls add_type if get_type_id() returns None.
     /// Returns the corresponding TypeId in all cases.
-    pub fn register_type(&mut self, name: &str) -> MappingResult<TypeId> {
-        match self.get_type_id(name) {
+    pub fn register_type(&mut self, name: TypeName) -> MappingResult<TypeId> {
+        match self.get_type_id(&name) {
             Some(i) => Ok(i),
             None => self.add_type(name),
         }
     }
 
     /// Calls add_sender if get_sender_id() returns None.
-    pub fn register_sender(&mut self, name: &str) -> MappingResult<SenderId> {
-        match self.get_sender_id(name) {
+    pub fn register_sender(&mut self, name: SenderName) -> MappingResult<SenderId> {
+        match self.get_sender_id(&name) {
             Some(i) => Ok(i),
             None => self.add_sender(name),
         }
     }
 
     /// Returns the ID for the sender name, if found.
-    pub fn get_sender_id(&self, name: &str) -> Option<SenderId> {
-        let name_string = String::from(name);
+    pub fn get_sender_id(&self, name: &SenderName) -> Option<SenderId> {
         self.senders
             .iter()
-            .position(|ref x| **x == name)
+            .position(|ref x| *x == name)
             .map(|i| SenderId(i as IdType))
     }
 
@@ -389,7 +388,7 @@ mod tests {
         };
         collection.call(&params);
         assert_eq!(val, 10);
-
+        
         collection
             .remove(handler)
             .expect("Can't remove added callback");
@@ -397,20 +396,20 @@ mod tests {
         val = 5;
         collection.call(&params);
         assert_eq!(val, 5);
-
+        
         let handler2 = collection
             .add(&mut sample_callback2, SomeId(SenderId(0)))
             .unwrap();
         val = 5;
         collection.call(&params);
         assert_eq!(val, 15);
-
+        
         // Check that later-registered callbacks get run later
         let handler = collection.add(&mut sample_callback, AnyId).unwrap();
         val = 5;
         collection.call(&params);
         assert_eq!(val, 10);
-
+        
         // This shouldn't trigger callback 2
         let params = HandlerParams {
             sender: SenderId(1),

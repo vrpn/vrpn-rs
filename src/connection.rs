@@ -3,11 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use endpoint_ip::EndpointIP;
-use typedispatcher::HandlerResult;
-use typedispatcher::MappingResult;
-use typedispatcher::TypeDispatcher;
+use typedispatcher::{HandlerResult, MappingResult};
 use types::*;
-extern crate bytes;
 
 #[derive(Debug, Clone)]
 pub struct LogFileNames {
@@ -63,8 +60,8 @@ pub trait Endpoint {
     fn local_type_id(&self, remote_type: RemoteId<TypeId>) -> Option<LocalId<TypeId>>;
     fn local_sender_id(&self, remote_sender: RemoteId<SenderId>) -> Option<LocalId<SenderId>>;
 
-    fn new_local_sender(&mut self, name: &'static str, local_sender: LocalId<SenderId>) -> bool;
-    fn new_local_type(&mut self, name: &'static str, local_type: LocalId<TypeId>) -> bool;
+    fn new_local_sender(&mut self, name: SenderName, local_sender: LocalId<SenderId>) -> bool;
+    fn new_local_type(&mut self, name: TypeName, local_type: LocalId<TypeId>) -> bool;
 
     fn pack_sender_description(&mut self, local_sender: LocalId<SenderId>);
     fn pack_type_description(&mut self, local_type: LocalId<TypeId>);
@@ -72,21 +69,24 @@ pub trait Endpoint {
 
 pub trait Connection {
     /*
-        disp.set_system_handler(constants::SENDER_DESCRIPTION, handle_sender_message);
-        disp.set_system_handler(constants::TYPE_DESCRIPTION, handle_type_message);
-        disp.set_system_handler(constants::DISCONNECT_MESSAGE, handle_disconnect_message);
-*/
-    fn add_type(&mut self, name: &str) -> MappingResult<TypeId>;
+            disp.set_system_handler(constants::SENDER_DESCRIPTION, handle_sender_message);
+            disp.set_system_handler(constants::TYPE_DESCRIPTION, handle_type_message);
+            disp.set_system_handler(constants::DISCONNECT_MESSAGE, handle_disconnect_message);
+    */
+    fn add_type(&mut self, name: TypeName) -> MappingResult<TypeId>;
 
-    fn add_sender(&mut self, name: &str) -> MappingResult<SenderId>;
+    fn add_sender(&mut self, name: SenderName) -> MappingResult<SenderId>;
 
     /// Returns the ID for the type name, if found.
-    fn get_type_id(&self, name: &str) -> Option<TypeId>;
+    fn get_type_id(&self, name: &TypeName) -> Option<TypeId>;
     /// Returns the ID for the sender name, if found.
-    fn get_sender_id(&self, name: &str) -> Option<SenderId>;
+    fn get_sender_id(&self, name: &SenderName) -> Option<SenderId>;
     fn call_on_each_mut_endpoint<'a, F: 'a + FnMut(&mut dyn Endpoint)>(&'a mut self, f: F);
     fn call_on_each_endpoint<'a, F: 'a + Fn(&dyn Endpoint)>(&self, f: F);
-
+    /*
+    fn endpoints_iter_mut<'a>(&'a mut self) -> impl Iterator<Item = &mut impl Endpoint>;
+    fn endpoints_iter<'a>(&'a mut self) -> impl Iterator<Item = &dyn Endpoint>;
+    */
     fn pack_sender_description(&mut self, sender: SenderId) {
         self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
             e.pack_sender_description(LocalId(sender))
@@ -99,27 +99,27 @@ pub trait Connection {
         })
     }
 
-    fn register_sender(&mut self, name: &'static str) -> MappingResult<SenderId> {
-        match self.get_sender_id(name) {
+    fn register_sender(&mut self, name: SenderName) -> MappingResult<SenderId> {
+        match self.get_sender_id(&name) {
             Some(id) => Ok(id),
             None => {
-                let sender = self.add_sender(name)?;
+                let sender = self.add_sender(name.clone())?;
                 self.pack_sender_description(sender);
                 self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
-                    e.new_local_sender(&name, LocalId(sender));
+                    e.new_local_sender(name.clone(), LocalId(sender));
                 });
                 Ok(sender)
             }
         }
     }
-    fn register_type(&mut self, name: &'static str) -> MappingResult<TypeId> {
-        match self.get_type_id(name) {
+    fn register_type(&mut self, name: TypeName) -> MappingResult<TypeId> {
+        match self.get_type_id(&name) {
             Some(id) => Ok(id),
             None => {
-                let message_type = self.add_type(name)?;
+                let message_type = self.add_type(name.clone())?;
                 self.pack_type_description(message_type);
                 self.call_on_each_mut_endpoint(|e: &mut dyn Endpoint| {
-                    e.new_local_type(&name, LocalId(message_type));
+                    e.new_local_type(name.clone(), LocalId(message_type));
                 });
                 Ok(message_type)
             }
