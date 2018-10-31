@@ -18,9 +18,14 @@ extern crate vrpn_base;
 
 pub mod buffer;
 pub mod cookie;
-pub mod nom_functions;
+pub mod nom_wrapper;
+pub mod prelude;
+pub mod primitives;
+pub mod size;
 pub mod time;
+pub mod unbuffer;
 
-pub use buffer::{
-    Buffer, BufferResult, BufferSize, Unbuffer, UnbufferCheckCapacity, UnbufferError,
-};
+pub use buffer::{Buffer, BufferSize};
+pub use nom_wrapper::call_nom_parser;
+pub use size::ConstantBufferSize;
+pub use unbuffer::{Unbuffer, UnbufferConstantSize};
