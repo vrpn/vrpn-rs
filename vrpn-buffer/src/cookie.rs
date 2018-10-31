@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use buffer::Buffer;
-use bytes::{Buf, BufMut, Bytes, IntoBuf};
+use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use nom_wrapper::call_nom_parser_constant_length;
 use size::ConstantBufferSize;
 use std::fmt::{self, Display, Formatter};
@@ -23,12 +23,8 @@ impl ConstantBufferSize for CookieData {
 
 impl Buffer for CookieData {
     fn buffer<T: BufMut>(buf: &mut T, v: CookieData) {
-        let s = format!("{}", v);
-        let padding = COOKIE_SIZE - s.len();
-        buf.put(s);
-        for _ in 0..padding {
-            buf.put_u8(0);
-        }
+        buf.put(v.to_string());
+        buf.put(COOKIE_PADDING);
     }
 }
 
@@ -50,18 +46,6 @@ named!(cookie<&[u8], CookieData>,
         tag!(COOKIE_PADDING) >>
         (CookieData{version: Version{major, minor}, log_mode: Some(mode)})
         ));
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn basics() {
-        use super::*;
-        assert_eq!(from_dec(b"1"), Ok(1_u8));
-        assert_eq!(from_dec(b"12"), Ok(12_u8));
-        assert_eq!(dec_digits_1(b"1"), Ok((&b""[..], 1_u8)));
-        assert_eq!(dec_digits_2(b"12"), Ok((&b""[..], 12_u8)));
-    }
-
-}
 
 impl Unbuffer for CookieData {
     fn unbuffer(buf: Bytes) -> Result<Output<Self>> {
@@ -72,10 +56,27 @@ impl Unbuffer for CookieData {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn magic_size() {
+        // Make sure the size is right.
+        let mut buf = Vec::new();
+        use super::{constants, Buffer, CookieData};
+        Buffer::buffer(&mut buf, CookieData::from(constants::MAGIC_DATA));
+        assert_eq!(buf.len(), constants::MAGICLEN);
+    }
+
+    #[test]
+    fn basics() {
+        use super::*;
+        assert_eq!(from_dec(b"1"), Ok(1_u8));
+        assert_eq!(from_dec(b"12"), Ok(12_u8));
+        assert_eq!(dec_digits_1(b"1"), Ok((&b""[..], 1_u8)));
+        assert_eq!(dec_digits_2(b"12"), Ok((&b""[..], 12_u8)));
+    }
+
+    #[test]
     fn parse_decimal() {
-        /*
         fn parse_decimal_u8(v: &'static [u8]) -> u8 {
-            super::parse_decimal_u8(::bytes::Bytes::from_static(v)).unwrap()
+            super::from_dec(v).unwrap()
         }
         assert_eq!(0_u8, parse_decimal_u8(b"0"));
         assert_eq!(0_u8, parse_decimal_u8(b"00"));
@@ -88,6 +89,5 @@ mod tests {
         assert_eq!(10_u8, parse_decimal_u8(b"010"));
         assert_eq!(10_u8, parse_decimal_u8(b"0010"));
         assert_eq!(10_u8, parse_decimal_u8(b"00010"));
-        */
     }
 }

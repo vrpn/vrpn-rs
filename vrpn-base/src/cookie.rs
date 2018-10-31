@@ -122,26 +122,19 @@ mod tests {
             "vrpn: ver. 04.00  0"
         );
     }
+
+    #[test]
+    fn magic_size() {
+        // Make sure the size is right.
+        assert_eq!(
+            super::constants::MAGIC_DATA.to_string().len(),
+            super::constants::MAGICLEN - super::constants::MAGIC_PREFIX.len()
+        );
+    }
+
     #[test]
     fn ver_compat() {
         assert!(super::check_ver_nonfile_compatible(super::constants::MAGIC_DATA).is_ok());
         assert!(super::check_ver_file_compatible(super::constants::FILE_MAGIC_DATA).is_ok());
-    }
-    #[test]
-    fn parse_decimal() {
-        fn parse_decimal_u8(v: &'static [u8]) -> u8 {
-            super::parse_decimal_u8(::bytes::Bytes::from_static(v)).unwrap()
-        }
-        assert_eq!(0_u8, parse_decimal_u8(b"0"));
-        assert_eq!(0_u8, parse_decimal_u8(b"00"));
-        assert_eq!(0_u8, parse_decimal_u8(b"000"));
-        assert_eq!(1_u8, parse_decimal_u8(b"1"));
-        assert_eq!(1_u8, parse_decimal_u8(b"01"));
-        assert_eq!(1_u8, parse_decimal_u8(b"001"));
-        assert_eq!(1_u8, parse_decimal_u8(b"0001"));
-        assert_eq!(10_u8, parse_decimal_u8(b"10"));
-        assert_eq!(10_u8, parse_decimal_u8(b"010"));
-        assert_eq!(10_u8, parse_decimal_u8(b"0010"));
-        assert_eq!(10_u8, parse_decimal_u8(b"00010"));
     }
 }

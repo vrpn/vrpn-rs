@@ -4,7 +4,7 @@
 
 use bytes::Bytes;
 use nom::{self, Err as NomError, IResult};
-use size::{BytesRequired, ConstantBufferSize};
+use size::BytesRequired;
 use unbuffer::{Error, Output, Result};
 
 fn bytes_required_exactly(v: nom::Needed) -> BytesRequired {

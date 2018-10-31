@@ -35,45 +35,6 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/*
-
-pub enum CapacityCheckOutcome {
-    Ok(Bytes),
-    NotEnoughData,
-    Err(Error),
-}
-
-impl CapacityCheckOutcome {
-    pub fn and_then_check<T: UnbufferCheckCapacity>(self) -> CapacityCheckOutcome {
-        use self::CapacityCheckOutcome::*;
-        match self {
-            Ok(buf) => T::check_capacity(buf),
-            NotEnoughData => NotEnoughData,
-            Err(e) => Err(e),
-        }
-    }
-}
-
-/// Trait for checking if a buffer contains a value of a type that can be "unbuffered" (parsed from a byte buffer)
-pub trait UnbufferCheckCapacity: Sized {
-    /// Checks if there is a full value stored here.
-    ///
-    /// Return CapacityCheckOutcome::Ok(buf) (where buf has been advanced) if there is,
-    /// Ok(None) if there isn't, and Err() if there was enough bytes but
-    /// it's invalid for some other reason.
-    ///
-    /// Not for direct usage.
-    fn check_capacity(buf: Bytes) -> CapacityCheckOutcome;
-
-    /// Returns the number of bytes required for this type in general.
-    ///
-    /// If size is variable, the default implementation will return BytesRequired::Unknown.
-    fn bytes_required() -> BytesRequired {
-        BytesRequired::Unknown
-    }
-}
-*/
-
 #[derive(Debug)]
 pub struct Output<T>(pub Bytes, pub T);
 
@@ -156,26 +117,6 @@ impl<T: UnbufferConstantSize> Unbuffer for T {
         }
     }
 }
-/*
-/// Check that the buffer begins with the expected string.
-pub fn check_expected(buf: &mut Bytes, expected: &'static [u8]) -> Result<()> {
-    let len = expected.len();
-    if buf.len() < len {
-        return Err(Error::BufferTooShort(BytesRequired::Constant(
-            buf.len() - len,
-        )));
-    }
-    let my_bytes = buf.split_to(len);
-    if my_bytes == expected {
-        Ok(())
-    } else {
-        Err(Error::UnexpectedAsciiData(
-            my_bytes,
-            Bytes::from_static(expected),
-        ))
-    }
-}
-*/
 
 pub trait AndThenMap<T> {
     fn and_then_map<U, F>(self, f: F) -> Result<Output<U>>
