@@ -1,3 +1,4 @@
+extern crate bytes;
 extern crate mio;
 extern crate socket2;
 extern crate tokio;
@@ -11,13 +12,14 @@ use tokio::io::AsyncRead;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 //use tokio::prelude::{Future, Sink, Stream};
-use vrpn::codec::{check_ver_nonfile_compatible, MagicCookie};
+use bytes::Bytes;
+use vrpn::cookie::{check_ver_nonfile_compatible, CookieData};
 use vrpn::translationtable::TranslationTable;
-use vrpn::types::{CookieData, LocalId, RemoteId, SenderId};
+use vrpn::types::{LocalId, RemoteId, SenderId};
 use vrpn::*;
 
 pub use tokio::codec::{Decoder, Encoder};
-
+/*
 fn make_tcp_socket(addr: std::net::SocketAddr) -> io::Result<std::net::TcpStream> {
     use socket2::*;
     let domain = if addr.is_ipv4() {
@@ -41,7 +43,29 @@ fn make_tcp_socket(addr: std::net::SocketAddr) -> io::Result<std::net::TcpStream
     sock.set_reuse_address(true)?;
     Ok(sock.into_tcp_stream())
 }
+#[macro_use]
+extern crate quick_error;
 
+quick_error! {
+#[derive(Debug)]
+pub enum ConnectError {
+    VersionError(err: cookie::VersionError) {
+        from()
+        display("version error: {}", err)
+        cause(err)
+    }
+    UnbufferError(err: buffer::UnbufferError) {
+        from()
+        display("unbuffer error: {}", err)
+        cause(err)
+    }
+    IoError(err: io::Error) {
+        from()
+        display("IO error: {}", err)
+        cause(err)
+    }
+}
+}
 pub fn connect_tcp(
     addr: std::net::SocketAddr,
 ) -> impl Future<Item = tokio::net::TcpStream, Error = io::Error> {
@@ -60,7 +84,7 @@ pub fn connect_tcp(
             .and_then(|s| {
                 s.into_future()
                     .then(
-                        |result| -> std::result::Result<tokio::net::TcpStream, codec::CodecError> {
+                        |result| -> std::result::Result<tokio::net::TcpStream, ConnectError> {
                             println!("read; {:?}", result);
                             match result {
                                 Ok((Some(data), _)) => {
@@ -87,10 +111,12 @@ fn main() {
     let mut table: TranslationTable<SenderId> = TranslationTable::new();
     table
         .add_remote_entry(
-            SenderName(b"asdf"),
+            Bytes::from_static(b"asdf"),
             RemoteId(SenderId(0)),
             LocalId(SenderId(0)),
         ).expect("Failed adding remote entry");
     let mut conn = ConnectionIP::new_client(None, None);
     println!("Hello, world!");
 }
+
+*/

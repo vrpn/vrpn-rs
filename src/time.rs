@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use buffer::{check_remaining, Buffer, BufferResult, ConstantBufferSize, Unbuffer};
-use bytes::{Buf, BufMut};
+use buffer::{Buffer, BufferResult, ConstantBufferSize, Unbuffer};
+use bytes::{Buf, BufMut, Bytes};
 use libc::timeval;
 use std::mem::size_of;
 
@@ -56,11 +56,13 @@ impl From<timeval> for TimeVal {
         Self::new(Seconds(v.tv_sec as i32), Microseconds(v.tv_usec as i32))
     }
 }
+
 impl ConstantBufferSize for Seconds {
     fn buffer_size() -> usize {
         size_of::<Self>()
     }
 }
+
 impl Buffer for Seconds {
     fn buffer<T: BufMut>(buf: &mut T, v: Self) {
         Buffer::buffer(buf, v.0)
@@ -68,8 +70,8 @@ impl Buffer for Seconds {
 }
 
 impl Unbuffer for Seconds {
-    fn unbuffer<T: Buf>(buf: &mut T) -> BufferResult<Self> {
-        let v = Unbuffer::unbuffer(buf)?;
+    fn do_unbuffer(buf: &mut Bytes) -> BufferResult<Self> {
+        let v = Unbuffer::do_unbuffer(buf)?;
         Ok(Seconds(v))
     }
 }
@@ -87,8 +89,8 @@ impl Buffer for Microseconds {
 }
 
 impl Unbuffer for Microseconds {
-    fn unbuffer<T: Buf>(buf: &mut T) -> BufferResult<Self> {
-        let v: i32 = Unbuffer::unbuffer(buf)?;
+    fn do_unbuffer(buf: &mut Bytes) -> BufferResult<Self>  {
+        let v: i32 = Unbuffer::do_unbuffer(buf)?;
         Ok(Microseconds(v))
     }
 }
@@ -107,10 +109,9 @@ impl Buffer for TimeVal {
 }
 
 impl Unbuffer for TimeVal {
-    fn unbuffer<T: Buf>(buf: &mut T) -> BufferResult<Self> {
-        check_remaining(buf, Self::buffer_size())?;
-        let sec = Unbuffer::unbuffer(buf)?;
-        let usec = Unbuffer::unbuffer(buf)?;
+    fn do_unbuffer(buf: &mut Bytes) -> BufferResult<Self> {
+        let sec = Unbuffer::do_unbuffer(buf)?;
+        let usec = Unbuffer::do_unbuffer(buf)?;
         Ok(TimeVal::new(sec, usec))
     }
 }

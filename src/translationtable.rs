@@ -142,7 +142,10 @@ mod test {
         use types::{RemoteId, SenderId, SenderName};
         let mut table: TranslationTable<SenderId> = TranslationTable::new();
         table
-            .add_remote_entry(b"asdf", RemoteId(SenderId(0)), LocalId(SenderId(0)))
-            .expect("Failed adding remote entry");
+            .add_remote_entry(
+                Bytes::from_static(b"asdf"),
+                RemoteId(SenderId(0)),
+                LocalId(SenderId(0)),
+            ).expect("Failed adding remote entry");
     }
 }
