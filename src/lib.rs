@@ -12,6 +12,9 @@ extern crate itertools;
 extern crate libc;
 
 #[macro_use]
+extern crate nom;
+
+#[macro_use]
 extern crate quick_error;
 
 #[macro_use]
@@ -23,6 +26,7 @@ pub mod connection_ip;
 pub mod constants;
 pub mod cookie;
 pub mod endpoint_ip;
+pub mod nom_functions;
 pub mod time;
 pub mod translationtable;
 pub mod typedispatcher;
