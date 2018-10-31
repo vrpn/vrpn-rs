@@ -5,43 +5,27 @@
 use buffer::Buffer;
 use bytes::{BufMut, Bytes};
 use size::ConstantBufferSize;
-use std::mem::size_of;
-use unbuffer::{Output, Result, Unbuffer, UnbufferConstantSize};
+use unbuffer::{Output, Result, Unbuffer};
 use vrpn_base::time::{Microseconds, Seconds, TimeVal};
+use wrapped::WrappedConstantSize;
 
-impl ConstantBufferSize for Seconds {
-    fn constant_buffer_size() -> usize {
-        size_of::<Self>()
+impl WrappedConstantSize for Seconds {
+    type WrappedType = i32;
+    fn get(self) -> Self::WrappedType {
+        self.0
+    }
+    fn create(v: Self::WrappedType) -> Self {
+        Seconds(v)
     }
 }
 
-impl Buffer for Seconds {
-    fn buffer<T: BufMut>(buf: &mut T, v: Self) {
-        Buffer::buffer(buf, v.0)
+impl WrappedConstantSize for Microseconds {
+    type WrappedType = i32;
+    fn get(self) -> Self::WrappedType {
+        self.0
     }
-}
-
-impl UnbufferConstantSize for Seconds {
-    fn unbuffer_constant_size(buf: Bytes) -> Result<Self> {
-        i32::unbuffer_constant_size(buf).map(|v| Seconds(v))
-    }
-}
-
-impl ConstantBufferSize for Microseconds {
-    fn constant_buffer_size() -> usize {
-        size_of::<Self>()
-    }
-}
-
-impl Buffer for Microseconds {
-    fn buffer<T: BufMut>(buf: &mut T, v: Self) {
-        Buffer::buffer(buf, v.0)
-    }
-}
-
-impl UnbufferConstantSize for Microseconds {
-    fn unbuffer_constant_size(buf: Bytes) -> Result<Self> {
-        i32::unbuffer_constant_size(buf).map(|v| Microseconds(v))
+    fn create(v: Self::WrappedType) -> Self {
+        Microseconds(v)
     }
 }
 

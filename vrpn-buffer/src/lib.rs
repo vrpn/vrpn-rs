@@ -24,6 +24,7 @@ pub mod primitives;
 pub mod size;
 pub mod time;
 pub mod unbuffer;
+pub mod wrapped;
 
 pub use buffer::{Buffer, BufferSize};
 pub use nom_wrapper::call_nom_parser;

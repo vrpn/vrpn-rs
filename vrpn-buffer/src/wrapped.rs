@@ -3,17 +3,18 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use buffer::Buffer;
+use bytes::{BufMut, Bytes};
 use size::ConstantBufferSize;
-use unbuffer::{Unbuffer, UnbufferConstantSize};
+use unbuffer::{Result, UnbufferConstantSize};
 
 pub trait WrappedConstantSize {
-    type WrappedType: Buffer + Unbuffer + ConstantBufferSize;
-    fn get(self) -> WrappedType;
-    fn create(v: WrappedType) -> Self;
+    type WrappedType: Buffer + UnbufferConstantSize + ConstantBufferSize;
+    fn get(self) -> Self::WrappedType;
+    fn create(v: Self::WrappedType) -> Self;
 }
 
 impl<T: WrappedConstantSize> Buffer for T {
-    fn buffer<T: BufMut>(buf: &mut T, v: Self) {
+    fn buffer<U: BufMut>(buf: &mut U, v: Self) {
         Buffer::buffer(buf, v.get())
     }
 }
