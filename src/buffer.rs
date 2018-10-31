@@ -132,7 +132,7 @@ pub trait Unbuffer: Sized + UnbufferCheckCapacity {
     /// Returns Ok(None) (and does not advance buf) if not enough data.
     fn unbuffer(buf: &mut Bytes) -> BufferResult<Option<Self>> {
         // Shallow copy
-        let mut capacity_check_buf = buf.clone();
+        let capacity_check_buf = buf.clone();
         match Self::check_capacity(capacity_check_buf) {
             CapacityCheckOutcome::NotEnoughData => Ok(None),
             CapacityCheckOutcome::Err(e) => Err(e),
