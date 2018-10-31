@@ -1,0 +1,10 @@
+[package]
+name = "vrpn-connection"
+version = "0.1.0"
+authors = ["Ryan Pavlik <ryan.pavlik@collabora.com>"]
+license = "BSL-1.0"
+
+[dependencies]
+bytes = "^0.4.10"
+vrpn-base = { version = "0.1.0", path = "../vrpn-base" }
+vrpn-buffer = { version = "0.1.0", path = "../vrpn-buffer" }

@@ -3,59 +3,9 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use buffer::{Buffer, BufferResult, ConstantBufferSize, Unbuffer};
-use bytes::{Buf, BufMut, Bytes};
-use libc::timeval;
+use bytes::{BufMut, Bytes};
 use std::mem::size_of;
-
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct Seconds(i32);
-
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct Microseconds(i32);
-
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct TimeVal {
-    sec: Seconds,
-    usec: Microseconds,
-}
-
-impl TimeVal {
-    /// Constructor from components.
-    /// TODO normalize
-    pub fn new(sec: Seconds, usec: Microseconds) -> Self {
-        Self { sec, usec }
-    }
-
-    /// Get the seconds part
-    pub fn seconds(&self) -> Seconds {
-        self.sec
-    }
-
-    /// Get the microseconds part
-    pub fn microseconds(&self) -> Microseconds {
-        self.usec
-    }
-
-    /// Get a libc timeval
-    pub fn as_timeval(&self) -> timeval {
-        timeval {
-            tv_sec: self.sec.0 as i64,
-            tv_usec: self.usec.0 as i64,
-        }
-    }
-}
-
-impl Default for TimeVal {
-    fn default() -> Self {
-        Self::new(Seconds(0), Microseconds(0))
-    }
-}
-
-impl From<timeval> for TimeVal {
-    fn from(v: timeval) -> Self {
-        Self::new(Seconds(v.tv_sec as i32), Microseconds(v.tv_usec as i32))
-    }
-}
+use vrpn_base::time::{Microseconds, Seconds, TimeVal};
 
 impl ConstantBufferSize for Seconds {
     fn buffer_size() -> usize {
@@ -89,7 +39,7 @@ impl Buffer for Microseconds {
 }
 
 impl Unbuffer for Microseconds {
-    fn do_unbuffer(buf: &mut Bytes) -> BufferResult<Self>  {
+    fn do_unbuffer(buf: &mut Bytes) -> BufferResult<Self> {
         let v: i32 = Unbuffer::do_unbuffer(buf)?;
         Ok(Microseconds(v))
     }

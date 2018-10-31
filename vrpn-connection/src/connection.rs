@@ -2,20 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use endpoint_ip::EndpointIP;
 use typedispatcher::{HandlerResult, MappingResult};
-use types::*;
+use vrpn_base::types::*;
 
 #[derive(Debug, Clone)]
 pub struct LogFileNames {
     pub in_log_file: Option<String>,
     pub out_log_file: Option<String>,
-}
-
-pub trait EndpointAllocator {
-    fn allocate(&self) -> Option<Box<EndpointIP>> {
-        None
-    }
 }
 
 pub fn make_none_log_names() -> LogFileNames {
@@ -24,6 +17,7 @@ pub fn make_none_log_names() -> LogFileNames {
         in_log_file: None,
     }
 }
+
 fn make_log_name(name: Option<String>) -> Option<String> {
     match name {
         None => None,

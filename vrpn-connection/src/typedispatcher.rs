@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use constants;
 use std::error;
 use std::fmt;
-use types;
-use types::*;
+use vrpn_base::constants;
+use vrpn_base::types;
+use vrpn_base::types::*;
 
 #[derive(Debug, Clone)]
 pub enum MappingError {

@@ -5,7 +5,7 @@
 use bytes::Bytes;
 use std::error;
 use std::fmt;
-use types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId};
+use vrpn_base::types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId};
 
 #[derive(Debug, Clone)]
 pub enum TranslationTableError {
@@ -135,17 +135,18 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     #[test]
     fn simple() {
         use super::*;
-        use types::{RemoteId, SenderId, SenderName};
+        use vrpn_base::types::{RemoteId, SenderId};
         let mut table: TranslationTable<SenderId> = TranslationTable::new();
         table
             .add_remote_entry(
                 Bytes::from_static(b"asdf"),
                 RemoteId(SenderId(0)),
                 LocalId(SenderId(0)),
-            ).expect("Failed adding remote entry");
+            )
+            .expect("Failed adding remote entry");
     }
 }

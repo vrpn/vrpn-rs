@@ -4,79 +4,10 @@
 
 use buffer::{check_expected, Buffer, BufferResult, ConstantBufferSize, Unbuffer, UnbufferError};
 use bytes::{Buf, BufMut, Bytes, IntoBuf};
-use constants::{self, COOKIE_SIZE, MAGIC_PREFIX};
-use std::fmt;
-use std::fmt::{Display, Formatter};
+use std::fmt::{self, Display, Formatter};
 use std::result;
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Version {
-    pub major: u8,
-    pub minor: u8,
-}
-impl Version {
-    pub fn new() -> Self {
-        Self { major: 0, minor: 0 }
-    }
-}
-impl Default for Version {
-    fn default() -> Version {
-        Version::new()
-    }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct CookieData {
-    pub version: Version,
-    pub log_mode: Option<u8>,
-}
-
-impl CookieData {
-    pub fn new() -> Self {
-        Self {
-            version: Version::default(),
-            log_mode: None,
-        }
-    }
-}
-impl Default for CookieData {
-    fn default() -> CookieData {
-        CookieData::new()
-    }
-}
-
-impl From<Version> for CookieData {
-    fn from(version: Version) -> CookieData {
-        CookieData {
-            version,
-            ..CookieData::default()
-        }
-    }
-}
-
-impl From<CookieData> for Version {
-    fn from(data: CookieData) -> Version {
-        data.version
-    }
-}
-
-impl Display for Version {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{:02}.{:02}", self.major, self.minor)
-    }
-}
-
-impl Display for CookieData {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}{}  {}",
-            String::from_utf8_lossy(&MAGIC_PREFIX[..]),
-            self.version,
-            self.log_mode.unwrap_or(0)
-        )
-    }
-}
+use vrpn_base::constants::{self, COOKIE_SIZE, MAGIC_PREFIX};
+use vrpn_base::cookie::{CookieData, Version};
 
 impl ConstantBufferSize for CookieData {
     fn buffer_size() -> usize {
@@ -108,7 +39,8 @@ fn parse_decimal_u8<T: IntoBuf>(buf: T) -> BufferResult<u8> {
             } else {
                 None
             }
-        }).collect();
+        })
+        .collect();
     if nondigits.len() != 0 {
         return Err(UnbufferError::InvalidDecimalDigit(nondigits.into()));
     }

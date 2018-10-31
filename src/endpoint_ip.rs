@@ -2,14 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use connection::Endpoint;
-use constants;
-use translationtable::TranslationTable;
-use typedispatcher::HandlerResult;
-use types::*;
-extern crate bytes;
-use bytes::{BufMut, Bytes, BytesMut};
-use std::fmt::Write;
+use vrpn_base::{constants, types::*};
+use vrpn_connection::{
+    connection::Endpoint, translationtable::TranslationTable, typedispatcher::HandlerResult,
+};
+
+use bytes::{BufMut, BytesMut};
 
 struct OutputBuf {}
 impl OutputBuf {

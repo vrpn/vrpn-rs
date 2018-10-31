@@ -6,12 +6,18 @@ license = "BSL-1.0"
 
 [dependencies]
 bytes = "^0.4.10"
-bitmask = "^0.4.0"
-tokio = "^0.1.11"
-futures = "^0.1.25"
-quick-error = "^1.2.2"
-socket2 = "^0.3.8"
-mio = "^0.6.16"
-libc = "^0.2"
-itertools = "^0.7"
-nom = "^4.1"
+mio = "0.6.16"
+tokio = "0.1.11"
+socket2 = "0.3.8"
+futures = "0.1.25"
+vrpn-base = { version = "0.1.0", path = "vrpn-base" }
+vrpn-buffer = { version = "0.1.0", path = "vrpn-buffer" }
+vrpn-connection = { version = "0.1.0", path = "vrpn-connection" }
+
+[workspace]
+members = [
+    "./",
+    "vrpn-base",
+    "vrpn-buffer",
+    "vrpn-connection",
+]

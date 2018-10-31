@@ -4,11 +4,8 @@
 
 use bytes::{Buf, BufMut, Bytes, IntoBuf};
 use itertools::join;
-use itertools::Itertools;
-use libc::timeval;
-use std::mem::size_of;
-use std::num::ParseIntError;
-use std::ops::Add;
+use std::{mem::size_of, num::ParseIntError, ops::Add};
+use nom;
 
 quick_error!{
 #[derive(Debug)]
@@ -30,6 +27,10 @@ pub enum UnbufferError {
         description(err.description())
         display("{}", err)
         from()
+    }
+    ParseError(msg: String) {
+        description(msg)
+        from(err: nom::Err<&[u8]>) -> (err.to_string())
     }
 }
 }
@@ -137,11 +138,11 @@ pub trait Unbuffer: Sized + UnbufferCheckCapacity {
             CapacityCheckOutcome::NotEnoughData => Ok(None),
             CapacityCheckOutcome::Err(e) => Err(e),
             CapacityCheckOutcome::Ok(_) => Self::do_unbuffer(buf).map(|x| Some(x)), /*{
-                match Self::do_unbuffer(buf) {
-                    Ok(x) => Ok(Some(x)),
-                    Err(e) => Err(e),
-                }
-            }*/
+                                                                                        match Self::do_unbuffer(buf) {
+                                                                                            Ok(x) => Ok(Some(x)),
+                                                                                            Err(e) => Err(e),
+                                                                                        }
+                                                                                    }*/
         }
     }
 }
@@ -204,61 +205,6 @@ buffer_primitive!(i64, put_i64_be, get_i64_be);
 buffer_primitive!(u64, put_u64_be, get_u64_be);
 buffer_primitive!(f32, put_f32_be, get_f32_be);
 buffer_primitive!(f64, put_f64_be, get_f64_be);
-/*
-impl Buffer for timeval {
-    fn buffer<T: BufMut>(buf: &mut T, v: timeval) {
-        buf.put_i32_be(v.tv_sec as i32);
-        buf.put_i32_be(v.tv_usec as i32);
-    }
-}
-
-impl Unbuffer for timeval {
-    fn unbuffer<T: Buf>(buf: &mut T) -> BufferResult<timeval> {
-        check_remaining(buf, 2 * size_of::<u32>())?;
-        let sec = buf.get_i32_be();
-        let usec = buf.get_i32_be();
-        Ok(timeval {
-            tv_sec: sec as i64,
-            tv_usec: usec as i64,
-        })
-    }
-}
-*/
-
-/// Consume all remaining bytes in a buffer, parsing them as an ASCII decimal.
-/*
-pub(crate) fn decode_decimal<T: std::ops::MulAssign + std::ops::AddAssign, U: Buf>(
-    buf: U,
-) -> BufferResult<T> {
-    let mut val = T::from(0);
-    while buf.has_remaining() {
-        let c = buf.get_u8();
-        buf.advance(1);
-        if c < ('0' as u8) || c > ('9' as u8) {
-            return Err(UnbufferError::InvalidDecimalDigit(c));
-        }
-        val *= 10;
-        val += c - ('0' as u8);
-    }
-    Ok(val)
-}
-*/
-
-/// Consume as many bytes as the expected byte string contains, and error if they don't match.
-/*
-pub fn check_expected<T: Buf>(buf: &mut T, expected: &'static [u8]) -> BufferResult<()> {
-    let len = expected.len();
-    check_remaining(buf, len)?;
-    let take = buf.take(len);
-    if take.bytes() == expected {
-        return Ok(());
-    }
-    Err(UnbufferError::UnexpectedAsciiData(
-        take.collect(),
-        Bytes::from_static(expected),
-    ))
-}
-*/
 
 pub fn check_expected(buf: &mut Bytes, expected: &'static [u8]) -> BufferResult<()> {
     let len = expected.len();

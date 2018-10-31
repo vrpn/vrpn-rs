@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use constants::MAGIC_PREFIX;
-use cookie::{CookieData, Version};
+use vrpn_base::constants::MAGIC_PREFIX;
+use vrpn_base::cookie::{CookieData, Version};
 
 fn from_dec<'a>(input: &'a [u8]) -> Result<u8, std::num::ParseIntError> {
     u8::from_str_radix(&String::from_utf8_lossy(input), 10)

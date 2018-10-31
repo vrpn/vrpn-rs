@@ -13,10 +13,14 @@ use tokio::net::TcpStream;
 use tokio::prelude::*;
 //use tokio::prelude::{Future, Sink, Stream};
 use bytes::Bytes;
-use vrpn::cookie::{check_ver_nonfile_compatible, CookieData};
-use vrpn::translationtable::TranslationTable;
-use vrpn::types::{LocalId, RemoteId, SenderId};
-use vrpn::*;
+use vrpn::{
+    base::{
+        cookie::{check_ver_nonfile_compatible, CookieData},
+        types::{LocalId, RemoteId, SenderId},
+    },
+    connection::translationtable::TranslationTable,
+    *,
+};
 
 pub use tokio::codec::{Decoder, Encoder};
 /*

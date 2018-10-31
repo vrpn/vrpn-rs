@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use connection;
-use connection::Endpoint;
-use connection::LogFileNames;
-
 use endpoint_ip::EndpointIP;
-use typedispatcher::{HandlerResult, MappingResult, TypeDispatcher};
-use types::{HandlerParams, SenderId, SenderName, TypeId, TypeName};
+use vrpn_base::types::{HandlerParams, SenderId, SenderName, TypeId, TypeName};
+use vrpn_connection::{
+    connection::{self, make_log_names, make_none_log_names, LogFileNames},
+    typedispatcher::{HandlerResult, MappingResult, TypeDispatcher},
+};
 
 pub struct ConnectionIP {
     dispatcher: TypeDispatcher<'static>,
@@ -33,8 +32,8 @@ impl ConnectionIP {
         let disp = TypeDispatcher::new()?;
         let mut ret = ConnectionIP {
             dispatcher: disp,
-            remote_log_names: connection::make_none_log_names(),
-            local_log_names: connection::make_log_names(local_log_names),
+            remote_log_names: make_none_log_names(),
+            local_log_names: make_log_names(local_log_names),
             endpoints: Vec::new(),
         };
         ret.init()?;
@@ -49,8 +48,8 @@ impl ConnectionIP {
         let disp = TypeDispatcher::new()?;
         let mut ret = ConnectionIP {
             dispatcher: disp,
-            remote_log_names: connection::make_log_names(remote_log_names),
-            local_log_names: connection::make_log_names(local_log_names),
+            remote_log_names: make_log_names(remote_log_names),
+            local_log_names: make_log_names(local_log_names),
             endpoints: Vec::new(),
         };
         // Create our single endpoint
