@@ -17,6 +17,7 @@ extern crate quick_error;
 extern crate vrpn_base;
 
 pub mod cookie;
+pub mod message;
 pub mod nom_wrapper;
 pub mod prelude;
 pub mod primitives;
