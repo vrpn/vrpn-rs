@@ -23,47 +23,96 @@ fn bytes_required_at_least(v: nom::Needed) -> BytesRequired {
     }
 }
 
-fn call_nom_parser_impl<'a, T, F, G>(
-    buf: &'a Bytes,
-    f: F,
-    make_bytes_required: G,
-) -> Result<Output<T>>
+fn update_buf_for_consumed_bytes(buf: &mut Bytes, remaining: &[u8]) {
+    let consumed = buf.len() - remaining.len();
+    buf.advance(consumed);
+}
+
+fn update_buf_from_remaining_bytes(buf: &mut Bytes, subset: Bytes) {
+    let bytes_p = buf.as_ptr() as usize;
+    let bytes_len = buf.len();
+
+    let sub_p = subset.as_ptr() as usize;
+    let sub_len = subset.len();
+    assert!(sub_p >= bytes_p, "subset begins before the buffer");
+    assert!(
+        sub_p + sub_len == bytes_p + bytes_len,
+        "subset doesn't end at the same point as the buffer"
+    );
+    let consumed = bytes_len - sub_len;
+    buf.advance(consumed);
+}
+struct NomParser<'a, T> {
+    buf: &'a mut Bytes,
+    phantom: std::marker::PhantomData<T>,
+}
+impl<'a, T> NomParser<'a, T> {
+    fn call<F, G>(buf: &'a mut Bytes, f: F, make_bytes_required: G) -> Result<Output<T>>
+    where
+        F: FnOnce(&[u8]) -> IResult<&[u8], T>,
+        G: FnOnce(nom::Needed) -> BytesRequired,
+    {
+        let (Output(data), consumed) = NomParser {
+            buf,
+            phantom: Default::default(),
+        }
+        .do_call(f, make_bytes_required)?;
+
+        buf.advance(consumed);
+        Ok(Output(data))
+    }
+    fn do_call<F, G>(self, f: F, make_bytes_required: G) -> Result<(Output<T>, usize)>
+    where
+        F: FnOnce(&[u8]) -> IResult<&[u8], T>,
+        G: FnOnce(nom::Needed) -> BytesRequired,
+    {
+        match f(self.buf) {
+            Ok((remaining, data)) => Ok((Output(data), self.buf.len() - remaining.len())),
+            Err(NomError::Incomplete(n)) => Err(Error::NeedMoreData(make_bytes_required(n))),
+            Err(e) => Err(Error::ParseError(e.to_string())),
+        }
+    }
+}
+fn call_nom_parser_impl<T, F, G>(buf: &mut Bytes, f: F, make_bytes_required: G) -> Result<Output<T>>
 where
     T: Sized,
-    F: FnOnce(&'a [u8]) -> IResult<&'a [u8], T>,
+    for<'a> F: FnOnce(&'a [u8]) -> IResult<&'a [u8], T>,
     G: FnOnce(nom::Needed) -> BytesRequired,
 {
-    // shallow copy
-    let buf_copy = buf.clone();
-    match f(buf) {
-        Ok((remaining, data)) => Ok(Output::from_slice(buf, remaining, data)),
-        Err(NomError::Incomplete(n)) => {
-            Err(Error::NeedMoreData(make_bytes_required(n), buf.clone()))
+    let my_buf = buf.clone();
+    match f(&my_buf) {
+        Ok((remaining, data)) => {
+            let consumed = buf.len() - remaining.len();
+            buf.advance(consumed);
+
+            Ok(Output(data))
         }
-        Err(e) => Err(From::from(e)),
+        Err(NomError::Incomplete(n)) => Err(Error::NeedMoreData(make_bytes_required(n))),
+        Err(e) => Err(Error::ParseError(e.to_string())),
     }
 }
 
-pub fn call_nom_parser<'a, T, F>(buf: &'a Bytes, f: F) -> Result<Output<T>>
+pub fn call_nom_parser<T, F>(buf: &mut Bytes, f: F) -> Result<Output<T>>
 where
     T: Sized,
-    F: FnOnce(&'a [u8]) -> IResult<&'a [u8], T>,
+    for<'a> F: FnOnce(&'a [u8]) -> IResult<&'a [u8], T>,
 {
     call_nom_parser_impl(buf, f, bytes_required_at_least)
 }
 
-pub fn call_nom_parser_constant_length<'a, T, F>(buf: &'a Bytes, f: F) -> Result<Output<T>>
+pub fn call_nom_parser_constant_length<T, F>(buf: &mut Bytes, f: F) -> Result<Output<T>>
 where
     T: Sized,
-    F: FnOnce(&'a [u8]) -> IResult<&'a [u8], T>,
+    for<'a> F: FnOnce(&'a [u8]) -> IResult<&'a [u8], T>,
 {
     call_nom_parser_impl(buf, f, bytes_required_exactly)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::call_nom_parser;
+    use super::{call_nom_parser, Error, Output, Result};
     use bytes::Bytes;
+    use bytes::IntoBuf;
     const ab: &[u8] = b"ab";
     const abc: &[u8] = b"abc";
     const def: &[u8] = b"def";
@@ -82,9 +131,17 @@ mod tests {
 
     #[test]
     fn call_parser() {
-        let buf = Bytes::from_static(abcdef);
-        let output = call_nom_parser(&buf, findabc).unwrap();
-        assert_eq!(output.remaining(), def);
+        let mut buf = Bytes::from_static(abcdef);
+        let output = call_nom_parser(&mut buf, findabc).unwrap();
+        assert_eq!(buf, def);
+        assert_eq!(output.borrow_data(), &abc);
+    }
+
+    #[test]
+    fn run_parser() {
+        let mut buf = Bytes::from_static(abcdef);
+        let output = call_nom_parser(&mut buf, findabc).unwrap();
+        assert_eq!(buf, def);
         assert_eq!(output.borrow_data(), &abc);
     }
 }

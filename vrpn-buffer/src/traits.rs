@@ -43,13 +43,12 @@ pub mod unbuffer {
     use super::{BytesRequired, ConstantBufferSize, WrappedConstantSize};
     use bytes::Bytes;
     use itertools;
-    use nom;
     use std::num::ParseIntError;
 
     quick_error!{
     #[derive(Debug)]
     pub enum Error {
-        NeedMoreData(needed: BytesRequired, buf: Bytes) {
+        NeedMoreData(needed: BytesRequired) {
             display("ran out of buffered bytes: need {}", needed)
         }
         InvalidDecimalDigit(chars: Vec<char>) {
@@ -66,7 +65,6 @@ pub mod unbuffer {
         }
         ParseError(msg: String) {
             description(msg)
-            from(err: nom::Err<&[u8]>) -> (err.to_string())
         }
     }
     }
@@ -74,33 +72,22 @@ pub mod unbuffer {
     pub type Result<T> = std::result::Result<T, Error>;
 
     #[derive(Debug)]
-    pub struct Output<T>(pub Bytes, pub T);
+    pub struct Output<T>(pub T);
 
     impl<T> Output<T> {
-        pub fn new(remaining: Bytes, data: T) -> Output<T> {
-            Output(remaining, data)
+        pub fn new(data: T) -> Output<T> {
+            Output(data)
         }
-        pub fn from_slice(containing_buf: &Bytes, remaining: &[u8], data: T) -> Output<T> {
-            Self::new(containing_buf.slice_ref(remaining), data)
-        }
-        pub fn to_child_remaining(&self, remaining: &[u8], data: T) -> Output<T> {
-            Output::from_slice(&self.0, remaining, data)
-        }
-
-        pub fn remaining(&self) -> Bytes {
-            self.0.clone()
-        }
-
         pub fn data(self) -> T {
-            self.1
+            self.0
         }
 
         pub fn borrow_data<'a>(&'a self) -> &'a T {
-            &self.1
+            &self.0
         }
 
         pub fn borrow_data_mut<'a>(&'a mut self) -> &'a mut T {
-            &mut self.1
+            &mut self.0
         }
 
         pub fn map<U, F>(self, f: F) -> Output<U>
@@ -108,7 +95,7 @@ pub mod unbuffer {
             U: Sized,
             F: FnOnce(T) -> U,
         {
-            Output::new(self.0, f(self.1))
+            Output::new(f(self.0))
         }
     }
 
@@ -117,7 +104,7 @@ pub mod unbuffer {
         T: Default,
     {
         fn default() -> Output<T> {
-            Output(Bytes::default(), T::default())
+            Output(T::default())
         }
     }
 
@@ -126,7 +113,7 @@ pub mod unbuffer {
         /// Tries to unbuffer.
         ///
         /// Returns Ok(None) if not enough data.
-        fn unbuffer(buf: Bytes) -> Result<Output<Self>>;
+        fn unbuffer(buf: &mut Bytes) -> Result<Output<Self>>;
     }
 
     /// Implementation trait for constant-buffer-size types,
@@ -138,18 +125,14 @@ pub mod unbuffer {
 
     /// Blanket impl for types ipmlementing UnbufferConstantSize.
     impl<T: UnbufferConstantSize> Unbuffer for T {
-        fn unbuffer(buf: Bytes) -> Result<Output<Self>> {
+        fn unbuffer(buf: &mut Bytes) -> Result<Output<Self>> {
             let len = Self::constant_buffer_size();
             if buf.len() < len {
-                Err(Error::NeedMoreData(
-                    BytesRequired::Exactly(buf.len() - len),
-                    buf,
-                ))
+                Err(Error::NeedMoreData(BytesRequired::Exactly(buf.len() - len)))
             } else {
-                let mut remaining = buf.clone();
-                let my_buf = remaining.split_to(len);
+                let my_buf = buf.split_to(len);
                 match Self::unbuffer_constant_size(my_buf) {
-                    Ok(v) => Ok(Output::new(remaining, v)),
+                    Ok(v) => Ok(Output::new(v)),
                     Err(e) => Err(e),
                 }
             }
@@ -177,23 +160,21 @@ pub mod unbuffer {
         fn map_exactly_err_to_at_least(self) -> Self;
     }
 
+    #[deprecated]
     impl<T> OutputResultExtras<T> for Result<Output<T>> {
         fn and_then_map<U, F>(self, f: F) -> Result<Output<U>>
         where
             U: Sized,
             F: FnOnce(T) -> U,
         {
-            match self {
-                Ok(Output(remaining, v)) => Ok(Output(remaining, f(v))),
-                Err(e) => Err(e),
-            }
+            self.map(|Output(v)| Output(f(v)))
         }
 
         fn map_exactly_err_to_at_least(self) -> Self {
             match self {
                 Ok(v) => Ok(v),
-                Err(Error::NeedMoreData(BytesRequired::Exactly(n), buf)) => {
-                    Err(Error::NeedMoreData(BytesRequired::AtLeast(n), buf))
+                Err(Error::NeedMoreData(BytesRequired::Exactly(n))) => {
+                    Err(Error::NeedMoreData(BytesRequired::AtLeast(n)))
                 }
                 Err(e) => Err(e),
             }

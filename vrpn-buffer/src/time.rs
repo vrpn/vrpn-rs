@@ -45,11 +45,9 @@ impl Buffer for TimeVal {
 }
 
 impl Unbuffer for TimeVal {
-    fn unbuffer(buf: Bytes) -> Result<Output<Self>> {
+    fn unbuffer(buf: &mut Bytes) -> Result<Output<Self>> {
         Seconds::unbuffer(buf)
-            .and_then(|Output(remaining, sec)| Microseconds::unbuffer(remaining).map(|v| (v, sec)))
-            .and_then(|(Output(remaining, usec), sec)| {
-                Ok(Output(remaining, TimeVal::new(sec, usec)))
-            })
+            .and_then(|Output(sec)| Microseconds::unbuffer(buf).map(|v| (v, sec)))
+            .and_then(|(Output(usec), sec)| Ok(Output(TimeVal::new(sec, usec))))
     }
 }

@@ -33,29 +33,32 @@ impl Buffer for CookieData {
         Ok(())
     }
 }
-
-fn from_dec<'a>(input: &'a [u8]) -> result::Result<u8, ParseIntError> {
+fn from_dec(input: &[u8]) -> result::Result<u8, ParseIntError> {
     u8::from_str_radix(&String::from_utf8_lossy(input), 10)
 }
-
 named!(dec_digits_1<&[u8], u8>, map_res!(take!(1), from_dec));
 named!(dec_digits_2<&[u8], u8>, map_res!(take!(2), from_dec));
 
-named!(cookie<&[u8], CookieData>,
+named!(
+    cookie<&[u8], CookieData>,
     do_parse!(
-        tag!(MAGIC_PREFIX) >>
-        major: dec_digits_2 >>
-        tag!(".") >>
-        minor: dec_digits_2 >>
-        tag!("  ") >>
-        mode: dec_digits_1 >>
-        tag!(COOKIE_PADDING) >>
-        (CookieData{version: Version{major, minor}, log_mode: Some(mode)})
-        ));
+        tag!(MAGIC_PREFIX)
+            >> major: dec_digits_2
+            >> tag!(".")
+            >> minor: dec_digits_2
+            >> tag!("  ")
+            >> mode: dec_digits_1
+            >> tag!(COOKIE_PADDING)
+            >> (CookieData {
+                version: Version { major, minor },
+                log_mode: Some(mode)
+            })
+    )
+);
 
 impl Unbuffer for CookieData {
-    fn unbuffer(buf: Bytes) -> unbuffer::Result<Output<Self>> {
-        call_nom_parser_constant_length(&buf, cookie)
+    fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<Self>> {
+        call_nom_parser_constant_length(buf, cookie)
     }
 }
 
@@ -88,8 +91,8 @@ mod tests {
         magic_cookie
             .buffer(&mut buf)
             .expect("Buffering needs to succeed");
-        let buf = buf.freeze();
-        assert_eq!(CookieData::unbuffer(buf).unwrap().data(), magic_cookie);
+        let mut buf = buf.freeze();
+        assert_eq!(CookieData::unbuffer(&mut buf).unwrap().data(), magic_cookie);
     }
 
     #[test]
