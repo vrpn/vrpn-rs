@@ -162,15 +162,22 @@ pub mod unbuffer {
         }
     }
 
-    pub trait AndThenMap<T> {
+    /// Trait used to extend the methods of Result<Output<T>>
+    pub trait OutputResultExtras<T> {
+        /// Transforms the completed output's data, if successful
         fn and_then_map<U, F>(self, f: F) -> Result<Output<U>>
         where
             U: Sized,
             F: FnOnce(T) -> U;
+        /// Map the result that "exactly" n additional bytes are
+        /// required to "at least" n additional bytes are required.
+        ///
+        /// Used when a variable-buffer-size type begins its work by
+        /// unbuffering a fixed-size type, like a "length" field.
+        fn map_exactly_err_to_at_least(self) -> Self;
     }
 
-    impl<T> AndThenMap<T> for Result<Output<T>> {
-        /// Transforms the completed output's data, if successful
+    impl<T> OutputResultExtras<T> for Result<Output<T>> {
         fn and_then_map<U, F>(self, f: F) -> Result<Output<U>>
         where
             U: Sized,
@@ -178,6 +185,16 @@ pub mod unbuffer {
         {
             match self {
                 Ok(Output(remaining, v)) => Ok(Output(remaining, f(v))),
+                Err(e) => Err(e),
+            }
+        }
+
+        fn map_exactly_err_to_at_least(self) -> Self {
+            match self {
+                Ok(v) => Ok(v),
+                Err(Error::NeedMoreData(BytesRequired::Exactly(n), buf)) => {
+                    Err(Error::NeedMoreData(BytesRequired::AtLeast(n), buf))
+                }
                 Err(e) => Err(e),
             }
         }

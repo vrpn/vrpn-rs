@@ -9,7 +9,7 @@ use std::num::ParseIntError;
 use std::result;
 use traits::{
     buffer::{self, Buffer},
-    unbuffer::{self, AndThenMap, Output, Unbuffer},
+    unbuffer::{self, Output, OutputResultExtras, Unbuffer},
     ConstantBufferSize,
 };
 use vrpn_base::constants::{self, COOKIE_SIZE, MAGIC_PREFIX};
