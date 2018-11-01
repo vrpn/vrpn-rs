@@ -23,7 +23,11 @@ fn bytes_required_at_least(v: nom::Needed) -> BytesRequired {
     }
 }
 
-fn call_nom_parser_impl<'a, T, F, G>(buf: &'a Bytes, f: F, make_bytes_required: G) -> Result<Output<T>>
+fn call_nom_parser_impl<'a, T, F, G>(
+    buf: &'a Bytes,
+    f: F,
+    make_bytes_required: G,
+) -> Result<Output<T>>
 where
     T: Sized,
     F: FnOnce(&'a [u8]) -> IResult<&'a [u8], T>,
@@ -33,7 +37,9 @@ where
     let buf_copy = buf.clone();
     match f(buf) {
         Ok((remaining, data)) => Ok(Output::from_slice(buf, remaining, data)),
-        Err(NomError::Incomplete(n)) => Err(Error::NeedMoreData(make_bytes_required(n), buf.clone())),
+        Err(NomError::Incomplete(n)) => {
+            Err(Error::NeedMoreData(make_bytes_required(n), buf.clone()))
+        }
         Err(e) => Err(From::from(e)),
     }
 }
