@@ -2,28 +2,27 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use buffer::Buffer;
 use bytes::{Buf, BufMut, Bytes, IntoBuf};
-use size::ConstantBufferSize;
 use std::mem::size_of;
-use unbuffer::{Result, UnbufferConstantSize};
+use traits::{
+    buffer::{self, Buffer},
+    unbuffer::{self, UnbufferConstantSize},
+    ConstantBufferSize,
+};
 
 macro_rules! buffer_primitive {
     ($t:ty, $put:ident, $get:ident) => {
-        impl ConstantBufferSize for $t {
-            fn constant_buffer_size() -> usize {
-                size_of::<Self>()
-            }
-        }
+        impl ConstantBufferSize for $t {}
 
         impl Buffer for $t {
-            fn buffer<T: BufMut>(buf: &mut T, v: $t) {
-                buf.$put(v);
+            fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+                buf.$put(*self);
+                Ok(())
             }
         }
 
         impl UnbufferConstantSize for $t {
-            fn unbuffer_constant_size(buf: Bytes) -> Result<Self> {
+            fn unbuffer_constant_size(buf: Bytes) -> unbuffer::Result<Self> {
                 Ok(buf.into_buf().$get())
             }
         }

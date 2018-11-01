@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use buffer::Buffer;
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use nom_wrapper::call_nom_parser_constant_length;
-use size::ConstantBufferSize;
 use std::fmt::{self, Display, Formatter};
 use std::num::ParseIntError;
 use std::result;
-use unbuffer::{AndThenMap, Error, Output, Result, Unbuffer};
+use traits::{
+    buffer::{self, Buffer},
+    unbuffer::{self, AndThenMap, Output, Unbuffer},
+    ConstantBufferSize,
+};
 use vrpn_base::constants::{self, COOKIE_SIZE, MAGIC_PREFIX};
 use vrpn_base::cookie::{CookieData, Version};
 
@@ -22,9 +24,13 @@ impl ConstantBufferSize for CookieData {
 }
 
 impl Buffer for CookieData {
-    fn buffer<T: BufMut>(buf: &mut T, v: CookieData) {
-        buf.put(v.to_string());
+    fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+        if buf.remaining_mut() < Self::constant_buffer_size() {
+            return Err(buffer::Error::OutOfBuffer);
+        }
+        buf.put(self.to_string());
         buf.put(COOKIE_PADDING);
+        Ok(())
     }
 }
 
@@ -48,7 +54,7 @@ named!(cookie<&[u8], CookieData>,
         ));
 
 impl Unbuffer for CookieData {
-    fn unbuffer(buf: Bytes) -> Result<Output<Self>> {
+    fn unbuffer(buf: Bytes) -> unbuffer::Result<Output<Self>> {
         call_nom_parser_constant_length(buf, cookie)
     }
 }

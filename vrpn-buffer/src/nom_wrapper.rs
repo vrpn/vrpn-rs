@@ -4,8 +4,10 @@
 
 use bytes::Bytes;
 use nom::{self, Err as NomError, IResult};
-use size::BytesRequired;
-use unbuffer::{Error, Output, Result};
+use traits::{
+    unbuffer::{Error, Output, Result},
+    BytesRequired,
+};
 
 fn bytes_required_exactly(v: nom::Needed) -> BytesRequired {
     match v {

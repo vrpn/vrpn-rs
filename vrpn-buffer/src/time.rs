@@ -2,17 +2,18 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use buffer::Buffer;
 use bytes::{BufMut, Bytes};
-use size::ConstantBufferSize;
-use unbuffer::{Output, Result, Unbuffer};
+use traits::{
+    buffer::{self, Buffer},
+    unbuffer::{Output, Result, Unbuffer},
+    ConstantBufferSize, WrappedConstantSize,
+};
 use vrpn_base::time::{Microseconds, Seconds, TimeVal};
-use wrapped::WrappedConstantSize;
 
 impl WrappedConstantSize for Seconds {
     type WrappedType = i32;
-    fn get(self) -> Self::WrappedType {
-        self.0
+    fn get<'a>(&'a self) -> &'a Self::WrappedType {
+        &self.0
     }
     fn create(v: Self::WrappedType) -> Self {
         Seconds(v)
@@ -21,8 +22,8 @@ impl WrappedConstantSize for Seconds {
 
 impl WrappedConstantSize for Microseconds {
     type WrappedType = i32;
-    fn get(self) -> Self::WrappedType {
-        self.0
+    fn get<'a>(&'a self) -> &'a Self::WrappedType {
+        &self.0
     }
     fn create(v: Self::WrappedType) -> Self {
         Microseconds(v)
@@ -36,9 +37,10 @@ impl ConstantBufferSize for TimeVal {
 }
 
 impl Buffer for TimeVal {
-    fn buffer<T: BufMut>(buf: &mut T, v: Self) {
-        Buffer::buffer(buf, v.seconds());
-        Buffer::buffer(buf, v.microseconds());
+    fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+        self.seconds()
+            .buffer(buf)
+            .and_then(|_| self.microseconds().buffer(buf))
     }
 }
 
