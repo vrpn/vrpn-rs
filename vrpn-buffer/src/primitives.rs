@@ -3,7 +3,6 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Buf, BufMut, Bytes, IntoBuf};
-use std::mem::size_of;
 use traits::{
     buffer::{self, Buffer},
     unbuffer::{self, UnbufferConstantSize},

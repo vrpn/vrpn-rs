@@ -36,7 +36,7 @@ pub mod buffer {
 
 pub mod unbuffer {
     use super::{BytesRequired, ConstantBufferSize, WrappedConstantSize};
-    use bytes::{Buf, Bytes};
+    use bytes::Bytes;
     use itertools;
     use nom;
     use std::num::ParseIntError;

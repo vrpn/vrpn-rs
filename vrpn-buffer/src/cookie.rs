@@ -66,7 +66,9 @@ mod tests {
         // Make sure the size is right.
         let mut buf = Vec::new();
         use super::{constants, Buffer, CookieData};
-        Buffer::buffer(&mut buf, CookieData::from(constants::MAGIC_DATA));
+        CookieData::from(constants::MAGIC_DATA)
+            .buffer(&mut buf)
+            .expect("Buffering needs to succeed");
         assert_eq!(buf.len(), constants::MAGICLEN);
     }
 
