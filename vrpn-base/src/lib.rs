@@ -14,5 +14,6 @@ extern crate quick_error;
 
 pub mod constants;
 pub mod cookie;
+pub mod message;
 pub mod time;
 pub mod types;

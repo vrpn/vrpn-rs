@@ -141,3 +141,7 @@ impl From<TypeName> for Bytes {
 }
 
 impl TypedName for TypeName {}
+
+/// Sequence number - not used on receive side, only used for sniffers (?)
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct SequenceNumber(pub u32);
