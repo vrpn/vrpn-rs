@@ -55,7 +55,7 @@ named!(cookie<&[u8], CookieData>,
 
 impl Unbuffer for CookieData {
     fn unbuffer(buf: Bytes) -> unbuffer::Result<Output<Self>> {
-        call_nom_parser_constant_length(buf, cookie)
+        call_nom_parser_constant_length(&buf, cookie)
     }
 }
 
@@ -64,12 +64,32 @@ mod tests {
     #[test]
     fn magic_size() {
         // Make sure the size is right.
-        let mut buf = Vec::new();
         use super::{constants, Buffer, CookieData};
-        CookieData::from(constants::MAGIC_DATA)
+
+        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
+        magic_cookie.log_mode = Some(0);
+        assert_eq!(magic_cookie.required_buffer_size(), constants::COOKIE_SIZE);
+
+        let mut buf = Vec::new();
+        magic_cookie
             .buffer(&mut buf)
             .expect("Buffering needs to succeed");
-        assert_eq!(buf.len(), constants::MAGICLEN);
+        assert_eq!(buf.len(), constants::COOKIE_SIZE);
+    }
+
+    #[test]
+    fn roundtrip() {
+        use super::{constants, Buffer, CookieData, Unbuffer};
+        use bytes::BytesMut;
+
+        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
+        magic_cookie.log_mode = Some(0);
+        let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
+        magic_cookie
+            .buffer(&mut buf)
+            .expect("Buffering needs to succeed");
+        let buf = buf.freeze();
+        assert_eq!(CookieData::unbuffer(buf).unwrap().data(), magic_cookie);
     }
 
     #[test]

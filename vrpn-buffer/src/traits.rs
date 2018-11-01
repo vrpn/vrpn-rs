@@ -24,6 +24,11 @@ pub mod buffer {
     pub trait Buffer: BufferSize {
         /// Serialize to a buffer.
         fn buffer<T: BufMut>(&self, buf: &mut T) -> Result;
+
+        /// Get the number of bytes required to serialize this to a buffer.
+        fn required_buffer_size(&self) -> usize {
+            self.buffer_size()
+        }
     }
 
     impl<T: WrappedConstantSize> Buffer for T {
@@ -75,11 +80,11 @@ pub mod unbuffer {
         pub fn new(remaining: Bytes, data: T) -> Output<T> {
             Output(remaining, data)
         }
-        pub fn from_slice<'a>(containing_buf: Bytes, remaining: &'a [u8], data: T) -> Output<T> {
+        pub fn from_slice(containing_buf: &Bytes, remaining: &[u8], data: T) -> Output<T> {
             Self::new(containing_buf.slice_ref(remaining), data)
         }
-        pub fn to_child_remaining<'a>(&self, remaining: &'a [u8], data: T) -> Output<T> {
-            Output::from_slice(self.0.clone(), remaining, data)
+        pub fn to_child_remaining(&self, remaining: &[u8], data: T) -> Output<T> {
+            Output::from_slice(&self.0, remaining, data)
         }
 
         pub fn remaining(&self) -> Bytes {
