@@ -66,7 +66,7 @@ fn unpadded_message_header_size() -> usize {
 
 impl<U: BufferSize> BufferSize for Message<U> {
     fn buffer_size(&self) -> usize {
-        padded(unpadded_message_header_size()) + padded(self.buffer_size())
+        padded(unpadded_message_header_size()) + padded(self.data.buffer_size())
     }
 }
 
