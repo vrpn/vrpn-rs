@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use super::{
+    time::TimeVal,
+    types::{BaseTypeSafeId, SenderId, SequenceNumber, TypeId},
+};
 use bytes::Bytes;
-use time::TimeVal;
-use types::{BaseTypeSafeId, SenderId, SequenceNumber, TypeId};
 
 /// A message with header information, ready to be buffered to the wire.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]

@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use std::fmt::{self, Display};
-use std::mem::size_of;
-use std::ops::Add;
+use std::{
+    fmt::{self, Display},
+    ops::Add,
+};
 
 pub mod buffer {
     use super::{BufferSize, WrappedConstantSize};
-    use bytes::BufMut;
+    use bytes::{BufMut, BytesMut};
     use std::io;
 
     quick_error! {
@@ -28,10 +29,19 @@ pub mod buffer {
 
     pub type Result = std::result::Result<(), Error>;
 
+    pub type ResultWithBuf = std::result::Result<BytesMut, Error>;
+
     /// Trait for types that can be "buffered" (serialized to a byte buffer)
     pub trait Buffer: BufferSize {
         /// Serialize to a buffer.
         fn buffer<T: BufMut>(&self, buf: &mut T) -> Result;
+
+        /// Serialize into the provided buffer, which is consumed and re-produced in the result.
+        fn buffer_into(&self, buf: BytesMut) -> ResultWithBuf {
+            let mut buf = buf;
+            self.buffer(&mut buf)?;
+            Ok(buf)
+        }
 
         /// Get the number of bytes required to serialize this to a buffer.
         fn required_buffer_size(&self) -> usize {
@@ -53,57 +63,52 @@ pub mod unbuffer {
     use itertools;
     use std::{io, num::ParseIntError};
 
-    quick_error!{
-    #[derive(Debug)]
-    pub enum Error {
-        NeedMoreData(needed: BytesRequired) {
-            display("ran out of buffered bytes: need {} additional bytes", needed)
+    quick_error! {
+        #[derive(Debug)]
+        pub enum Error {
+            NeedMoreData(needed: BytesRequired) {
+                display("ran out of buffered bytes: need {} additional bytes", needed)
+            }
+            InvalidDecimalDigit(chars: Vec<char>) {
+                display(self_) -> ("got the following non-decimal-digit(s) {}", itertools::join(chars.iter().map(|x : &char| x.to_string()), ","))
+            }
+            UnexpectedAsciiData(actual: Bytes, expected: Bytes) {
+                display("unexpected data: expected '{:?}', got '{:?}'", &expected[..], &actual[..])
+            }
+            ParseInt(err: ParseIntError) {
+                cause(err)
+                description(err.description())
+                display("{}", err)
+                from()
+            }
+            ParseError(msg: String) {
+                description(msg)
+            }
+            IoError(err: io::Error) {
+                display("{}", err)
+                description(err.description())
+                from()
+                cause(err)
+            }
         }
-        InvalidDecimalDigit(chars: Vec<char>) {
-            display(self_) -> ("got the following non-decimal-digit(s) {}", itertools::join(chars.iter().map(|x : &char| x.to_string()), ","))
-        }
-        UnexpectedAsciiData(actual: Bytes, expected: Bytes) {
-            display("unexpected data: expected '{:?}', got '{:?}'", &expected[..], &actual[..])
-        }
-        ParseInt(err: ParseIntError) {
-            cause(err)
-            description(err.description())
-            display("{}", err)
-            from()
-        }
-        ParseError(msg: String) {
-            description(msg)
-        }
-        IoError(err: io::Error) {
-            display("{}", err)
-            description(err.description())
-            from()
-            cause(err)
-        }
-    }
     }
 
     pub type Result<T> = std::result::Result<T, Error>;
 
+    pub trait UnbufferOutput<T> {
+        fn data(self) -> T;
+
+        fn borrow_data<'a>(&'a self) -> &'a T;
+
+        fn borrow_data_mut<'a>(&'a mut self) -> &'a mut T;
+    }
+
     #[derive(Debug)]
     pub struct Output<T>(pub T);
-
     impl<T> Output<T> {
         pub fn new(data: T) -> Output<T> {
             Output(data)
         }
-        pub fn data(self) -> T {
-            self.0
-        }
-
-        pub fn borrow_data<'a>(&'a self) -> &'a T {
-            &self.0
-        }
-
-        pub fn borrow_data_mut<'a>(&'a mut self) -> &'a mut T {
-            &mut self.0
-        }
-
         pub fn map<U, F>(self, f: F) -> Output<U>
         where
             U: Sized,
@@ -122,12 +127,56 @@ pub mod unbuffer {
         }
     }
 
+    impl<T> UnbufferOutput<T> for Output<T> {
+        fn data(self) -> T {
+            self.0
+        }
+
+        fn borrow_data<'a>(&'a self) -> &'a T {
+            &self.0
+        }
+
+        fn borrow_data_mut<'a>(&'a mut self) -> &'a mut T {
+            &mut self.0
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct OutputWithRemaining<T>(pub T, pub Bytes);
+    impl<T> OutputWithRemaining<T> {
+        pub fn new(data: T, buf: Bytes) -> OutputWithRemaining<T> {
+            OutputWithRemaining(data, buf)
+        }
+
+        pub fn map<U, F>(self, f: F) -> OutputWithRemaining<U>
+        where
+            U: Sized,
+            F: FnOnce(T) -> U,
+        {
+            OutputWithRemaining::new(f(self.0), self.1)
+        }
+    }
+
+    impl<T> UnbufferOutput<T> for OutputWithRemaining<T> {
+        fn data(self) -> T {
+            self.0
+        }
+
+        fn borrow_data<'a>(&'a self) -> &'a T {
+            &self.0
+        }
+
+        fn borrow_data_mut<'a>(&'a mut self) -> &'a mut T {
+            &mut self.0
+        }
+    }
+
     /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
     pub trait Unbuffer: Sized {
         /// Tries to unbuffer.
         ///
         /// Returns Ok(None) if not enough data.
-        fn unbuffer(buf: &mut Bytes) -> Result<Output<Self>>;
+        fn unbuffer_ref(buf: &mut Bytes) -> Result<Output<Self>>;
     }
 
     /// Implementation trait for constant-buffer-size types,
@@ -139,7 +188,7 @@ pub mod unbuffer {
 
     /// Blanket impl for types ipmlementing UnbufferConstantSize.
     impl<T: UnbufferConstantSize> Unbuffer for T {
-        fn unbuffer(buf: &mut Bytes) -> Result<Output<Self>> {
+        fn unbuffer_ref(buf: &mut Bytes) -> Result<Output<Self>> {
             let len = Self::constant_buffer_size();
             if buf.len() < len {
                 Err(Error::NeedMoreData(BytesRequired::Exactly(buf.len() - len)))
@@ -214,7 +263,9 @@ pub mod unbuffer {
         let bytes_len = buf.len();
         let expected_len = expected.len();
         if bytes_len < expected_len {
-            return Err(Error::NeedMoreData(BytesRequired::Exactly(expected_len - bytes_len)));
+            return Err(Error::NeedMoreData(BytesRequired::Exactly(
+                expected_len - bytes_len,
+            )));
         }
         let my_bytes = buf.split_to(expected_len);
         if my_bytes == expected {
@@ -262,11 +313,11 @@ pub trait ConstantBufferSize {
     where
         Self: Sized,
     {
-        size_of::<Self>()
+        std::mem::size_of::<Self>()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BytesRequired {
     Exactly(usize),
     AtLeast(usize),

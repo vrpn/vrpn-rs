@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-pub use self::IdToHandle::*;
+use super::constants;
 use bytes::Bytes;
-use constants;
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
@@ -107,6 +106,7 @@ pub enum IdToHandle<T> {
     /// One specific ID
     SomeId(T),
 }
+pub use self::IdToHandle::*;
 
 bitmask! {
     pub mask ClassOfService : u32 where flags Flags {

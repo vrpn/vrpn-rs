@@ -28,3 +28,7 @@ pub mod connection {
 }
 
 pub use base::constants;
+
+pub mod prelude {
+    pub use buffer::prelude::*;
+}

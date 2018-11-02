@@ -21,9 +21,11 @@ pub mod primitives;
 pub mod time;
 pub mod traits;
 
-pub use primitives::*;
-pub use traits::{
-    buffer::{self, Buffer},
-    unbuffer::{self, Output, Unbuffer, UnbufferConstantSize},
-    BufferSize, ConstantBufferSize,
+pub use self::{
+    primitives::*,
+    traits::{
+        buffer::{self, Buffer},
+        unbuffer::{self, Output, Unbuffer, UnbufferConstantSize},
+        BufferSize, ConstantBufferSize,
+    },
 };

@@ -8,51 +8,34 @@ use vrpn_base::constants;
 use vrpn_base::types;
 use vrpn_base::types::*;
 
-#[derive(Debug, Clone)]
-pub enum MappingError {
-    TooManyMappings,
-    InvalidId,
-}
-
-impl fmt::Display for MappingError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            MappingError::TooManyMappings => write!(f, "too many mappings"),
-            MappingError::InvalidId => write!(f, "invalid id"),
+quick_error! {
+    #[derive(Debug)]
+    pub enum MappingError {
+        TooManyMappings {
+            description("too many mappings")
+        }
+        InvalidId{
+            description("invalid id")
         }
     }
 }
 
-impl error::Error for MappingError {
-    fn cause(&self) -> Option<&error::Error> {
-        None
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum HandlerError {
-    TooManyHandlers,
-    HandlerNotFound,
-    MappingErr(MappingError),
-    GenericErrorReturn,
-}
-
-impl fmt::Display for HandlerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            HandlerError::TooManyHandlers => write!(f, "too many handlers"),
-            HandlerError::MappingErr(e) => write!(f, "{}", e),
-            HandlerError::HandlerNotFound => write!(f, "handler not found"),
-            HandlerError::GenericErrorReturn => write!(f, "handler returned an error"),
+quick_error! {
+    #[derive(Debug)]
+    pub enum HandlerError {
+        TooManyHandlers {
+            description("too many handlers")
         }
-    }
-}
-
-impl error::Error for HandlerError {
-    fn cause(&self) -> Option<&error::Error> {
-        match self {
-            HandlerError::MappingErr(e) => Some(e),
-            _ => None,
+        HandlerNotFound {
+            description("handler not found")
+        }
+        MappingErr(err: MappingError) {
+            from()
+            cause(err)
+            display("{}", err)
+        }
+        GenericErrorReturn {
+            description("handler returned an error")
         }
     }
 }
@@ -66,11 +49,6 @@ pub type MappingResult<T> = Result<T, MappingError>;
 
 pub type HandlerResult<T> = Result<T, HandlerError>;
 
-impl From<MappingError> for HandlerError {
-    fn from(e: MappingError) -> HandlerError {
-        HandlerError::MappingErr(e)
-    }
-}
 type HandlerFnMut = FnMut(&HandlerParams) -> HandlerResult<()>;
 
 /// Type storing a boxed callback function, an optional sender ID filter,

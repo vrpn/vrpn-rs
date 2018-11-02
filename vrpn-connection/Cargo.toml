@@ -5,6 +5,7 @@ authors = ["Ryan Pavlik <ryan.pavlik@collabora.com>"]
 license = "BSL-1.0"
 
 [dependencies]
-bytes = "^0.4.10"
+bytes = "0.4.10"
+quick-error = "1.2.2"
 vrpn-base = { path = "../vrpn-base" }
 vrpn-buffer = { path = "../vrpn-buffer" }

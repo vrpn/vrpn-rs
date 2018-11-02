@@ -2,15 +2,20 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use super::{
+    prelude::*,
+    traits::{
+        buffer::{self, Buffer},
+        unbuffer::{self, check_expected, Output, OutputResultExtras, Unbuffer},
+        BytesRequired, ConstantBufferSize,
+    },
+};
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
-use std::fmt::{self, Display, Formatter};
-use std::mem::size_of;
-use std::num::ParseIntError;
-use std::result;
-use traits::{
-    buffer::{self, Buffer},
-    unbuffer::{self, check_expected, Output, OutputResultExtras, Unbuffer},
-    BytesRequired, ConstantBufferSize,
+use std::{
+    fmt::{self, Display, Formatter},
+    mem::size_of,
+    num::ParseIntError,
+    result,
 };
 
 /// Get the size required to buffer a string, preceded by its length and followed by a null bytes.
@@ -34,9 +39,7 @@ pub fn buffer_string<T: BufMut>(s: &[u8], buf: &mut T) -> buffer::Result {
 
 /// Unbuffer a string, preceded by its length and followed by a null bytes.
 pub fn unbuffer_string(buf: &mut Bytes) -> unbuffer::Result<Bytes> {
-    let buf_size: u32 = Unbuffer::unbuffer(buf)
-        .map_exactly_err_to_at_least()?
-        .data();
+    let buf_size = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?.data();
 
     let buf_size = buf_size as usize;
     if buf.len() < buf_size {

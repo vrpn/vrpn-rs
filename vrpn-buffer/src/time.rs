@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{BufMut, Bytes};
-use traits::{
-    buffer::{self, Buffer},
-    unbuffer::{Output, Result, Unbuffer},
-    ConstantBufferSize, WrappedConstantSize,
+use super::{
+    prelude::*,
+    traits::{
+        buffer::{self, Buffer},
+        unbuffer::{Output, Result, Unbuffer},
+        ConstantBufferSize, WrappedConstantSize,
+    },
 };
+use bytes::{BufMut, Bytes};
 use vrpn_base::time::{Microseconds, Seconds, TimeVal};
 
 impl WrappedConstantSize for Seconds {
@@ -45,9 +48,9 @@ impl Buffer for TimeVal {
 }
 
 impl Unbuffer for TimeVal {
-    fn unbuffer(buf: &mut Bytes) -> Result<Output<Self>> {
-        Seconds::unbuffer(buf)
-            .and_then(|Output(sec)| Microseconds::unbuffer(buf).map(|v| (v, sec)))
+    fn unbuffer_ref(buf: &mut Bytes) -> Result<Output<Self>> {
+        Seconds::unbuffer_ref(buf)
+            .and_then(|Output(sec)| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
             .and_then(|(Output(usec), sec)| Ok(Output(TimeVal::new(sec, usec))))
     }
 }

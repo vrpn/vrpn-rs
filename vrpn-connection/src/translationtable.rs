@@ -7,24 +7,15 @@ use std::error;
 use std::fmt;
 use vrpn_base::types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId};
 
-#[derive(Debug, Clone)]
-pub enum TranslationTableError {
-    InvalidRemoteId(IdType),
-    EmptyEntry,
-}
-
-impl fmt::Display for TranslationTableError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            TranslationTableError::InvalidRemoteId(id) => write!(f, "invalid remote id {}", id),
-            TranslationTableError::EmptyEntry => write!(f, "empty entry"),
+quick_error! {
+    #[derive(Debug)]
+    pub enum TranslationTableError {
+        InvalidRemoteId(id: IdType) {
+            display("invalid remote id {}", id)
         }
-    }
-}
-
-impl error::Error for TranslationTableError {
-    fn cause(&self) -> Option<&error::Error> {
-        None
+        EmptyEntry {
+            description("empty entry")
+        }
     }
 }
 

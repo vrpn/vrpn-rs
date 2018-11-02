@@ -2,14 +2,17 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{BufMut, Bytes};
-use length_prefixed;
-use std::mem::size_of;
-use traits::{
-    buffer::{self, Buffer},
-    unbuffer::{self, Output, OutputResultExtras, Unbuffer},
-    BufferSize, BytesRequired, ConstantBufferSize, WrappedConstantSize,
+use super::{
+    length_prefixed,
+    prelude::*,
+    traits::{
+        buffer::{self, Buffer},
+        unbuffer::{self, Output, OutputResultExtras, Unbuffer},
+        BufferSize, BytesRequired, ConstantBufferSize, WrappedConstantSize,
+    },
 };
+use bytes::{BufMut, Bytes};
+use std::mem::size_of;
 use vrpn_base::{
     constants::ALIGN,
     message::{GenericBody, InnerDescription, Message},
@@ -118,10 +121,8 @@ impl<U: Buffer> Buffer for Message<U> {
 
 impl<U: Unbuffer> Unbuffer for Message<U> {
     /// Deserialize from a buffer.
-    fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<Message<U>>> {
-        let unpadded_len: u32 = Unbuffer::unbuffer(buf)
-            .map_exactly_err_to_at_least()?
-            .data();
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<Message<U>>> {
+        let unpadded_len = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?.data();
         let unpadded_len = unpadded_len as usize;
         let unpadded_body_len = unpadded_len - UNPADDED_MESSAGE_HEADER_SIZE;
 
@@ -133,10 +134,10 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
                 expected_remaining_bytes - buf.len(),
             )));
         }
-        let time = Unbuffer::unbuffer(buf)?.data();
-        let sender = Unbuffer::unbuffer(buf)?.data();
-        let message_type = Unbuffer::unbuffer(buf)?.data();
-        let sequence_number = Unbuffer::unbuffer(buf)?.data();
+        let time = Unbuffer::unbuffer_ref(buf)?.data();
+        let sender = Unbuffer::unbuffer_ref(buf)?.data();
+        let message_type = Unbuffer::unbuffer_ref(buf)?.data();
+        let sequence_number = Unbuffer::unbuffer_ref(buf)?.data();
 
         // drop padding bytes
         buf.split_to(compute_padding(UNPADDED_MESSAGE_HEADER_SIZE));
@@ -144,7 +145,7 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
         let data;
         {
             let mut data_buf = buf.split_to(unpadded_body_len);
-            data = Unbuffer::unbuffer(&mut data_buf)
+            data = Unbuffer::unbuffer_ref(&mut data_buf)
                 .map_exactly_err_to_at_least()?
                 .data();
             if data_buf.len() > 0 {
@@ -169,7 +170,7 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
 }
 
 impl Unbuffer for GenericBody {
-    fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<GenericBody>> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<GenericBody>> {
         let my_buf = buf.clone();
         buf.advance(my_buf.len());
         Ok(Output(GenericBody::new(my_buf)))
@@ -189,7 +190,7 @@ impl Buffer for InnerDescription {
 }
 
 impl Unbuffer for InnerDescription {
-    fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<InnerDescription>> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<InnerDescription>> {
         length_prefixed::unbuffer_string(buf).map(|b| Output(InnerDescription::new(b)))
     }
 }
@@ -198,7 +199,7 @@ fn unbuffer_typed_message_body<T: Unbuffer>(
     msg: Message<GenericBody>,
 ) -> unbuffer::Result<Message<T>> {
     let mut buf = msg.data.body_bytes.clone();
-    let data = Unbuffer::unbuffer(&mut buf)
+    let data = Unbuffer::unbuffer_ref(&mut buf)
         .map_need_more_err_to_generic_parse_err("parsing message body")?
         .data();
     if buf.len() > 0 {

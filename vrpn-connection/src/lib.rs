@@ -6,6 +6,9 @@ extern crate bytes;
 extern crate vrpn_base;
 extern crate vrpn_buffer;
 
+#[macro_use]
+extern crate quick_error;
+
 pub mod connection;
 pub mod translationtable;
 pub mod typedispatcher;

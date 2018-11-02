@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use cookie::Version;
-use types::{SenderName, TypeId, TypeName};
+use super::{
+    cookie::Version,
+    types::{SenderName, TypeId, TypeName},
+};
 
 // Constants in this file must remain unchanged so that they match the C++ implementation.
 pub const GOT_FIRST_CONNECTION: TypeName = TypeName(b"VRPN_Connection_Got_First_Connection");
@@ -38,8 +40,17 @@ pub const MAGIC_DATA: Version = Version {
     minor: 35,
 };
 pub const FILE_MAGIC_DATA: Version = Version { major: 4, minor: 0 };
-//assert!(MAGICLEN % ALIGN == 0);
 
 // NOTE: This needs to remain the same size unless we change the major version
 // number for VRPN.  It is the length that is written into the stream.
 pub const COOKIE_SIZE: usize = MAGICLEN + ALIGN;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn magiclen() {
+        assert_eq!(MAGICLEN % ALIGN, 0);
+        assert_eq!(COOKIE_SIZE % ALIGN, 0);
+    }
+}

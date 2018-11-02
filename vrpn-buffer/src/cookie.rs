@@ -44,7 +44,7 @@ fn dec_digits(buf: &mut Bytes, n: usize) -> result::Result<u8, ParseIntError> {
 }
 
 impl Unbuffer for CookieData {
-    fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<Self>> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<Self>> {
         // call_nom_parser_constant_length(buf, cookie)
 
         check_expected(buf, MAGIC_PREFIX)?;
@@ -95,7 +95,10 @@ mod tests {
             .buffer(&mut buf)
             .expect("Buffering needs to succeed");
         let mut buf = buf.freeze();
-        assert_eq!(CookieData::unbuffer(&mut buf).unwrap().data(), magic_cookie);
+        assert_eq!(
+            CookieData::unbuffer_ref(&mut buf).unwrap().data(),
+            magic_cookie
+        );
         assert_eq!(buf.len(), 0);
     }
 
