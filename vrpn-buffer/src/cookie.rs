@@ -3,13 +3,13 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
-use nom_wrapper::call_nom_parser_constant_length;
+// use nom_wrapper::call_nom_parser_constant_length;
 use std::fmt::{self, Display, Formatter};
 use std::num::ParseIntError;
 use std::result;
 use traits::{
     buffer::{self, Buffer},
-    unbuffer::{self, Output, OutputResultExtras, Unbuffer},
+    unbuffer::{self, check_expected, Output, OutputResultExtras, Unbuffer},
     ConstantBufferSize,
 };
 use vrpn_base::constants::{self, COOKIE_SIZE, MAGIC_PREFIX};
@@ -33,37 +33,57 @@ impl Buffer for CookieData {
         Ok(())
     }
 }
+#[inline]
 fn from_dec(input: &[u8]) -> result::Result<u8, ParseIntError> {
     u8::from_str_radix(&String::from_utf8_lossy(input), 10)
 }
-named!(dec_digits_1<&[u8], u8>, map_res!(take!(1), from_dec));
-named!(dec_digits_2<&[u8], u8>, map_res!(take!(2), from_dec));
 
-named!(
-    cookie<&[u8], CookieData>,
-    do_parse!(
-        tag!(MAGIC_PREFIX)
-            >> major: dec_digits_2
-            >> tag!(".")
-            >> minor: dec_digits_2
-            >> tag!("  ")
-            >> mode: dec_digits_1
-            >> tag!(COOKIE_PADDING)
-            >> (CookieData {
-                version: Version { major, minor },
-                log_mode: Some(mode)
-            })
-    )
-);
+#[inline]
+fn dec_digits(buf: &mut Bytes, n: usize) -> result::Result<u8, ParseIntError> {
+    from_dec(&buf.split_to(n))
+}
+// named!(dec_digits_1<&[u8], u8>, map_res!(take!(1), from_dec));
+// named!(dec_digits_2<&[u8], u8>, map_res!(take!(2), from_dec));
+
+// named!(
+//     cookie<&[u8], CookieData>,
+//     do_parse!(
+//         tag!(MAGIC_PREFIX)
+//             >> major: dec_digits_2
+//             >> tag!(".")
+//             >> minor: dec_digits_2
+//             >> tag!("  ")
+//             >> mode: dec_digits_1
+//             >> tag!(COOKIE_PADDING)
+//             >> (CookieData {
+//                 version: Version { major, minor },
+//                 log_mode: Some(mode)
+//             })
+//     )
+// );
 
 impl Unbuffer for CookieData {
     fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<Self>> {
-        call_nom_parser_constant_length(buf, cookie)
+        // call_nom_parser_constant_length(buf, cookie)
+
+        check_expected(buf, MAGIC_PREFIX)?;
+        let major: u8 = dec_digits(buf, 2)?;
+        // remove dot
+        check_expected(buf, b".")?;
+        let minor: u8 = dec_digits(buf, 2)?;
+        // remove spaces
+        check_expected(buf, b"  ")?;
+        let log_mode: u8 = dec_digits(buf, 1)?;
+        Ok(Output(CookieData {
+            version: Version { major, minor },
+            log_mode: Some(log_mode),
+        }))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[test]
     fn magic_size() {
         // Make sure the size is right.
@@ -97,13 +117,22 @@ mod tests {
 
     #[test]
     fn basics() {
-        use super::*;
         assert_eq!(from_dec(b"1"), Ok(1_u8));
         assert_eq!(from_dec(b"12"), Ok(12_u8));
-        assert_eq!(dec_digits_1(b"1"), Ok((&b""[..], 1_u8)));
-        assert_eq!(dec_digits_2(b"12"), Ok((&b""[..], 12_u8)));
     }
-
+    #[test]
+    fn dec_digits_fn() {
+        {
+            let mut buf = Bytes::from_static(b"1");
+            assert_eq!(dec_digits(&mut buf, 1), Ok(1_u8));
+            assert_eq!(buf.len(), 0);
+        }
+        {
+            let mut buf = Bytes::from_static(b"12");
+            assert_eq!(dec_digits(&mut buf, 2), Ok(12_u8));
+            assert_eq!(buf.len(), 0);
+        }
+    }
     #[test]
     fn parse_decimal() {
         fn parse_decimal_u8(v: &'static [u8]) -> u8 {

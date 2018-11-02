@@ -180,7 +180,22 @@ pub mod unbuffer {
             }
         }
     }
-
+    /// Check that the buffer begins with the expected string.
+    pub fn check_expected(buf: &mut Bytes, expected: &'static [u8]) -> Result<()> {
+        let len = expected.len();
+        if buf.len() < len {
+            return Err(Error::NeedMoreData(BytesRequired::Exactly(buf.len() - len)));
+        }
+        let my_bytes = buf.split_to(len);
+        if my_bytes == expected {
+            Ok(())
+        } else {
+            Err(Error::UnexpectedAsciiData(
+                my_bytes,
+                Bytes::from_static(expected),
+            ))
+        }
+    }
 }
 
 /// Trait for computing the buffer size needed for types
