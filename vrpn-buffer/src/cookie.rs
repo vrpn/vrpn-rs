@@ -74,6 +74,8 @@ impl Unbuffer for CookieData {
         // remove spaces
         check_expected(buf, b"  ")?;
         let log_mode: u8 = dec_digits(buf, 1)?;
+        // remove padding
+        check_expected(buf, COOKIE_PADDING)?;
         Ok(Output(CookieData {
             version: Version { major, minor },
             log_mode: Some(log_mode),
@@ -113,6 +115,7 @@ mod tests {
             .expect("Buffering needs to succeed");
         let mut buf = buf.freeze();
         assert_eq!(CookieData::unbuffer(&mut buf).unwrap().data(), magic_cookie);
+        assert_eq!(buf.len(), 0);
     }
 
     #[test]
