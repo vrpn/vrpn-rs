@@ -4,6 +4,7 @@
 
 pub use self::IdToHandle::*;
 use bytes::Bytes;
+use constants;
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
@@ -22,6 +23,7 @@ where
 {
     type Name;
     fn name_to_bytes(name: Self::Name) -> Bytes;
+    fn description_type() -> TypeId;
 }
 
 /// Local-side ID in the translation table
@@ -71,6 +73,9 @@ impl BaseTypeSafeId for TypeId {
     fn name_to_bytes(name: Self::Name) -> Bytes {
         Bytes::from_static(name.0)
     }
+    fn description_type() -> TypeId {
+        constants::TYPE_DESCRIPTION
+    }
 }
 
 impl TypeSafeId for SenderId {
@@ -86,6 +91,9 @@ impl BaseTypeSafeId for SenderId {
     type Name = SenderName;
     fn name_to_bytes(name: Self::Name) -> Bytes {
         Bytes::from_static(name.0)
+    }
+    fn description_type() -> TypeId {
+        constants::SENDER_DESCRIPTION
     }
 }
 

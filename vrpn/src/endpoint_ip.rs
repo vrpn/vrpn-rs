@@ -2,39 +2,20 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use vrpn_base::{constants, types::*};
+use vrpn_base::{
+    constants,
+    message::{Description, Message},
+    types::*,
+};
 use vrpn_connection::{
     connection::Endpoint, translationtable::TranslationTable, typedispatcher::HandlerResult,
 };
 
 use bytes::{BufMut, BytesMut};
 
-struct OutputBuf {}
-impl OutputBuf {
-    fn new() -> OutputBuf {
-        OutputBuf {}
-    }
-
-    fn pack_description<T: BaseTypeSafeId>(
-        &mut self,
-        table: &mut TranslationTable<T>,
-        local_id: LocalId<T>,
-        sender: SenderId,
-    ) {
-        let entry = table.get_by_local_id(local_id).unwrap();
-        let length = entry.name.len() + 1; // + 1 is for null-terminator.
-        let mut buf = BytesMut::with_capacity(length);
-        buf.put_u32_be(length as u32);
-        buf.put(&entry.name);
-        buf.put_u8(0);
-        println!("{:?}", &buf);
-        unimplemented!();
-    }
-}
 pub struct EndpointIP {
     types: TranslationTable<TypeId>,
     senders: TranslationTable<SenderId>,
-    output: OutputBuf,
 }
 
 impl EndpointIP {
@@ -42,7 +23,6 @@ impl EndpointIP {
         EndpointIP {
             types: TranslationTable::new(),
             senders: TranslationTable::new(),
-            output: OutputBuf::new(),
         }
     }
 }
@@ -80,18 +60,17 @@ impl Endpoint for EndpointIP {
     }
 
     fn pack_sender_description(&mut self, local_sender: LocalId<SenderId>) {
-        self.output.pack_description::<SenderId>(
-            &mut self.senders,
-            local_sender,
-            constants::SENDER_DESCRIPTION,
-        );
+        let LocalId(sender) = local_sender;
+        let entry = self.senders.get_by_local_id(local_sender).unwrap();
+        let msg = Message::from(Description::new(sender, entry.name.clone()));
+        // TODO do something with msg
     }
 
     fn pack_type_description(&mut self, local_type: LocalId<TypeId>) {
-        self.output.pack_description::<TypeId>(
-            &mut self.types,
-            local_type,
-            constants::TYPE_DESCRIPTION,
-        );
+        // TODO handle negative types here, they're system message types.
+        let LocalId(message_type) = local_type;
+        let entry = self.types.get_by_local_id(local_type).unwrap();
+        let msg = Message::from(Description::new(message_type, entry.name.clone()));
+        // TODO do something with msg
     }
 }

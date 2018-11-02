@@ -4,7 +4,7 @@
 
 use bytes::Bytes;
 use time::TimeVal;
-use types::{SenderId, SequenceNumber, TypeId};
+use types::{BaseTypeSafeId, SenderId, SequenceNumber, TypeId};
 
 /// A message with header information, ready to be buffered to the wire.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -16,16 +16,83 @@ pub struct Message<T> {
     pub sequence_number: Option<SequenceNumber>,
 }
 
-/// A generic message, where the inner contents have already been serialized.
-pub type GenericMessage = Message<Bytes>;
+impl<T> Message<T> {
+    pub fn new(
+        time: Option<TimeVal>,
+        message_type: TypeId,
+        sender: SenderId,
+        data: T,
+        sequence_number: Option<SequenceNumber>,
+    ) -> Message<T> {
+        Message {
+            time: time.unwrap_or_else(|| TimeVal::get_time_of_day()),
+            message_type,
+            sender,
+            data,
+            sequence_number,
+        }
+    }
 
-// Header is 5 i32s (padded to vrpn_ALIGN):
-// - unpadded header size + unpadded body size
-// - time stamp
-// - sender
-// - type
-// body is padded out to vrpn_ALIGN
+    pub fn from_parsed_generic<U>(generic: Message<GenericBody>, data: U) -> Message<U> {
+        Message {
+            time: generic.time,
+            message_type: generic.message_type,
+            sender: generic.sender,
+            data,
+            sequence_number: generic.sequence_number,
+        }
+    }
+}
 
-pub struct Description {
-    name: Bytes,
+/// Generic body struct used in unbuffering process, before dispatch on type to fully decode.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct GenericBody {
+    pub body_bytes: Bytes,
+}
+
+impl GenericBody {
+    pub fn new(body_bytes: Bytes) -> GenericBody {
+        GenericBody { body_bytes }
+    }
+}
+
+/// Body struct for use in Message<T> for sender/type descriptions
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct InnerDescription {
+    pub name: Bytes,
+}
+
+impl InnerDescription {
+    pub fn new(name: Bytes) -> InnerDescription {
+        InnerDescription { name }
+    }
+}
+
+/// Typed description of a sender or type.
+///
+/// Converted to a Message<InnerDescription> before being sent.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct Description<T: BaseTypeSafeId> {
+    /// The ID
+    pub which: T,
+    /// The name associated with the ID (no null termination in this string)
+    pub name: Bytes,
+}
+
+impl<T: BaseTypeSafeId> Description<T> {
+    pub fn new(which: T, name: Bytes) -> Description<T> {
+        Description { which, name }
+    }
+}
+
+impl<T: BaseTypeSafeId> From<Description<T>> for Message<InnerDescription> {
+    fn from(v: Description<T>) -> Message<InnerDescription> {
+        Message::new(
+            None,
+            T::description_type(),
+            SenderId(v.which.get()),
+            InnerDescription { name: v.name },
+            None,
+        )
+    }
 }

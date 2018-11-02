@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::BufMut;
+use bytes::{BufMut, Bytes};
+use length_prefixed;
 use std::mem::size_of;
 use traits::{
     buffer::{self, Buffer},
-    unbuffer::{self, Unbuffer},
-    BufferSize, ConstantBufferSize, WrappedConstantSize,
+    unbuffer::{self, Output, OutputResultExtras, Unbuffer},
+    BufferSize, BytesRequired, ConstantBufferSize, WrappedConstantSize,
 };
-
 use vrpn_base::{
     constants::ALIGN,
-    message::Message,
+    message::{GenericBody, InnerDescription, Message},
     time::TimeVal,
     types::{IdType, SenderId, SequenceNumber, TypeId},
 };
@@ -55,6 +55,16 @@ fn padded(len: usize) -> usize {
     len + compute_padding(len)
 }
 
+const UNPADDED_MESSAGE_HEADER_SIZE: usize = 5 * 4;
+
+fn padded_message_size(unpadded_body_size: usize) -> usize {
+    padded(UNPADDED_MESSAGE_HEADER_SIZE) + padded(unpadded_body_size)
+}
+
+fn unpadded_message_size(unpadded_body_size: usize) -> usize {
+    UNPADDED_MESSAGE_HEADER_SIZE + unpadded_body_size
+}
+
 fn unpadded_message_header_size() -> usize {
     // The size field is a u32.
     let len_size = size_of::<u32>();
@@ -64,15 +74,22 @@ fn unpadded_message_header_size() -> usize {
         + TypeId::constant_buffer_size()
 }
 
-impl<U: BufferSize> BufferSize for Message<U> {
-    fn buffer_size(&self) -> usize {
-        padded(unpadded_message_header_size()) + padded(self.data.buffer_size())
-    }
-}
-
 fn pad_to_align<T: BufMut>(buf: &mut T, n: usize) {
     for _ in 0..compute_padding(n) {
         buf.put_u8(0)
+    }
+}
+
+// Header is 5 i32s (padded to vrpn_ALIGN):
+// - unpadded header size + unpadded body size
+// - time stamp
+// - sender
+// - type
+// body is padded out to vrpn_ALIGN
+
+impl<U: BufferSize> BufferSize for Message<U> {
+    fn buffer_size(&self) -> usize {
+        padded(unpadded_message_header_size()) + padded(self.data.buffer_size())
     }
 }
 
@@ -81,13 +98,13 @@ impl<U: Buffer> Buffer for Message<U> {
     fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
         let unpadded_header_len = unpadded_message_header_size();
         let unpadded_body_len = self.data.buffer_size();
-        let unpadded_len: u32 = (unpadded_message_header_size() + unpadded_body_len) as u32;
         if buf.remaining_mut() < padded(unpadded_body_len) + padded(unpadded_header_len) {
             return Err(buffer::Error::OutOfBuffer);
         }
-        buf.put_u32_be(unpadded_len);
-        self.time
-            .buffer(buf)
+        let unpadded_len: u32 = unpadded_message_size(unpadded_body_len) as u32;
+
+        Buffer::buffer(&unpadded_len, buf)
+            .and_then(|()| self.time.buffer(buf))
             .and_then(|_| self.sender.buffer(buf))
             .and_then(|_| self.message_type.buffer(buf))
             .and_then(|_| self.sequence_number.unwrap().buffer(buf))?;
@@ -96,5 +113,115 @@ impl<U: Buffer> Buffer for Message<U> {
             pad_to_align(buf, unpadded_body_len);
             Ok(())
         })
+    }
+}
+
+impl<U: Unbuffer> Unbuffer for Message<U> {
+    /// Deserialize from a buffer.
+    fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<Message<U>>> {
+        let unpadded_len: u32 = Unbuffer::unbuffer(buf)
+            .map_exactly_err_to_at_least()?
+            .data();
+        let unpadded_len = unpadded_len as usize;
+        let unpadded_body_len = unpadded_len - UNPADDED_MESSAGE_HEADER_SIZE;
+
+        // Subtracting the length of the u32 we already unbuffered.
+        let expected_remaining_bytes = padded_message_size(unpadded_body_len) - size_of::<u32>();
+
+        if buf.len() < expected_remaining_bytes {
+            return Err(unbuffer::Error::NeedMoreData(BytesRequired::Exactly(
+                expected_remaining_bytes - buf.len(),
+            )));
+        }
+        let time = Unbuffer::unbuffer(buf)?.data();
+        let sender = Unbuffer::unbuffer(buf)?.data();
+        let message_type = Unbuffer::unbuffer(buf)?.data();
+        let sequence_number = Unbuffer::unbuffer(buf)?.data();
+
+        // drop padding bytes
+        buf.split_to(compute_padding(UNPADDED_MESSAGE_HEADER_SIZE));
+
+        let data;
+        {
+            let mut data_buf = buf.split_to(unpadded_body_len);
+            data = Unbuffer::unbuffer(&mut data_buf)
+                .map_exactly_err_to_at_least()?
+                .data();
+            if data_buf.len() > 0 {
+                return Err(unbuffer::Error::ParseError(format!(
+                    "message body length was indicated as {}, but {} bytes remain unconsumed",
+                    unpadded_body_len,
+                    data_buf.len()
+                )));
+            }
+        }
+
+        // drop padding bytes
+        buf.split_to(compute_padding(unpadded_body_len));
+        Ok(Output(Message::new(
+            Some(time),
+            message_type,
+            sender,
+            data,
+            Some(sequence_number),
+        )))
+    }
+}
+
+impl Unbuffer for GenericBody {
+    fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<GenericBody>> {
+        let my_buf = buf.clone();
+        buf.advance(my_buf.len());
+        Ok(Output(GenericBody::new(my_buf)))
+    }
+}
+
+impl BufferSize for InnerDescription {
+    fn buffer_size(&self) -> usize {
+        length_prefixed::buffer_size(self.name.as_ref())
+    }
+}
+
+impl Buffer for InnerDescription {
+    fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+        length_prefixed::buffer_string(self.name.as_ref(), buf)
+    }
+}
+
+impl Unbuffer for InnerDescription {
+    fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<InnerDescription>> {
+        length_prefixed::unbuffer_string(buf).map(|b| Output(InnerDescription::new(b)))
+    }
+}
+
+fn unbuffer_typed_message_body<T: Unbuffer>(
+    msg: Message<GenericBody>,
+) -> unbuffer::Result<Message<T>> {
+    let mut buf = msg.data.body_bytes.clone();
+    let data = Unbuffer::unbuffer(&mut buf)
+        .map_need_more_err_to_generic_parse_err("parsing message body")?
+        .data();
+    if buf.len() > 0 {
+        return Err(unbuffer::Error::ParseError(format!(
+            "message body length was indicated as {}, but {} bytes remain unconsumed",
+            msg.data.body_bytes.len(),
+            buf.len()
+        )));
+    }
+    Ok(Message::new(
+        Some(msg.time),
+        msg.message_type,
+        msg.sender,
+        data,
+        msg.sequence_number,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn constant() {
+        assert_eq!(UNPADDED_MESSAGE_HEADER_SIZE, unpadded_message_header_size());
     }
 }

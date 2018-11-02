@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use cookie::Version;
-use types::{SenderId, SenderName, TypeName};
+use types::{SenderName, TypeId, TypeName};
 
 // Constants in this file must remain unchanged so that they match the C++ implementation.
 pub const GOT_FIRST_CONNECTION: TypeName = TypeName(b"VRPN_Connection_Got_First_Connection");
@@ -16,11 +16,11 @@ pub const CONTROL: SenderName = SenderName(b"VRPN Control");
 // This one might not go over the wire, so it might not be critical that it remain unchanged.
 pub const GENERIC: TypeName = TypeName(b"generic");
 
-pub const SENDER_DESCRIPTION: SenderId = SenderId(-1);
-pub const TYPE_DESCRIPTION: SenderId = SenderId(-2);
-pub const UDP_DESCRIPTION: SenderId = SenderId(-3);
-pub const LOG_DESCRIPTION: SenderId = SenderId(-4);
-pub const DISCONNECT_MESSAGE: SenderId = SenderId(-5);
+pub const SENDER_DESCRIPTION: TypeId = TypeId(-1);
+pub const TYPE_DESCRIPTION: TypeId = TypeId(-2);
+pub const UDP_DESCRIPTION: TypeId = TypeId(-3);
+pub const LOG_DESCRIPTION: TypeId = TypeId(-4);
+pub const DISCONNECT_MESSAGE: TypeId = TypeId(-5);
 
 pub const TCP_BUFLEN: usize = 64000;
 pub const UDP_BUFLEN: usize = 1472;

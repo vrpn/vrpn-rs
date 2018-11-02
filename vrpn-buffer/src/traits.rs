@@ -49,7 +49,7 @@ pub mod unbuffer {
     #[derive(Debug)]
     pub enum Error {
         NeedMoreData(needed: BytesRequired) {
-            display("ran out of buffered bytes: need {}", needed)
+            display("ran out of buffered bytes: need {} additional bytes", needed)
         }
         InvalidDecimalDigit(chars: Vec<char>) {
             display(self_) -> ("got the following non-decimal-digit(s) {}", itertools::join(chars.iter().map(|x : &char| x.to_string()), ","))
@@ -148,6 +148,7 @@ pub mod unbuffer {
     /// Trait used to extend the methods of Result<Output<T>>
     pub trait OutputResultExtras<T> {
         /// Transforms the completed output's data, if successful
+        #[deprecated]
         fn and_then_map<U, F>(self, f: F) -> Result<Output<U>>
         where
             U: Sized,
@@ -158,9 +159,12 @@ pub mod unbuffer {
         /// Used when a variable-buffer-size type begins its work by
         /// unbuffering a fixed-size type, like a "length" field.
         fn map_exactly_err_to_at_least(self) -> Self;
+        /// Map the result that additional bytes are required to a
+        /// generic parse error with the byte count in the message,
+        /// for instances where more bytes are logically unavailable.
+        fn map_need_more_err_to_generic_parse_err(self, task: &str) -> Self;
     }
 
-    #[deprecated]
     impl<T> OutputResultExtras<T> for Result<Output<T>> {
         fn and_then_map<U, F>(self, f: F) -> Result<Output<U>>
         where
@@ -176,6 +180,17 @@ pub mod unbuffer {
                 Err(Error::NeedMoreData(BytesRequired::Exactly(n))) => {
                     Err(Error::NeedMoreData(BytesRequired::AtLeast(n)))
                 }
+                Err(e) => Err(e),
+            }
+        }
+
+        fn map_need_more_err_to_generic_parse_err(self, task: &str) -> Self {
+            match self {
+                Ok(v) => Ok(v),
+                Err(Error::NeedMoreData(n)) => Err(Error::ParseError(format!(
+                    "when {}, ran out of data - needed {} additional bytes",
+                    task, n
+                ))),
                 Err(e) => Err(e),
             }
         }
