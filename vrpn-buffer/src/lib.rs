@@ -8,9 +8,6 @@ extern crate itertools;
 
 extern crate libc;
 
-// #[macro_use]
-// extern crate nom;
-
 #[macro_use]
 extern crate quick_error;
 
@@ -19,13 +16,11 @@ extern crate vrpn_base;
 pub mod cookie;
 pub mod length_prefixed;
 pub mod message;
-// pub mod nom_wrapper;
 pub mod prelude;
 pub mod primitives;
 pub mod time;
 pub mod traits;
 
-// pub use nom_wrapper::call_nom_parser;
 pub use primitives::*;
 pub use traits::{
     buffer::{self, Buffer},

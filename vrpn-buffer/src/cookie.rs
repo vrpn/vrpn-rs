@@ -3,7 +3,6 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
-// use nom_wrapper::call_nom_parser_constant_length;
 use std::fmt::{self, Display, Formatter};
 use std::num::ParseIntError;
 use std::result;
@@ -33,6 +32,7 @@ impl Buffer for CookieData {
         Ok(())
     }
 }
+
 #[inline]
 fn from_dec(input: &[u8]) -> result::Result<u8, ParseIntError> {
     u8::from_str_radix(&String::from_utf8_lossy(input), 10)
@@ -42,25 +42,6 @@ fn from_dec(input: &[u8]) -> result::Result<u8, ParseIntError> {
 fn dec_digits(buf: &mut Bytes, n: usize) -> result::Result<u8, ParseIntError> {
     from_dec(&buf.split_to(n))
 }
-// named!(dec_digits_1<&[u8], u8>, map_res!(take!(1), from_dec));
-// named!(dec_digits_2<&[u8], u8>, map_res!(take!(2), from_dec));
-
-// named!(
-//     cookie<&[u8], CookieData>,
-//     do_parse!(
-//         tag!(MAGIC_PREFIX)
-//             >> major: dec_digits_2
-//             >> tag!(".")
-//             >> minor: dec_digits_2
-//             >> tag!("  ")
-//             >> mode: dec_digits_1
-//             >> tag!(COOKIE_PADDING)
-//             >> (CookieData {
-//                 version: Version { major, minor },
-//                 log_mode: Some(mode)
-//             })
-//     )
-// );
 
 impl Unbuffer for CookieData {
     fn unbuffer(buf: &mut Bytes) -> unbuffer::Result<Output<Self>> {

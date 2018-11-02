@@ -3,7 +3,6 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
-// use nom_wrapper::call_nom_parser;
 use std::fmt::{self, Display, Formatter};
 use std::mem::size_of;
 use std::num::ParseIntError;
