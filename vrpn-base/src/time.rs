@@ -3,6 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use libc::timeval;
+use std::time::{Duration, SystemTime};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct Seconds(pub i32);
@@ -18,7 +19,8 @@ pub struct TimeVal {
 
 impl TimeVal {
     /// Constructor from components.
-    /// TODO normalize
+    ///
+    /// TODO normalize?
     pub fn new(sec: Seconds, usec: Microseconds) -> Self {
         Self { sec, usec }
     }
@@ -33,12 +35,8 @@ impl TimeVal {
         self.usec
     }
 
-    /// Get a libc timeval
-    pub fn as_timeval(&self) -> timeval {
-        timeval {
-            tv_sec: self.sec.0 as i64,
-            tv_usec: self.usec.0 as i64,
-        }
+    pub fn get_time_of_day() -> TimeVal {
+        TimeVal::from(SystemTime::now())
     }
 }
 
@@ -48,8 +46,22 @@ impl Default for TimeVal {
     }
 }
 
-impl From<timeval> for TimeVal {
-    fn from(v: timeval) -> Self {
-        Self::new(Seconds(v.tv_sec as i32), Microseconds(v.tv_usec as i32))
+impl From<SystemTime> for TimeVal {
+    fn from(v: SystemTime) -> Self {
+        // In practice this should always work.
+        let since_epoch = v.duration_since(SystemTime::UNIX_EPOCH).unwrap();
+
+        TimeVal::new(
+            Seconds(since_epoch.as_secs() as i32),
+            Microseconds(since_epoch.subsec_micros() as i32),
+        )
+    }
+}
+
+impl From<TimeVal> for SystemTime {
+    fn from(v: TimeVal) -> Self {
+        SystemTime::UNIX_EPOCH
+            + Duration::from_secs(v.seconds().0 as u64)
+            + Duration::from_micros(v.microseconds().0 as u64)
     }
 }
