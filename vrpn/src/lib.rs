@@ -26,3 +26,5 @@ pub mod buffer {
 pub mod connection {
     pub use vrpn_connection::*;
 }
+
+pub use base::constants;

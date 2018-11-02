@@ -9,11 +9,19 @@ use std::ops::Add;
 pub mod buffer {
     use super::{BufferSize, WrappedConstantSize};
     use bytes::BufMut;
+    use std::io;
+
     quick_error! {
         #[derive(Debug)]
         pub enum Error {
             OutOfBuffer {
                 description("ran out of buffer space")
+            }
+            IoError(err: io::Error) {
+                display("{}", err)
+                description(err.description())
+                from()
+                cause(err)
             }
         }
     }
@@ -43,7 +51,7 @@ pub mod unbuffer {
     use super::{BytesRequired, ConstantBufferSize, WrappedConstantSize};
     use bytes::Bytes;
     use itertools;
-    use std::num::ParseIntError;
+    use std::{io, num::ParseIntError};
 
     quick_error!{
     #[derive(Debug)]
@@ -65,6 +73,12 @@ pub mod unbuffer {
         }
         ParseError(msg: String) {
             description(msg)
+        }
+        IoError(err: io::Error) {
+            display("{}", err)
+            description(err.description())
+            from()
+            cause(err)
         }
     }
     }
@@ -197,11 +211,12 @@ pub mod unbuffer {
     }
     /// Check that the buffer begins with the expected string.
     pub fn check_expected(buf: &mut Bytes, expected: &'static [u8]) -> Result<()> {
-        let len = expected.len();
-        if buf.len() < len {
-            return Err(Error::NeedMoreData(BytesRequired::Exactly(buf.len() - len)));
+        let bytes_len = buf.len();
+        let expected_len = expected.len();
+        if bytes_len < expected_len {
+            return Err(Error::NeedMoreData(BytesRequired::Exactly(expected_len - bytes_len)));
         }
-        let my_bytes = buf.split_to(len);
+        let my_bytes = buf.split_to(expected_len);
         if my_bytes == expected {
             Ok(())
         } else {

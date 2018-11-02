@@ -24,6 +24,6 @@ pub mod traits;
 pub use primitives::*;
 pub use traits::{
     buffer::{self, Buffer},
-    unbuffer::{Unbuffer, UnbufferConstantSize},
+    unbuffer::{self, Output, Unbuffer, UnbufferConstantSize},
     BufferSize, ConstantBufferSize,
 };

@@ -10,6 +10,7 @@ mio = "0.6.16"
 tokio = "0.1.11"
 socket2 = "0.3.8"
 futures = "0.1.25"
+quick-error = "1.2.2"
 vrpn-base = { path = "../vrpn-base" }
 vrpn-buffer = { path = "../vrpn-buffer" }
 vrpn-connection = { path = "../vrpn-connection" }
