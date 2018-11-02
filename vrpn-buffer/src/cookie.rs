@@ -2,28 +2,36 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
-use std::fmt::{self, Display, Formatter};
-use std::num::ParseIntError;
-use std::result;
-use traits::{
-    buffer::{self, Buffer},
-    unbuffer::{self, check_expected, Output, OutputResultExtras, Unbuffer},
-    ConstantBufferSize,
+use super::{
+    prelude::*,
+    traits::{
+        buffer::{self, Buffer},
+        unbuffer::{self, check_expected, Output, OutputResultExtras, Unbuffer},
+        ConstantBufferSize,
+    },
 };
-use vrpn_base::constants::{self, COOKIE_SIZE, MAGIC_PREFIX};
-use vrpn_base::cookie::{CookieData, Version};
+use bytes::{BufMut, Bytes};
+use std::{
+    fmt::{self, Display, Formatter},
+    num::ParseIntError,
+    result,
+};
+use vrpn_base::{
+    constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
+    cookie::{CookieData, Version},
+};
 
 const COOKIE_PADDING: &[u8] = b"\0\0\0\0\0";
 
 impl ConstantBufferSize for CookieData {
+    #[inline]
     fn constant_buffer_size() -> usize {
         COOKIE_SIZE
     }
 }
 
 impl Buffer for CookieData {
-    fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
         if buf.remaining_mut() < Self::constant_buffer_size() {
             return Err(buffer::Error::OutOfBuffer);
         }
@@ -78,7 +86,7 @@ mod tests {
 
         let mut buf = Vec::new();
         magic_cookie
-            .buffer(&mut buf)
+            .buffer_ref(&mut buf)
             .expect("Buffering needs to succeed");
         assert_eq!(buf.len(), constants::COOKIE_SIZE);
     }
@@ -92,7 +100,7 @@ mod tests {
         magic_cookie.log_mode = Some(0);
         let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
         magic_cookie
-            .buffer(&mut buf)
+            .buffer_ref(&mut buf)
             .expect("Buffering needs to succeed");
         let mut buf = buf.freeze();
         assert_eq!(

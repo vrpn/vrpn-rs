@@ -98,7 +98,7 @@ impl<U: BufferSize> BufferSize for Message<U> {
 
 impl<U: Buffer> Buffer for Message<U> {
     /// Serialize to a buffer.
-    fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
         let unpadded_header_len = unpadded_message_header_size();
         let unpadded_body_len = self.data.buffer_size();
         if buf.remaining_mut() < padded(unpadded_body_len) + padded(unpadded_header_len) {
@@ -106,13 +106,13 @@ impl<U: Buffer> Buffer for Message<U> {
         }
         let unpadded_len: u32 = unpadded_message_size(unpadded_body_len) as u32;
 
-        Buffer::buffer(&unpadded_len, buf)
-            .and_then(|()| self.time.buffer(buf))
-            .and_then(|_| self.sender.buffer(buf))
-            .and_then(|_| self.message_type.buffer(buf))
-            .and_then(|_| self.sequence_number.unwrap().buffer(buf))?;
+        Buffer::buffer_ref(&unpadded_len, buf)
+            .and_then(|()| self.time.buffer_ref(buf))
+            .and_then(|_| self.sender.buffer_ref(buf))
+            .and_then(|_| self.message_type.buffer_ref(buf))
+            .and_then(|_| self.sequence_number.unwrap().buffer_ref(buf))?;
         pad_to_align(buf, unpadded_header_len);
-        self.data.buffer(buf).and_then(|_| {
+        self.data.buffer_ref(buf).and_then(|_| {
             pad_to_align(buf, unpadded_body_len);
             Ok(())
         })
@@ -184,7 +184,7 @@ impl BufferSize for InnerDescription {
 }
 
 impl Buffer for InnerDescription {
-    fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
         length_prefixed::buffer_string(self.name.as_ref(), buf)
     }
 }

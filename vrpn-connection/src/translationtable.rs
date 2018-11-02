@@ -3,8 +3,6 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
-use std::error;
-use std::fmt;
 use vrpn_base::types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId};
 
 quick_error! {

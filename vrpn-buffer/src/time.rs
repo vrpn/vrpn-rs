@@ -40,10 +40,10 @@ impl ConstantBufferSize for TimeVal {
 }
 
 impl Buffer for TimeVal {
-    fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
         self.seconds()
-            .buffer(buf)
-            .and_then(|_| self.microseconds().buffer(buf))
+            .buffer_ref(buf)
+            .and_then(|_| self.microseconds().buffer_ref(buf))
     }
 }
 

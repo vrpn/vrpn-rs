@@ -14,7 +14,7 @@ macro_rules! buffer_primitive {
         impl ConstantBufferSize for $t {}
 
         impl Buffer for $t {
-            fn buffer<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+            fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
                 buf.$put(*self);
                 Ok(())
             }

@@ -34,12 +34,12 @@ pub mod buffer {
     /// Trait for types that can be "buffered" (serialized to a byte buffer)
     pub trait Buffer: BufferSize {
         /// Serialize to a buffer.
-        fn buffer<T: BufMut>(&self, buf: &mut T) -> Result;
+        fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> Result;
 
         /// Serialize into the provided buffer, which is consumed and re-produced in the result.
         fn buffer_into(&self, buf: BytesMut) -> ResultWithBuf {
             let mut buf = buf;
-            self.buffer(&mut buf)?;
+            self.buffer_ref(&mut buf)?;
             Ok(buf)
         }
 
@@ -50,8 +50,8 @@ pub mod buffer {
     }
 
     impl<T: WrappedConstantSize> Buffer for T {
-        fn buffer<U: BufMut>(&self, buf: &mut U) -> Result {
-            self.get().buffer(buf)
+        fn buffer_ref<U: BufMut>(&self, buf: &mut U) -> Result {
+            self.get().buffer_ref(buf)
         }
     }
 

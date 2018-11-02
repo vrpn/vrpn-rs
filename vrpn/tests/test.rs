@@ -23,34 +23,41 @@ use vrpn::{
     },
     buffer::{buffer, unbuffer, Buffer, BufferSize, ConstantBufferSize, Output, Unbuffer},
     connection::translationtable::TranslationTable,
+    prelude::*,
     *,
 };
 
 quick_error! {
-#[derive(Debug)]
-pub enum ConnectError {
-    VersionError(err: cookie::VersionError) {
-        from()
-        display("version error: {}", err)
-        cause(err)
-    }
-    UnbufferError(err: unbuffer::Error) {
-        from()
-        display("unbuffer error: {}", err)
-        cause(err)
-    }
-    BufferError(err: buffer::Error) {
-        from()
-        display("buffer error: {}", err)
-        cause(err)
-    }
-    IoError(err: io::Error) {
-        from()
-        display("IO error: {}", err)
-        cause(err)
+    #[derive(Debug)]
+    pub enum ConnectError {
+        VersionError(err: cookie::VersionError) {
+            from()
+            display("version error: {}", err)
+            cause(err)
+        }
+        UnbufferError(err: unbuffer::Error) {
+            from()
+            display("unbuffer error: {}", err)
+            cause(err)
+        }
+        BufferError(err: buffer::Error) {
+            from()
+            display("buffer error: {}", err)
+            cause(err)
+        }
+        IoError(err: io::Error) {
+            from()
+            display("IO error: {}", err)
+            cause(err)
+        }
     }
 }
-}
+
+// impl From<VersionError> for ConnectError {
+//     fn from(v: VersionError) -> ConnectError {
+//         ConnectError::VersionError(v)
+//     }
+// }
 #[derive(Debug, Copy, Clone)]
 struct CodecWrapper<T>(std::marker::PhantomData<T>);
 
@@ -71,7 +78,8 @@ impl<T: Buffer> Encoder for CodecWrapper<T> {
     type Error = ConnectError;
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.reserve(item.buffer_size());
-        item.buffer(dst).map_err(|e| ConnectError::BufferError(e))
+        item.buffer_ref(dst)
+            .map_err(|e| ConnectError::BufferError(e))
     }
 }
 impl<T: Unbuffer> Decoder for CodecWrapper<T> {
@@ -80,7 +88,7 @@ impl<T: Unbuffer> Decoder for CodecWrapper<T> {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let src_len = src.len();
         let mut frozen = src.clone().freeze();
-        match T::unbuffer(&mut frozen) {
+        match T::unbuffer_ref(&mut frozen) {
             Ok(Output(v)) => {
                 src.advance(src_len - frozen.len());
                 Ok(Some(v))
@@ -120,8 +128,15 @@ fn make_tcp_socket(addr: std::net::SocketAddr) -> io::Result<std::net::TcpStream
 }
 
 //impl<T>
-fn convert_err<T: std::error::Error>(e: T) -> io::Error {
+fn _convert_err<T: std::error::Error>(e: T) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, e.to_string())
+}
+fn convert_err<T>(e: T) -> ConnectError
+where
+    T: std::error::Error,
+    ConnectError: From<T>,
+{
+    From::from(e)
 }
 
 pub fn connect_tcp(addr: std::net::SocketAddr)
@@ -135,35 +150,54 @@ pub fn connect_tcp(addr: std::net::SocketAddr)
         Ok(socket) => socket,
     };
     */
+    let buflen = CookieData::constant_buffer_size();
+    let mut send_buf = BytesMut::with_capacity(buflen);
+    let cookie = CookieData::from(constants::MAGIC_DATA);
+    cookie.buffer_ref(&mut send_buf).unwrap();
+    // if let Err(e) = cookie.buffer_ref(&mut send_buf) {
+    //     return Err(ConnectError::BufferError(e));
+    // }
     let sock = make_tcp_socket(addr).expect("failure making the socket");
 
     let stream_future = TcpStream::connect_std(sock, &addr, &tokio::reactor::Handle::default());
-    // let handshake_future = stream_future.and_then(|stream| {
-    //     let cookie = CookieData::from(constants::MAGIC_DATA);
+    let handshake_future = stream_future
+        .or_else(|e| {
+            eprintln!("connect error {}", e);
+            future::err(ConnectError::IoError(e))
+        })
+        .and_then(|stream| io::write_all(stream, send_buf).map_err(convert_err))
+        .and_then(|(stream, _)| io::read_exact(stream, vec![0u8; buflen]).map_err(convert_err))
+        .and_then(|(stream, read_buf)| {
+            let mut read_buf = Bytes::from(read_buf);
+            CookieData::unbuffer_ref(&mut read_buf)
+                .map_err(|e| ConnectError::UnbufferError(e))
+                .and_then(|Output(parsed)| {
+                    check_ver_nonfile_compatible(parsed.version).map_err(convert_err)
+                })
+                .and_then(|()| future::ok(stream))
+        });
+    // .and_then(|(stream, Output(parsed_cookie))| check_ver_nonfile_compatible(parsed_cookie.version).and_then(|()| stream));
 
-    //     let send_buf = BytesMut::with_capacity(cookie.buffer_size());
-    //     let read_buf = BytesMut::with_capacity(CookieData::constant_buffer_size());
-    //     cookie
-    //         .buffer(send_buf)
-    //         .and_then(|()| stream.send(send_buf))
-    //         .and_then(|_| stream.read_buf(&read_buf)).and_then(|_| {
-    //          let read_cookie =    Unbuffer::unbuffer(read_buf.freeze())?;
-    //         })
-
-    //     cookie_codec()
-    //         .framed(stream)
-    //         .send(CookieData::from(constants::MAGIC_DATA))
-    // .and_then(|s| {
-    //     s.into_future().then(|result| {
-    //         println!("read; {:?}", result);
-    //         // let (Some(data), _) = result?;
-    //         // check_ver_nonfile_compatible(data.version)?;
-    //         Ok(stream)
+    //         if let Err(e) = check_ver_nonfile_compatible(parsed_cookie.version) {
+    //             return future::err(ConnectError::VersionError(e));
+    //         }
+    //         // Ok(stream)
     //     })
-    // })
-    // });
-    // let client = handshake_future.map_err(|e| eprintln!("got error {}", e));
-    // tokio::run(client);
+
+    // cookie_codec()
+    //     .framed(stream)
+    //     .send(CookieData::from(constants::MAGIC_DATA))
+    //     .and_then(|s| {
+    //         s.into_future().then(|result| {
+    //             println!("read; {:?}", result);
+    //             // let (Some(data), _) = result?;
+    //             // check_ver_nonfile_compatible(data.version)?;
+    //             Ok(stream)
+    //         })
+    //     })
+
+    let client = handshake_future.map_err(|e| eprintln!("got error {}", e));
+    tokio::run(client);
 }
 #[test]
 fn sync_connect() {
@@ -176,12 +210,14 @@ fn sync_connect() {
 
     let cookie = CookieData::from(constants::MAGIC_DATA);
     let mut send_buf = BytesMut::with_capacity(cookie.buffer_size());
-    cookie.buffer(&mut send_buf).unwrap();
+    cookie.buffer_ref(&mut send_buf).unwrap();
     let (stream, _) = io::write_all(stream, send_buf.freeze()).wait().unwrap();
-    
-    let (_stream, read_buf) = io::read_exact(stream, vec![0u8; CookieData::constant_buffer_size()]).wait().unwrap();
+
+    let (_stream, read_buf) = io::read_exact(stream, vec![0u8; CookieData::constant_buffer_size()])
+        .wait()
+        .unwrap();
     let mut read_buf = Bytes::from(read_buf);
-    let parsed_cookie : CookieData = Unbuffer::unbuffer(&mut read_buf).unwrap().data();
+    let parsed_cookie: CookieData = Unbuffer::unbuffer_ref(&mut read_buf).unwrap().data();
     check_ver_nonfile_compatible(parsed_cookie.version).unwrap();
 }
 #[test]

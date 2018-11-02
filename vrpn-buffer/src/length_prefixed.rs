@@ -30,7 +30,7 @@ pub fn buffer_string<T: BufMut>(s: &[u8], buf: &mut T) -> buffer::Result {
         return Err(buffer::Error::OutOfBuffer);
     }
     let buf_size = buf_size as u32;
-    buf_size.buffer(buf).and_then(|()| {
+    buf_size.buffer_ref(buf).and_then(|()| {
         buf.put(s);
         buf.put_u8(0);
         Ok(())
