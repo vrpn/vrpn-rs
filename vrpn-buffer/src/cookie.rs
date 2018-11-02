@@ -111,6 +111,25 @@ mod tests {
     }
 
     #[test]
+    fn roundtrip_bytesmut() {
+        use super::{constants, Buffer, CookieData, Unbuffer};
+        use bytes::BytesMut;
+
+        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
+        magic_cookie.log_mode = Some(0);
+
+        let mut buf = BytesMut::new()
+            .allocate_and_buffer(magic_cookie)
+            .expect("Buffering needs to succeed")
+            .freeze();
+        assert_eq!(
+            CookieData::unbuffer_ref(&mut buf).unwrap().data(),
+            magic_cookie
+        );
+        assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
     fn basics() {
         assert_eq!(from_dec(b"1"), Ok(1_u8));
         assert_eq!(from_dec(b"12"), Ok(12_u8));

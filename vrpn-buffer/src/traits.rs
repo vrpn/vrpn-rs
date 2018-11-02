@@ -29,19 +29,46 @@ pub mod buffer {
 
     pub type Result = std::result::Result<(), Error>;
 
-    pub type ResultWithBuf = std::result::Result<BytesMut, Error>;
+    pub type ResultWithBuf<T: Sized> = std::result::Result<T, Error>;
+
+    pub trait BufMutExtras
+    where
+        Self: Sized,
+    {
+        /// Serialize the value to the buffer, without changing the allocated size.
+        fn buffer<T: Buffer>(self, v: T) -> ResultWithBuf<Self>;
+    }
+
+    impl<U> BufMutExtras for U
+    where
+        U: BufMut + Sized,
+    {
+        fn buffer<T: Buffer>(self, v: T) -> ResultWithBuf<Self> {
+            let mut buf = self;
+            v.buffer_ref(&mut buf)?;
+            Ok(buf)
+        }
+    }
+
+    pub trait BytesMutExtras
+    where
+        Self: Sized,
+    {
+        /// Allocate enough space in the buffer for the given value, then serialize the value to the buffer.
+        fn allocate_and_buffer<T: Buffer>(self, v: T) -> ResultWithBuf<Self>;
+    }
+
+    impl BytesMutExtras for BytesMut {
+        fn allocate_and_buffer<T: Buffer>(mut self, v: T) -> ResultWithBuf<Self> {
+            self.reserve(v.buffer_size());
+            self.buffer(v)
+        }
+    }
 
     /// Trait for types that can be "buffered" (serialized to a byte buffer)
     pub trait Buffer: BufferSize {
-        /// Serialize to a buffer.
+        /// Serialize to a buffer (taken as a mutable reference)
         fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> Result;
-
-        /// Serialize into the provided buffer, which is consumed and re-produced in the result.
-        fn buffer_into(&self, buf: BytesMut) -> ResultWithBuf {
-            let mut buf = buf;
-            self.buffer_ref(&mut buf)?;
-            Ok(buf)
-        }
 
         /// Get the number of bytes required to serialize this to a buffer.
         fn required_buffer_size(&self) -> usize {
@@ -147,7 +174,10 @@ pub mod unbuffer {
         pub fn new(data: T, buf: Bytes) -> OutputWithRemaining<T> {
             OutputWithRemaining(data, buf)
         }
-
+        pub fn from_output(v: Output<T>, buf: Bytes) -> OutputWithRemaining<T> {
+            let Output(data) = v;
+            OutputWithRemaining(data, buf)
+        }
         pub fn map<U, F>(self, f: F) -> OutputWithRemaining<U>
         where
             U: Sized,
@@ -175,8 +205,17 @@ pub mod unbuffer {
     pub trait Unbuffer: Sized {
         /// Tries to unbuffer.
         ///
-        /// Returns Ok(None) if not enough data.
+        /// Returns Err(Error::NeedMoreData(n)) if not enough data.
         fn unbuffer_ref(buf: &mut Bytes) -> Result<Output<Self>>;
+
+        /// Tries to unbuffer.
+        ///
+        /// Returns Err(Error::NeedMoreData(n)) if not enough data.
+        fn unbuffer(buf: Bytes) -> Result<OutputWithRemaining<Self>> {
+            let mut buf = buf;
+            let v = Self::unbuffer_ref(&mut buf)?;
+            Ok(OutputWithRemaining::from_output(v, buf))
+        }
     }
 
     /// Implementation trait for constant-buffer-size types,
@@ -258,6 +297,26 @@ pub mod unbuffer {
             }
         }
     }
+
+    pub trait BytesExtras
+    where
+        Self: Sized,
+    {
+        fn unbuffer<T>(self) -> Result<OutputWithRemaining<T>>
+        where
+            T: Unbuffer;
+    }
+    impl BytesExtras for Bytes {
+        fn unbuffer<T>(self) -> Result<OutputWithRemaining<T>>
+        where
+            T: Unbuffer,
+        {
+            let mut buf = self;
+            let v = T::unbuffer_ref(&mut buf)?;
+            Ok(OutputWithRemaining::from_output(v, buf))
+        }
+    }
+
     /// Check that the buffer begins with the expected string.
     pub fn check_expected(buf: &mut Bytes, expected: &'static [u8]) -> Result<()> {
         let bytes_len = buf.len();

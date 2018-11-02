@@ -3,6 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 pub use traits::{
-    unbuffer::{OutputResultExtras, UnbufferOutput},
+    buffer::{BufMutExtras, BytesMutExtras},
+    unbuffer::{BytesExtras, OutputResultExtras, UnbufferOutput},
     ConstantBufferSize, WrappedConstantSize,
 };
