@@ -10,12 +10,7 @@ extern crate futures;
 extern crate quick_error;
 
 use bytes::{Bytes, BytesMut};
-use tokio::{
-    codec::{self, Decoder, Encoder},
-    io::{self, AsyncRead},
-    net::TcpStream,
-    prelude::*,
-};
+use tokio::{io, net::TcpStream, prelude::*};
 use vrpn::{
     base::{
         cookie::{self, check_ver_nonfile_compatible, CookieData},
@@ -53,56 +48,6 @@ quick_error! {
     }
 }
 
-// impl From<VersionError> for ConnectError {
-//     fn from(v: VersionError) -> ConnectError {
-//         ConnectError::VersionError(v)
-//     }
-// }
-#[derive(Debug, Copy, Clone)]
-struct CodecWrapper<T>(std::marker::PhantomData<T>);
-
-impl<T> CodecWrapper<T> {
-    pub fn new() -> CodecWrapper<T> {
-        CodecWrapper(Default::default())
-    }
-}
-
-impl<T> Default for CodecWrapper<T> {
-    fn default() -> CodecWrapper<T> {
-        CodecWrapper::new()
-    }
-}
-
-impl<T: Buffer> Encoder for CodecWrapper<T> {
-    type Item = T;
-    type Error = ConnectError;
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        dst.reserve(item.buffer_size());
-        item.buffer_ref(dst)
-            .map_err(|e| ConnectError::BufferError(e))
-    }
-}
-impl<T: Unbuffer> Decoder for CodecWrapper<T> {
-    type Item = T;
-    type Error = ConnectError;
-    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let src_len = src.len();
-        let mut frozen = src.clone().freeze();
-        match T::unbuffer_ref(&mut frozen) {
-            Ok(Output(v)) => {
-                src.advance(src_len - frozen.len());
-                Ok(Some(v))
-            }
-            Err(unbuffer::Error::NeedMoreData(_)) => Ok(None),
-            Err(e) => Err(ConnectError::UnbufferError(e)),
-        }
-    }
-}
-
-fn cookie_codec() -> CodecWrapper<CookieData> {
-    Default::default()
-}
-
 fn make_tcp_socket(addr: std::net::SocketAddr) -> io::Result<std::net::TcpStream> {
     use socket2::*;
     let domain = if addr.is_ipv4() {
@@ -118,7 +63,7 @@ fn make_tcp_socket(addr: std::net::SocketAddr) -> io::Result<std::net::TcpStream
         if addr.is_ipv4() {
             let any = std::net::Ipv4Addr::new(0, 0, 0, 0);
             let addr = std::net::SocketAddrV4::new(any, 0);
-            sock.bind(&socket2::SockAddr::from(addr));
+            sock.bind(&socket2::SockAddr::from(addr))?;
         } else {
             unimplemented!();
         }
@@ -127,10 +72,6 @@ fn make_tcp_socket(addr: std::net::SocketAddr) -> io::Result<std::net::TcpStream
     Ok(sock.into_tcp_stream())
 }
 
-//impl<T>
-fn _convert_err<T: std::error::Error>(e: T) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, e.to_string())
-}
 fn convert_err<T>(e: T) -> ConnectError
 where
     T: std::error::Error,
@@ -139,67 +80,29 @@ where
     From::from(e)
 }
 
-struct Handshake {
-    socket: TcpStream,
-    rd: BytesMut,
-    wr: BytesMut,
-}
-
-impl Handshake {
-    fn new(socket: TcpStream) -> Self {
-        Handshake {
-            socket,
-            rd: BytesMut::new(),
-            wr: BytesMut::new(),
-        }
-    }
-
-    fn buffer_send(&mut self) -> Result<(), ConnectError> {
-        let cookie = CookieData::from(constants::MAGIC_DATA);
-        self.wr.reserve(cookie.required_buffer_size());
-        cookie.buffer_ref(&mut self.wr).map_err(convert_err)
-    }
-
-    fn poll_flush(&mut self) -> Poll<(), ConnectError> {
-        while !self.wr.is_empty() {
-            let n = try_ready!(self.socket.poll_write(&self.wr));
-            assert!(n > 0);
-            self.wr.advance(n);
-        }
-        Ok(Async::Ready(()))
-    }
-}
-pub fn connect_tcp(addr: std::net::SocketAddr)
-//-> impl Future<Item = tokio::net::TcpStream, Error = io::Error>
-{
-    /*
-    let sock = match make_tcp_socket(addr) {
-        Err(e) => {
-            return future::err(e);
-        }
-        Ok(socket) => socket,
-    };
-    */
-    let buflen = CookieData::constant_buffer_size();
-    let cookie = CookieData::from(constants::MAGIC_DATA);
-    let send_buf = BytesMut::new().allocate_and_buffer(cookie).unwrap();
-
+pub fn connect_tcp(
+    addr: std::net::SocketAddr,
+) -> impl Future<Item = tokio::net::TcpStream, Error = ConnectError> {
     let sock = make_tcp_socket(addr).expect("failure making the socket");
 
     let stream_future = TcpStream::connect_std(sock, &addr, &tokio::reactor::Handle::default());
-    let handshake_future = stream_future
+    stream_future
         .or_else(|e| {
             eprintln!("connect error {}", e);
             future::err(ConnectError::IoError(e))
         })
         .and_then(|stream| {
+            let cookie = CookieData::from(constants::MAGIC_DATA);
             BytesMut::new()
                 .allocate_and_buffer(cookie)
                 .map_err(convert_err)
                 .into_future()
                 .and_then(|buf| io::write_all(stream, buf.freeze()).map_err(convert_err))
         })
-        .and_then(|(stream, _)| io::read_exact(stream, vec![0u8; buflen]).map_err(convert_err))
+        .and_then(|(stream, _)| {
+            io::read_exact(stream, vec![0u8; CookieData::constant_buffer_size()])
+                .map_err(convert_err)
+        })
         .and_then(|(stream, read_buf)| {
             println!("{:?}", stream);
             let mut read_buf = Bytes::from(read_buf);
@@ -209,30 +112,7 @@ pub fn connect_tcp(addr: std::net::SocketAddr)
                     check_ver_nonfile_compatible(parsed.version).map_err(convert_err)
                 })
                 .and_then(|()| Ok(stream))
-        });
-    // .and_then(|(stream, Output(parsed_cookie))| check_ver_nonfile_compatible(parsed_cookie.version).and_then(|()| stream));
-
-    //         if let Err(e) = check_ver_nonfile_compatible(parsed_cookie.version) {
-    //             return future::err(ConnectError::VersionError(e));
-    //         }
-    //         // Ok(stream)
-    //     })
-
-    // cookie_codec()
-    //     .framed(stream)
-    //     .send(CookieData::from(constants::MAGIC_DATA))
-    //     .and_then(|s| {
-    //         s.into_future().then(|result| {
-    //             println!("read; {:?}", result);
-    //             // let (Some(data), _) = result?;
-    //             // check_ver_nonfile_compatible(data.version)?;
-    //             Ok(stream)
-    //         })
-    //     })
-
-    let client = handshake_future.map_err(|e| eprintln!("got error {}", e));
-    // tokio::run(client);
-    client.wait();
+        })
 }
 #[test]
 fn sync_connect() {
