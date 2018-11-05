@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use constants::{self, MAGIC_PREFIX};
-use std::fmt;
-use std::fmt::{Display, Formatter};
-use std::result;
+use super::{
+    constants::{self, MAGIC_PREFIX},
+    types::{LogFlags, LogMode},
+};
+use std::{
+    fmt::{self, Display, Formatter},
+    result,
+};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Version {
@@ -26,7 +30,7 @@ impl Default for Version {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct CookieData {
     pub version: Version,
-    pub log_mode: Option<u8>,
+    pub log_mode: Option<LogMode>,
 }
 
 impl CookieData {
@@ -64,6 +68,22 @@ impl Display for Version {
     }
 }
 
+impl Display for LogMode {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        if self.is_none() {
+            write!(f, "no logging")
+        } else if self.is_all() {
+            write!(f, "incoming and outgoing logging")
+        } else if self.contains(LogFlags::INCOMING) {
+            write!(f, "incoming logging")
+        } else if self.contains(LogFlags::OUTGOING) {
+            write!(f, "outgoing logging")
+        } else {
+            write!(f, "unrecognized logging")
+        }
+    }
+}
+
 impl Display for CookieData {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
@@ -71,7 +91,7 @@ impl Display for CookieData {
             "{}{}  {}",
             String::from_utf8_lossy(&MAGIC_PREFIX[..]),
             self.version,
-            self.log_mode.unwrap_or(0)
+            *(self.log_mode.unwrap_or(LogMode::none()))
         )
     }
 }

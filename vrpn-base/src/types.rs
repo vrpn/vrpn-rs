@@ -109,12 +109,21 @@ pub enum IdToHandle<T> {
 pub use self::IdToHandle::*;
 
 bitmask! {
-    pub mask ClassOfService : u32 where flags Flags {
+    pub mask ClassOfService : u32 where flags ServiceFlags {
         RELIABLE = (1 << 0),
         FIXED_LATENCY = (1 << 1),
         LOW_LATENCY = (1 << 2),
         FIXED_THROUGHPUT = (1 << 3),
         HIGH_THROUGHPUT = (1 << 4),
+    }
+}
+
+bitmask!{
+    pub mask LogMode: u8 where flags LogFlags {
+        NONE = 0,
+        INCOMING = (1 << 0),
+        OUTGOING = (1 << 1),
+        INCOMING_OUTGOING = (1 << 0)|(1 << 1)
     }
 }
 

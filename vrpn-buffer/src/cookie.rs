@@ -19,6 +19,7 @@ use std::{
 use vrpn_base::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
     cookie::{CookieData, Version},
+    types::{LogFlags, LogMode},
 };
 
 const COOKIE_PADDING: &[u8] = b"\0\0\0\0\0";
@@ -51,20 +52,38 @@ fn dec_digits(buf: &mut Bytes, n: usize) -> result::Result<u8, ParseIntError> {
     from_dec(&buf.split_to(n))
 }
 
+fn u8_to_log_mode(v: u8) -> LogMode {
+    let mut mode = LogMode::none();
+    if (v & *LogFlags::INCOMING) != 0 {
+        mode.set(LogFlags::INCOMING);
+    }
+    if (v & *LogFlags::OUTGOING) != 0 {
+        mode.set(LogFlags::OUTGOING);
+    }
+    mode
+}
+
 impl Unbuffer for CookieData {
     fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<Self>> {
-        // call_nom_parser_constant_length(buf, cookie)
-
+        // remove "vrpn: ver. "
         check_expected(buf, MAGIC_PREFIX)?;
+        
         let major: u8 = dec_digits(buf, 2)?;
+        
         // remove dot
         check_expected(buf, b".")?;
+        
         let minor: u8 = dec_digits(buf, 2)?;
+        
         // remove spaces
         check_expected(buf, b"  ")?;
+        
         let log_mode: u8 = dec_digits(buf, 1)?;
+        let log_mode = u8_to_log_mode(log_mode);
+
         // remove padding
         check_expected(buf, COOKIE_PADDING)?;
+        
         Ok(Output(CookieData {
             version: Version { major, minor },
             log_mode: Some(log_mode),
@@ -81,7 +100,7 @@ mod tests {
         use super::{constants, Buffer, CookieData};
 
         let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
-        magic_cookie.log_mode = Some(0);
+        magic_cookie.log_mode = Some(LogMode::none());
         assert_eq!(magic_cookie.required_buffer_size(), constants::COOKIE_SIZE);
 
         let mut buf = Vec::new();
@@ -97,7 +116,7 @@ mod tests {
         use bytes::BytesMut;
 
         let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
-        magic_cookie.log_mode = Some(0);
+        magic_cookie.log_mode = Some(LogMode::none());
         let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
         magic_cookie
             .buffer_ref(&mut buf)
@@ -116,7 +135,7 @@ mod tests {
         use bytes::BytesMut;
 
         let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
-        magic_cookie.log_mode = Some(0);
+        magic_cookie.log_mode = Some(LogMode::none());
 
         let mut buf = BytesMut::new()
             .allocate_and_buffer(magic_cookie)
