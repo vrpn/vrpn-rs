@@ -139,6 +139,36 @@ where
     From::from(e)
 }
 
+struct Handshake {
+    socket: TcpStream,
+    rd: BytesMut,
+    wr: BytesMut,
+}
+
+impl Handshake {
+    fn new(socket: TcpStream) -> Self {
+        Handshake {
+            socket,
+            rd: BytesMut::new(),
+            wr: BytesMut::new(),
+        }
+    }
+
+    fn buffer_send(&mut self) -> Result<(), ConnectError> {
+        let cookie = CookieData::from(constants::MAGIC_DATA);
+        self.wr.reserve(cookie.required_buffer_size());
+        cookie.buffer_ref(&mut self.wr).map_err(convert_err)
+    }
+
+    fn poll_flush(&mut self) -> Poll<(), ConnectError> {
+        while !self.wr.is_empty() {
+            let n = try_ready!(self.socket.poll_write(&self.wr));
+            assert!(n > 0);
+            self.wr.advance(n);
+        }
+        Ok(Async::Ready(()))
+    }
+}
 pub fn connect_tcp(addr: std::net::SocketAddr)
 //-> impl Future<Item = tokio::net::TcpStream, Error = io::Error>
 {
@@ -151,12 +181,9 @@ pub fn connect_tcp(addr: std::net::SocketAddr)
     };
     */
     let buflen = CookieData::constant_buffer_size();
-    let mut send_buf = BytesMut::with_capacity(buflen);
     let cookie = CookieData::from(constants::MAGIC_DATA);
-    cookie.buffer_ref(&mut send_buf).unwrap();
-    // if let Err(e) = cookie.buffer_ref(&mut send_buf) {
-    //     return Err(ConnectError::BufferError(e));
-    // }
+    let send_buf = BytesMut::new().allocate_and_buffer(cookie).unwrap();
+
     let sock = make_tcp_socket(addr).expect("failure making the socket");
 
     let stream_future = TcpStream::connect_std(sock, &addr, &tokio::reactor::Handle::default());
@@ -165,16 +192,23 @@ pub fn connect_tcp(addr: std::net::SocketAddr)
             eprintln!("connect error {}", e);
             future::err(ConnectError::IoError(e))
         })
-        .and_then(|stream| io::write_all(stream, send_buf).map_err(convert_err))
+        .and_then(|stream| {
+            BytesMut::new()
+                .allocate_and_buffer(cookie)
+                .map_err(convert_err)
+                .into_future()
+                .and_then(|buf| io::write_all(stream, buf.freeze()).map_err(convert_err))
+        })
         .and_then(|(stream, _)| io::read_exact(stream, vec![0u8; buflen]).map_err(convert_err))
         .and_then(|(stream, read_buf)| {
+            println!("{:?}", stream);
             let mut read_buf = Bytes::from(read_buf);
             CookieData::unbuffer_ref(&mut read_buf)
                 .map_err(|e| ConnectError::UnbufferError(e))
                 .and_then(|Output(parsed)| {
                     check_ver_nonfile_compatible(parsed.version).map_err(convert_err)
                 })
-                .and_then(|()| future::ok(stream))
+                .and_then(|()| Ok(stream))
         });
     // .and_then(|(stream, Output(parsed_cookie))| check_ver_nonfile_compatible(parsed_cookie.version).and_then(|()| stream));
 
@@ -197,7 +231,8 @@ pub fn connect_tcp(addr: std::net::SocketAddr)
     //     })
 
     let client = handshake_future.map_err(|e| eprintln!("got error {}", e));
-    tokio::run(client);
+    // tokio::run(client);
+    client.wait();
 }
 #[test]
 fn sync_connect() {
