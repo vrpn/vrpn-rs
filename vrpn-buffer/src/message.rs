@@ -6,19 +6,19 @@ use super::{
     length_prefixed::{self, LengthBehavior, NullTermination},
     prelude::*,
     traits::{
-        buffer::{self, Buffer},
+        buffer::{self, Buffer, BytesMutExtras},
         unbuffer::{self, Output, OutputResultExtras, Source, Unbuffer},
         BufferSize, BytesRequired, ConstantBufferSize, WrappedConstantSize,
     },
 };
-use bytes::{Buf, BufMut, Bytes};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::{
     mem::size_of,
     ops::{Deref, DerefMut},
 };
 use vrpn_base::{
     constants::ALIGN,
-    message::{GenericBody, InnerDescription, Message},
+    message::{GenericBody, GenericMessage, InnerDescription, Message},
     time::TimeVal,
     types::{IdType, SenderId, SequenceNumber, TypeId},
 };
@@ -167,31 +167,32 @@ impl<T: BufMut> DerefMut for BufMutWrapper<T> {
 
 impl<U: BufferSize> BufferSize for Message<U> {
     fn buffer_size(&self) -> usize {
-        MessageSize::from_unpadded_body_size(self.data.buffer_size()).padded_message_size()
+        MessageSize::from_unpadded_body_size(self.body.buffer_size()).padded_message_size()
     }
 }
 
 impl<U: Buffer> Buffer for Message<U> {
     /// Serialize to a buffer.
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
-        let size = MessageSize::from_unpadded_body_size(self.data.buffer_size());
+        let size = MessageSize::from_unpadded_body_size(self.body.buffer_size());
         if buf.remaining_mut() < size.padded_message_size() {
             return Err(buffer::Error::OutOfBuffer);
         }
         let unpadded_len: u32 = size.unpadded_message_size() as u32;
 
         Buffer::buffer_ref(&unpadded_len, buf)
-            .and_then(|()| self.time.buffer_ref(buf))
-            .and_then(|()| self.sender.buffer_ref(buf))
-            .and_then(|()| self.message_type.buffer_ref(buf))
+            .and_then(|()| self.header.time.buffer_ref(buf))
+            .and_then(|()| self.header.sender.buffer_ref(buf))
+            .and_then(|()| self.header.message_type.buffer_ref(buf))
             .and_then(|()| {
-                self.sequence_number
+                self.header
+                    .sequence_number
                     .unwrap_or(SequenceNumber(0))
                     .buffer_ref(buf)
             })?;
 
         let mut buf = BufMutWrapper::new(buf);
-        Buffer::buffer_ref(&self.data, buf.borrow_buf_mut()).and_then(|()| {
+        Buffer::buffer_ref(&self.body, buf.borrow_buf_mut()).and_then(|()| {
             assert_eq!(buf.buffered(), size.unpadded_body_size);
             buf.pad_to_align();
             Ok(())
@@ -222,13 +223,13 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
         // Assert that handling the sequence number meant we're now aligned again.
         assert_eq!(initial_remaining - buf.len() % ALIGN, 0);
 
-        let data;
+        let body;
         {
-            let mut data_buf = buf.split_to(size.unpadded_body_size);
-            data = Unbuffer::unbuffer_ref(&mut data_buf)
+            let mut body_buf = buf.split_to(size.unpadded_body_size);
+            body = Unbuffer::unbuffer_ref(&mut body_buf)
                 .map_exactly_err_to_at_least()?
                 .data();
-            assert_eq!(data_buf.len(), 0);
+            assert_eq!(body_buf.len(), 0);
         }
 
         // drop padding bytes
@@ -237,7 +238,7 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
             Some(time),
             message_type,
             sender,
-            data,
+            body,
             Some(sequence_number),
         )))
     }
@@ -251,6 +252,20 @@ impl Unbuffer for GenericBody {
     }
 }
 
+impl BufferSize for GenericBody {
+    fn buffer_size(&self) -> usize {
+        self.inner.len()
+    }
+}
+impl Buffer for GenericBody {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+        if buf.remaining_mut() < self.inner.len() {
+            return Err(buffer::Error::OutOfBuffer);
+        }
+        buf.put(self.inner.clone());
+        Ok(())
+    }
+}
 impl BufferSize for InnerDescription {
     fn buffer_size(&self) -> usize {
         length_prefixed::buffer_size(self.name.as_ref(), NullTermination::AddTrailingNull)
@@ -274,27 +289,36 @@ impl Unbuffer for InnerDescription {
     }
 }
 
-fn unbuffer_typed_message_body<T: Unbuffer>(
+pub fn unbuffer_typed_message_body<T: Unbuffer>(
     msg: Message<GenericBody>,
 ) -> unbuffer::Result<Message<T>> {
-    let mut buf = msg.data.body_bytes.clone();
-    let data = Unbuffer::unbuffer_ref(&mut buf)
+    let mut buf = msg.body.inner.clone();
+    let body = Unbuffer::unbuffer_ref(&mut buf)
         .map_need_more_err_to_generic_parse_err("parsing message body")?
         .data();
     if buf.len() > 0 {
         return Err(unbuffer::Error::ParseError(format!(
             "message body length was indicated as {}, but {} bytes remain unconsumed",
-            msg.data.body_bytes.len(),
+            msg.body.inner.len(),
             buf.len()
         )));
     }
-    Ok(Message::new(
-        Some(msg.time),
-        msg.message_type,
-        msg.sender,
-        data,
-        msg.sequence_number,
-    ))
+    Ok(Message::from_header_and_body(msg.header, body))
+}
+
+pub fn make_message_body_generic<T: Buffer>(
+    msg: Message<T>,
+) -> std::result::Result<GenericMessage, buffer::Error> {
+    let old_body = msg.body;
+    let header = msg.header;
+    BytesMut::new()
+        .allocate_and_buffer(old_body)
+        .and_then(|body| {
+            Ok(GenericMessage::from_header_and_body(
+                header,
+                GenericBody::new(body.freeze()),
+            ))
+        })
 }
 
 #[cfg(test)]
