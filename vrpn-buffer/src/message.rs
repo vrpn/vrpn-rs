@@ -3,16 +3,19 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use super::{
-    length_prefixed,
+    length_prefixed::{self, LengthBehavior, NullTermination},
     prelude::*,
     traits::{
         buffer::{self, Buffer},
-        unbuffer::{self, Output, OutputResultExtras, Unbuffer},
+        unbuffer::{self, Output, OutputResultExtras, Source, Unbuffer},
         BufferSize, BytesRequired, ConstantBufferSize, WrappedConstantSize,
     },
 };
-use bytes::{BufMut, Bytes};
-use std::mem::size_of;
+use bytes::{Buf, BufMut, Bytes};
+use std::{
+    mem::size_of,
+    ops::{Deref, DerefMut},
+};
 use vrpn_base::{
     constants::ALIGN,
     message::{GenericBody, InnerDescription, Message},
@@ -59,28 +62,81 @@ fn padded(len: usize) -> usize {
     len + compute_padding(len)
 }
 
-const UNPADDED_MESSAGE_HEADER_SIZE: usize = 5 * 4;
+/// Simple struct for wrapping all calculations related to Message<T> size.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct MessageSize {
+    // The unpadded size of a message body only
+    pub unpadded_body_size: usize,
+}
+impl MessageSize {
+    const UNPADDED_HEADER_SIZE: usize = 5 * 4;
 
-fn padded_message_size(unpadded_body_size: usize) -> usize {
-    padded(UNPADDED_MESSAGE_HEADER_SIZE) + padded(unpadded_body_size)
+    /// Get a MessageSize from the unpadded size of a message body only.
+    #[inline]
+    pub fn from_unpadded_body_size(unpadded_body_size: usize) -> MessageSize {
+        MessageSize { unpadded_body_size }
+    }
+
+    /// Get a MessageSize from the total unpadded size of a message (header plus body)
+    #[inline]
+    pub fn from_unpadded_message_size(unpadded_message_size: usize) -> MessageSize {
+        MessageSize::from_unpadded_body_size(
+            unpadded_message_size - MessageSize::UNPADDED_HEADER_SIZE,
+        )
+    }
+
+    /// The total unpadded size of a message (header plus body).
+    ///
+    /// This is the value put in the message header's length field.
+    #[inline]
+    pub fn unpadded_message_size(&self) -> usize {
+        self.unpadded_body_size + MessageSize::UNPADDED_HEADER_SIZE
+    }
+
+    #[inline]
+    pub fn padded_body_size(&self) -> usize {
+        padded(self.unpadded_body_size)
+    }
+
+    /// The total padded size of a message (header plus body, padding applied individually).
+    ///
+    /// This is the size of buffer actually required for this message.
+    #[inline]
+    pub fn padded_message_size(&self) -> usize {
+        self.padded_body_size() + padded(MessageSize::UNPADDED_HEADER_SIZE)
+    }
 }
 
-fn unpadded_message_size(unpadded_body_size: usize) -> usize {
-    UNPADDED_MESSAGE_HEADER_SIZE + unpadded_body_size
+/// Wraps a type implementing BufMut to also track the initial remaining length,
+/// to allow for automatic padding of fields.
+struct BufMutWrapper<T: BufMut>(T, usize);
+impl<T: BufMut> BufMutWrapper<T> {
+    fn new(buf: T) -> BufMutWrapper<T> {
+        BufMutWrapper(buf, buf.remaining_mut())
+    }
+    fn pad_to_align(&mut self) {
+        let buffered = self.1 - self.0.remaining_mut();
+
+        for _ in 0..compute_padding(buffered) {
+            self.0.put_u8(0)
+        }
+    }
+    fn borrow_buf_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
 }
 
-fn unpadded_message_header_size() -> usize {
-    // The size field is a u32.
-    let len_size = size_of::<u32>();
-    len_size
-        + TimeVal::constant_buffer_size()
-        + SenderId::constant_buffer_size()
-        + TypeId::constant_buffer_size()
+impl<T: BufMut> Deref for BufMutWrapper<T> {
+    type Target = T;
+    #[inline]
+    fn deref(&self) -> &T {
+        &self.0
+    }
 }
-
-fn pad_to_align<T: BufMut>(buf: &mut T, n: usize) {
-    for _ in 0..compute_padding(n) {
-        buf.put_u8(0)
+impl<T: BufMut> DerefMut for BufMutWrapper<T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
     }
 }
 
@@ -89,32 +145,40 @@ fn pad_to_align<T: BufMut>(buf: &mut T, n: usize) {
 // - time stamp
 // - sender
 // - type
+//
+// The four bytes of "padding" are actually the sequence number,
+// which are not "officially" part of the header.
+//
 // body is padded out to vrpn_ALIGN
 
 impl<U: BufferSize> BufferSize for Message<U> {
     fn buffer_size(&self) -> usize {
-        padded(unpadded_message_header_size()) + padded(self.data.buffer_size())
+        MessageSize::from_unpadded_body_size(self.data.buffer_size()).padded_message_size()
     }
 }
 
 impl<U: Buffer> Buffer for Message<U> {
     /// Serialize to a buffer.
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
-        let unpadded_header_len = unpadded_message_header_size();
-        let unpadded_body_len = self.data.buffer_size();
-        if buf.remaining_mut() < padded(unpadded_body_len) + padded(unpadded_header_len) {
+        let mut buf = BufMutWrapper::new(buf);
+        let size = MessageSize::from_unpadded_body_size(self.data.buffer_size());
+        if buf.remaining_mut() < size.padded_message_size() {
             return Err(buffer::Error::OutOfBuffer);
         }
-        let unpadded_len: u32 = unpadded_message_size(unpadded_body_len) as u32;
+        let unpadded_len: u32 = size.unpadded_message_size() as u32;
 
-        Buffer::buffer_ref(&unpadded_len, buf)
-            .and_then(|()| self.time.buffer_ref(buf))
-            .and_then(|_| self.sender.buffer_ref(buf))
-            .and_then(|_| self.message_type.buffer_ref(buf))
-            .and_then(|_| self.sequence_number.unwrap().buffer_ref(buf))?;
-        pad_to_align(buf, unpadded_header_len);
-        self.data.buffer_ref(buf).and_then(|_| {
-            pad_to_align(buf, unpadded_body_len);
+        Buffer::buffer_ref(&unpadded_len, buf.borrow_buf_mut())
+            .and_then(|()| self.time.buffer_ref(buf.borrow_buf_mut()))
+            .and_then(|()| self.sender.buffer_ref(buf.borrow_buf_mut()))
+            .and_then(|()| self.message_type.buffer_ref(buf.borrow_buf_mut()))
+            .and_then(|()| {
+                self.sequence_number
+                    .unwrap_or(SequenceNumber(0))
+                    .buffer_ref(buf.borrow_buf_mut())
+            })?;
+        buf.pad_to_align();
+        Buffer::buffer_ref(&self.data, buf.borrow_buf_mut()).and_then(|()| {
+            buf.pad_to_align();
             Ok(())
         })
     }
@@ -125,7 +189,7 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
     fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<Message<U>>> {
         let unpadded_len = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?.data();
         let unpadded_len = unpadded_len as usize;
-        let unpadded_body_len = unpadded_len - UNPADDED_MESSAGE_HEADER_SIZE;
+        let unpadded_body_len = unpadded_len - MessageSize::UNPADDED_HEADER_SIZE;
 
         // Subtracting the length of the u32 we already unbuffered.
         let expected_remaining_bytes = padded_message_size(unpadded_body_len) - size_of::<u32>();
@@ -141,7 +205,7 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
         let sequence_number = Unbuffer::unbuffer_ref(buf)?.data();
 
         // drop padding bytes
-        buf.split_to(compute_padding(UNPADDED_MESSAGE_HEADER_SIZE));
+        buf.split_to(compute_padding(MessageSize::UNPADDED_HEADER_SIZE));
 
         let data;
         {
@@ -180,13 +244,18 @@ impl Unbuffer for GenericBody {
 
 impl BufferSize for InnerDescription {
     fn buffer_size(&self) -> usize {
-        length_prefixed::buffer_size(self.name.as_ref())
+        length_prefixed::buffer_size(self.name.as_ref(), NullTermination::AddTrailingNull)
     }
 }
 
 impl Buffer for InnerDescription {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
-        length_prefixed::buffer_string(self.name.as_ref(), buf)
+        length_prefixed::buffer_string(
+            self.name.as_ref(),
+            buf,
+            NullTermination::AddTrailingNull,
+            LengthBehavior::IncludeNull,
+        )
     }
 }
 
@@ -224,6 +293,13 @@ mod tests {
     use super::*;
     #[test]
     fn constant() {
-        assert_eq!(UNPADDED_MESSAGE_HEADER_SIZE, unpadded_message_header_size());
+
+    // The size field is a u32.
+    let len_size = size_of::<u32>();
+    
+        assert_eq!(MessageSize::UNPADDED_HEADER_SIZE, len_size
+        + TimeVal::constant_buffer_size()
+        + SenderId::constant_buffer_size()
+        + TypeId::constant_buffer_size());
     }
 }

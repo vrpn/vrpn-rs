@@ -6,28 +6,53 @@ use super::{
     prelude::*,
     traits::{
         buffer::{self, Buffer},
-        unbuffer::{self, check_expected, Output, OutputResultExtras, Unbuffer},
-        BytesRequired, ConstantBufferSize,
+        unbuffer::{self, check_expected, OutputResultExtras, Source, Unbuffer},
+        BytesRequired,
     },
 };
-use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
-use std::{
-    fmt::{self, Display, Formatter},
-    mem::size_of,
-    num::ParseIntError,
-    result,
-};
+use bytes::{BufMut, Bytes};
+use std::mem::size_of;
 
-/// Get the size required to buffer a string, preceded by its length and followed by a null bytes.
-pub fn buffer_size(s: &[u8]) -> usize {
-    size_of::<u32>() + s.len() + 1
+/// Does the "length prefix" value include a trailing null character (strlen() + 1)?
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum LengthBehavior {
+    /// Length is strlen + 1
+    IncludeNull,
+    /// Length is strlen
+    ExcludeNull,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum NullTermination {
+    AddTrailingNull,
+    NoNull,
+}
+
+/// Get the size required to buffer a string, preceded by its length and followed by a null byte.
+pub fn buffer_size(s: &[u8], termination: NullTermination) -> usize {
+    size_of::<u32>()
+        + s.len()
+        + match termination {
+            NullTermination::NoNull => 0,
+            NullTermination::AddTrailingNull => 1,
+        }
 }
 
 /// Buffer a string, preceded by its length and followed by a null bytes.
-pub fn buffer_string<T: BufMut>(s: &[u8], buf: &mut T) -> buffer::Result {
-    let buf_size = buffer_size(s);
+pub fn buffer_string<T: BufMut>(
+    s: &[u8],
+    buf: &mut T,
+    termination: NullTermination,
+    null_in_len: LengthBehavior,
+) -> buffer::Result {
+    let mut buf_size = buffer_size(s, termination);
     if buf.remaining_mut() < buf_size {
         return Err(buffer::Error::OutOfBuffer);
+    }
+    if termination == NullTermination::AddTrailingNull && null_in_len == LengthBehavior::ExcludeNull
+    {
+        // Decrement the length that we transmit if we're adding a null terminator but not including it in the length.
+        buf_size -= 1;
     }
     let buf_size = buf_size as u32;
     buf_size.buffer_ref(buf).and_then(|()| {

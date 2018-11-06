@@ -4,7 +4,7 @@
 
 use super::traits::{
     buffer::{self, Buffer},
-    unbuffer::{self, UnbufferConstantSize},
+    unbuffer::{self, Source, UnbufferConstantSize},
     ConstantBufferSize,
 };
 use bytes::{Buf, BufMut, Bytes, IntoBuf};
@@ -21,7 +21,7 @@ macro_rules! buffer_primitive {
         }
 
         impl UnbufferConstantSize for $t {
-            fn unbuffer_constant_size(buf: Bytes) -> unbuffer::Result<Self> {
+            fn unbuffer_constant_size<T: Source>(buf: T) -> unbuffer::Result<Self> {
                 Ok(buf.into_buf().$get())
             }
         }

@@ -86,10 +86,47 @@ pub mod buffer {
 
 pub mod unbuffer {
     use super::{BytesRequired, ConstantBufferSize, WrappedConstantSize};
-    use bytes::Bytes;
+    use bytes::{buf::FromBuf, Buf, Bytes, BytesMut, IntoBuf};
     use itertools;
     use std::{io, num::ParseIntError};
 
+    /// Unifying trait over things we can unbuffer from (Bytes and BytesMut)
+    pub trait Source:
+        Sized + std::ops::Deref<Target = [u8]> + PartialEq<[u8]> + IntoBuf + Clone
+    {
+        fn split_to(&mut self, n: usize) -> Self;
+        fn len(&self) -> usize;
+        fn advance(&mut self, n: usize);
+        // fn collect<B: FromBuf>(self) -> B;
+    }
+    impl Source for Bytes {
+        fn split_to(&mut self, n: usize) -> Self {
+            Bytes::split_to(self, n)
+        }
+        fn len(&self) -> usize {
+            Bytes::len(self)
+        }
+        fn advance(&mut self, n: usize) {
+            Bytes::advance(self, n)
+        }
+        // fn collect<B: FromBuf>(self) -> B {
+        //     Buf::collect(self)
+        // }
+    }
+    impl Source for BytesMut {
+        fn split_to(&mut self, n: usize) -> Self {
+            BytesMut::split_to(self, n)
+        }
+        fn len(&self) -> usize {
+            BytesMut::len(self)
+        }
+        fn advance(&mut self, n: usize) {
+            BytesMut::advance(self, n)
+        }
+        // fn collect<B: FromBuf>(self) -> B {
+        //     Buf::collect(self)
+        // }
+    }
     quick_error! {
         #[derive(Debug)]
         pub enum Error {
@@ -169,25 +206,25 @@ pub mod unbuffer {
     }
 
     #[derive(Debug)]
-    pub struct OutputWithRemaining<T>(pub T, pub Bytes);
-    impl<T> OutputWithRemaining<T> {
-        pub fn new(data: T, buf: Bytes) -> OutputWithRemaining<T> {
+    pub struct OutputWithRemaining<T, U: Source>(pub T, pub U);
+    impl<T, U: Source> OutputWithRemaining<T, U> {
+        pub fn new(data: T, buf: U) -> OutputWithRemaining<T, U> {
             OutputWithRemaining(data, buf)
         }
-        pub fn from_output(v: Output<T>, buf: Bytes) -> OutputWithRemaining<T> {
+        pub fn from_output(v: Output<T>, buf: U) -> OutputWithRemaining<T, U> {
             let Output(data) = v;
             OutputWithRemaining(data, buf)
         }
-        pub fn map<U, F>(self, f: F) -> OutputWithRemaining<U>
+        pub fn map<V, F>(self, f: F) -> OutputWithRemaining<V, U>
         where
             U: Sized,
-            F: FnOnce(T) -> U,
+            F: FnOnce(T) -> V,
         {
             OutputWithRemaining::new(f(self.0), self.1)
         }
     }
 
-    impl<T> UnbufferOutput<T> for OutputWithRemaining<T> {
+    impl<T, U: Source> UnbufferOutput<T> for OutputWithRemaining<T, U> {
         fn data(self) -> T {
             self.0
         }
@@ -211,7 +248,7 @@ pub mod unbuffer {
         /// Tries to unbuffer.
         ///
         /// Returns Err(Error::NeedMoreData(n)) if not enough data.
-        fn unbuffer(buf: Bytes) -> Result<OutputWithRemaining<Self>> {
+        fn unbuffer(buf: Bytes) -> Result<OutputWithRemaining<Self, Bytes>> {
             let mut buf = buf;
             let v = Self::unbuffer_ref(&mut buf)?;
             Ok(OutputWithRemaining::from_output(v, buf))
@@ -222,7 +259,7 @@ pub mod unbuffer {
     /// used by the blanket implementation of Unbuffer.
     pub trait UnbufferConstantSize: Sized + ConstantBufferSize {
         /// Perform the unbuffering: only called with at least as many bytes as needed.
-        fn unbuffer_constant_size(buf: Bytes) -> Result<Self>;
+        fn unbuffer_constant_size<T: Source>(buf: T) -> Result<Self>;
     }
 
     /// Blanket impl for types ipmlementing UnbufferConstantSize.
@@ -242,8 +279,8 @@ pub mod unbuffer {
     }
 
     impl<T: WrappedConstantSize> UnbufferConstantSize for T {
-        fn unbuffer_constant_size(buf: Bytes) -> Result<Self> {
-            T::WrappedType::unbuffer_constant_size(buf).map(|v| T::create(v))
+        fn unbuffer_constant_size<U: Source>(buf: U) -> Result<Self> {
+            T::WrappedType::unbuffer_constant_size(buf).map(|v| T::new(v))
         }
     }
 
@@ -300,14 +337,14 @@ pub mod unbuffer {
 
     pub trait BytesExtras
     where
-        Self: Sized,
+        Self: Source,
     {
-        fn unbuffer<T>(self) -> Result<OutputWithRemaining<T>>
+        fn unbuffer<T>(self) -> Result<OutputWithRemaining<T, Self>>
         where
             T: Unbuffer;
     }
     impl BytesExtras for Bytes {
-        fn unbuffer<T>(self) -> Result<OutputWithRemaining<T>>
+        fn unbuffer<T>(self) -> Result<OutputWithRemaining<T, Self>>
         where
             T: Unbuffer,
         {
@@ -334,6 +371,28 @@ pub mod unbuffer {
                 my_bytes,
                 Bytes::from_static(expected),
             ))
+        }
+    }
+
+    /// Wraps a type implementing Source to allow updating of position only when a closure succeeds.
+    struct SourceWrapper<'a, T: Source>(&'a mut T);
+    impl<'a, T: Source> SourceWrapper<'a, T> {
+        fn new(buf: &'a mut T) -> SourceWrapper<'a, T> {
+            SourceWrapper(buf)
+        }
+        fn call<F, U, E>(self, f: F) -> std::result::Result<U, E>
+        where
+            F: FnOnce(&mut T) -> std::result::Result<U, E>,
+        {
+            let orig_len = self.0.len();
+            let mut temp_buf = T::clone(self.0);
+            match f(&mut temp_buf) {
+                Ok(v) => {
+                    self.0.advance(orig_len - temp_buf.len());
+                    Ok(v)
+                }
+                Err(e) => Err(e),
+            }
         }
     }
 }

@@ -6,7 +6,7 @@ use super::{
     prelude::*,
     traits::{
         buffer::{self, Buffer},
-        unbuffer::{Output, Result, Unbuffer},
+        unbuffer::{Output, Result, Source, Unbuffer},
         ConstantBufferSize, WrappedConstantSize,
     },
 };

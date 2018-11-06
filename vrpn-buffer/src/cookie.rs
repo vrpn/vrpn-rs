@@ -6,7 +6,7 @@ use super::{
     prelude::*,
     traits::{
         buffer::{self, Buffer},
-        unbuffer::{self, check_expected, Output, OutputResultExtras, Unbuffer},
+        unbuffer::{self, check_expected, Output, OutputResultExtras, Source, Unbuffer},
         ConstantBufferSize,
     },
 };
@@ -63,23 +63,23 @@ impl Unbuffer for CookieData {
     fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<Self>> {
         // remove "vrpn: ver. "
         check_expected(buf, MAGIC_PREFIX)?;
-        
+
         let major: u8 = dec_digits(buf, 2)?;
-        
+
         // remove dot
         check_expected(buf, b".")?;
-        
+
         let minor: u8 = dec_digits(buf, 2)?;
-        
+
         // remove spaces
         check_expected(buf, b"  ")?;
-        
+
         let log_mode: u8 = dec_digits(buf, 1)?;
         let log_mode = u8_to_log_mode(log_mode);
 
         // remove padding
         check_expected(buf, COOKIE_PADDING)?;
-        
+
         Ok(Output(CookieData {
             version: Version { major, minor },
             log_mode: Some(log_mode),
