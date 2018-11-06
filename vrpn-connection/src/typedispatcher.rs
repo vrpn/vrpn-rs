@@ -39,6 +39,13 @@ quick_error! {
     }
 }
 
+pub enum RegisterMapping<T: BaseTypeSafeId> {
+    /// This was an existing mapping with the given ID
+    Found(T),
+    /// This was a new mapping, which has been registered and received the given ID
+    NewMapping(T),
+}
+
 type HandlerInnerType = types::IdType;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -232,18 +239,23 @@ impl<'a> TypeDispatcher<'a> {
 
     /// Calls add_type if get_type_id() returns None.
     /// Returns the corresponding TypeId in all cases.
-    pub fn register_type(&mut self, name: TypeName) -> MappingResult<TypeId> {
+    pub fn register_type(&mut self, name: TypeName) -> MappingResult<RegisterMapping<TypeId>> {
         match self.get_type_id(&name) {
-            Some(i) => Ok(i),
-            None => self.add_type(name),
+            Some(i) => Ok(RegisterMapping::Found(i)),
+            None => self.add_type(name).map(|i| RegisterMapping::NewMapping(i)),
         }
     }
 
     /// Calls add_sender if get_sender_id() returns None.
-    pub fn register_sender(&mut self, name: SenderName) -> MappingResult<SenderId> {
+    pub fn register_sender(
+        &mut self,
+        name: SenderName,
+    ) -> MappingResult<RegisterMapping<SenderId>> {
         match self.get_sender_id(&name) {
-            Some(i) => Ok(i),
-            None => self.add_sender(name),
+            Some(i) => Ok(RegisterMapping::Found(i)),
+            None => self
+                .add_sender(name)
+                .map(|i| RegisterMapping::NewMapping(i)),
         }
     }
 

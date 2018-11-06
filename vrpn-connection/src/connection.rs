@@ -2,8 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use typedispatcher::{HandlerResult, MappingResult};
-use vrpn_base::types::*;
+use super::{
+    translationtable::{Result, TranslationTable, TranslationTableError},
+    typedispatcher::{HandlerResult, MappingResult, RegisterMapping, TypeDispatcher},
+};
+use vrpn_base::{
+    message::{Description, Message},
+    types::*,
+};
 
 #[derive(Debug, Clone)]
 pub struct LogFileNames {
@@ -51,14 +57,46 @@ pub trait Endpoint {
         class: ClassOfService,
     ) -> HandlerResult<()>;
 
-    fn local_type_id(&self, remote_type: RemoteId<TypeId>) -> Option<LocalId<TypeId>>;
-    fn local_sender_id(&self, remote_sender: RemoteId<SenderId>) -> Option<LocalId<SenderId>>;
+    /// Borrow a reference to the translation table of sender IDs
+    fn sender_table(&self) -> &TranslationTable<SenderId>;
 
-    fn new_local_sender(&mut self, name: SenderName, local_sender: LocalId<SenderId>) -> bool;
-    fn new_local_type(&mut self, name: TypeName, local_type: LocalId<TypeId>) -> bool;
+    /// Borrow a mutable reference to the translation table of sender IDs
+    fn sender_table_mut(&mut self) -> &mut TranslationTable<SenderId>;
 
-    fn pack_sender_description(&mut self, local_sender: LocalId<SenderId>);
-    fn pack_type_description(&mut self, local_type: LocalId<TypeId>);
+    /// Borrow a reference to the translation table of type IDs
+    fn type_table(&self) -> &TranslationTable<TypeId>;
+
+    /// Borrow a mutable reference to the translation table of type IDs
+    fn type_table_mut(&mut self) -> &mut TranslationTable<TypeId>;
+
+    /// Convert remote type ID to local type ID
+    fn local_type_id(&self, remote_type: RemoteId<TypeId>) -> Option<LocalId<TypeId>> {
+        match self.type_table().map_to_local_id(remote_type) {
+            Ok(val) => val,
+            Err(_) => None,
+        }
+    }
+
+    /// Convert remote sender ID to local sender ID
+    fn local_sender_id(&self, remote_sender: RemoteId<SenderId>) -> Option<LocalId<SenderId>> {
+        match self.sender_table().map_to_local_id(remote_sender) {
+            Ok(val) => val,
+            Err(_) => None,
+        }
+    }
+
+    fn new_local_sender(&mut self, name: SenderName, local_sender: LocalId<SenderId>) -> bool {
+        self.sender_table_mut()
+            .add_local_id(name.into(), local_sender)
+    }
+
+    fn new_local_type(&mut self, name: TypeName, local_type: LocalId<TypeId>) -> bool {
+        self.type_table_mut().add_local_id(name.into(), local_type)
+    }
+
+    fn pack_sender_description(&mut self, local_sender: LocalId<SenderId>) -> Result<()>;
+
+    fn pack_type_description(&mut self, local_type: LocalId<TypeId>) -> Result<()>;
 }
 
 pub trait Connection<'a> {
@@ -71,8 +109,17 @@ pub trait Connection<'a> {
     type EndpointIterator: std::iter::Iterator<Item = &'a Option<Self::EndpointItem>>;
     type EndpointIteratorMut: std::iter::Iterator<Item = &'a mut Option<Self::EndpointItem>>;
 
+    /// Get an iterator over the (mutable) endpoints
     fn endpoints_iter_mut(&'a mut self) -> Self::EndpointIteratorMut;
+
+    /// Get an iterator over the endpoints.
     fn endpoints_iter(&'a self) -> Self::EndpointIterator;
+
+    /// Borrow a reference to the type dispatcher.
+    fn dispatcher(&self) -> &TypeDispatcher;
+
+    /// Borrow a mutable reference to the type dispatcher.
+    fn dispatcher_mut(&mut self) -> &mut TypeDispatcher;
 
     fn add_type(&mut self, name: TypeName) -> MappingResult<TypeId>;
 
@@ -100,25 +147,12 @@ pub trait Connection<'a> {
         }
     }
 
-    fn register_sender(&'a mut self, name: SenderName) -> MappingResult<SenderId> {
-        match self.get_sender_id(&name) {
-            Some(id) => Ok(id),
-            None => {
-                let sender = self.add_sender(name.clone())?;
-                self.pack_sender_description(name, sender);
-                Ok(sender)
-            }
-        }
+    fn register_sender(&'a mut self, name: SenderName) -> MappingResult<RegisterMapping<SenderId>> {
+        self.dispatcher_mut().register_sender(name)
     }
-    fn register_type(&'a mut self, name: TypeName) -> MappingResult<TypeId> {
-        match self.get_type_id(&name) {
-            Some(id) => Ok(id),
-            None => {
-                let message_type = self.add_type(name.clone())?;
-                self.pack_type_description(name, message_type);
-                Ok(message_type)
-            }
-        }
+
+    fn register_type(&'a mut self, name: TypeName) -> MappingResult<RegisterMapping<TypeId>> {
+        self.dispatcher_mut().register_type(name)
     }
 }
 

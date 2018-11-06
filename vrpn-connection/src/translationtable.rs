@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::Bytes;
-use vrpn_base::types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId};
+use bytes::{Bytes, BytesMut};
+use vrpn_base::{
+    message::{Description, Message},
+    types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId},
+};
+use vrpn_buffer::{buffer, Buffer};
 
 quick_error! {
     #[derive(Debug)]
@@ -14,10 +18,15 @@ quick_error! {
         EmptyEntry {
             description("empty entry")
         }
+        BufferError(err: buffer::Error) {
+            from()
+            cause(err)
+            display("buffer error: {}", err)
+        }
     }
 }
 
-pub type TranslationResult<T> = Result<T, TranslationTableError>;
+pub type Result<T> = std::result::Result<T, TranslationTableError>;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct TranslationEntry<T: BaseTypeSafeId> {
@@ -37,6 +46,20 @@ impl<T: BaseTypeSafeId> TranslationEntry<T> {
     pub fn set_local_id(&mut self, local_id: LocalId<T>) {
         self.local_id = local_id;
     }
+
+    pub fn buffer_description_ref(&self, buf: &mut BytesMut) -> Result<()> {
+        let LocalId(id) = self.local_id.clone();
+        let msg = Message::from(Description::new(id, self.name.clone()));
+        buf.reserve(msg.required_buffer_size());
+        msg.buffer_ref(buf)
+            .map_err(|e| TranslationTableError::BufferError(e))
+    }
+
+    pub fn pack_description(&self) -> Result<Bytes> {
+        let mut buf = BytesMut::new();
+        self.buffer_description_ref(&mut buf)?;
+        Ok(buf.freeze())
+    }
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -52,7 +75,7 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
     }
 
     /// Converts a remote ID to the corresponding local ID
-    pub fn map_to_local_id(&self, id: RemoteId<T>) -> TranslationResult<Option<LocalId<T>>> {
+    pub fn map_to_local_id(&self, id: RemoteId<T>) -> Result<Option<LocalId<T>>> {
         let index = id.get();
         if index < 0 {
             return Ok(None);
@@ -72,7 +95,7 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
         name: Bytes,
         remote_id: RemoteId<T>,
         local_id: LocalId<T>,
-    ) -> TranslationResult<RemoteId<T>> {
+    ) -> Result<RemoteId<T>> {
         let real_index = remote_id.get();
         if real_index < 0 {
             return Err(TranslationTableError::InvalidRemoteId(real_index));
@@ -120,6 +143,22 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
             },
             None => None,
         }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &TranslationEntry<T>> {
+        self.entries.iter().flatten()
+    }
+
+    pub fn buffer_descriptions_ref(&self, buf: &mut BytesMut) -> Result<()> {
+        for entry in self.entries.iter().flatten() {
+            entry.buffer_description_ref(buf)?;
+        }
+        Ok(())
+    }
+    pub fn buffer_descriptions(&self) -> Result<Bytes> {
+        let mut buf = BytesMut::new();
+        self.buffer_descriptions_ref(&mut buf)?;
+        Ok(buf.freeze())
     }
 }
 

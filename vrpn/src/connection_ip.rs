@@ -10,7 +10,7 @@ use vrpn_connection::{
 };
 
 pub struct ConnectionIP {
-    dispatcher: TypeDispatcher<'static>,
+    type_dispatcher: TypeDispatcher<'static>,
     remote_log_names: LogFileNames,
     local_log_names: LogFileNames,
     endpoints: Vec<Option<EndpointIP>>,
@@ -21,7 +21,7 @@ impl ConnectionIP {
     fn init(&mut self) -> HandlerResult<()> {
         let handle_udp_message = |params: HandlerParams| -> HandlerResult<()> { Ok(()) };
         /*
-        self.dispatcher
+        self.type_dispatcher
             .set_system_handler(constants::UDP_DESCRIPTION, handle_udp_message)
             */
         Ok(())
@@ -31,7 +31,7 @@ impl ConnectionIP {
     pub fn new_server(local_log_names: Option<LogFileNames>) -> HandlerResult<ConnectionIP> {
         let disp = TypeDispatcher::new()?;
         let mut ret = ConnectionIP {
-            dispatcher: disp,
+            type_dispatcher: disp,
             remote_log_names: make_none_log_names(),
             local_log_names: make_log_names(local_log_names),
             endpoints: Vec::new(),
@@ -47,7 +47,7 @@ impl ConnectionIP {
     ) -> HandlerResult<ConnectionIP> {
         let disp = TypeDispatcher::new()?;
         let mut ret = ConnectionIP {
-            dispatcher: disp,
+            type_dispatcher: disp,
             remote_log_names: make_log_names(remote_log_names),
             local_log_names: make_log_names(local_log_names),
             endpoints: Vec::new(),
@@ -72,19 +72,29 @@ impl<'a> connection::Connection<'a> for ConnectionIP {
         self.endpoints.iter()
     }
 
+    fn dispatcher(&self) -> &TypeDispatcher {
+        &self.type_dispatcher
+    }
+
+    fn dispatcher_mut(&mut self) -> &mut TypeDispatcher {
+        &mut self.type_dispatcher
+    }
+
     fn add_type(&mut self, name: TypeName) -> MappingResult<TypeId> {
-        self.dispatcher.add_type(name)
+        self.type_dispatcher.add_type(name)
     }
 
     fn add_sender(&mut self, name: SenderName) -> MappingResult<SenderId> {
-        self.dispatcher.add_sender(name)
+        self.type_dispatcher.add_sender(name)
     }
     /// Returns the ID for the type name, if found.
     fn get_type_id(&self, name: &TypeName) -> Option<TypeId> {
-        self.dispatcher.get_type_id(name)
+        self.type_dispatcher.get_type_id(name)
     }
     /// Returns the ID for the sender name, if found.
     fn get_sender_id(&self, name: &SenderName) -> Option<SenderId> {
-        self.dispatcher.get_sender_id(name)
+        self.type_dispatcher.get_sender_id(name)
     }
+    // fn register_sender(&'a mut self, name: SenderName) -> MappingResult<RegisterMapping<SenderId>> ;
+    // fn register_type(&'a mut self, name: TypeName) -> MappingResult<RegisterMapping<TypeId>>;
 }
