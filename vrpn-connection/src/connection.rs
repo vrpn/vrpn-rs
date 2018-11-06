@@ -99,4 +99,3 @@ pub trait Connection<'a> {
     //     self.dispatcher_mut().register_type(name)
     // }
 }
-

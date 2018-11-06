@@ -2,22 +2,26 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::codec::{self, FramedMessageCodec};
+use super::{
+    base::{
+        constants::TCP_BUFLEN,
+        message::{Description, GenericMessage, Message},
+        types::*,
+    },
+    buffer::{buffer, unbuffer, Buffer},
+    codec::{self, FramedMessageCodec},
+    connection::{
+        typedispatcher::HandlerResult, Endpoint, TranslationTable, TranslationTableError,
+        TranslationTableResult,
+    },
+    endpoint_channel::{poll_channel, EndpointChannel, EndpointError},
+};
 use bytes::BytesMut;
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     io,
     net::{TcpStream, UdpFramed, UdpSocket},
     prelude::*,
-};
-use vrpn_base::{
-    message::{Description, Message},
-    types::*,
-};
-use vrpn_buffer::Buffer;
-use vrpn_connection::{
-    typedispatcher::HandlerResult, Endpoint, TranslationTable, TranslationTableError,
-    TranslationTableResult,
 };
 pub type MessageFramed = codec::MessageFramed<TcpStream>;
 pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
@@ -26,21 +30,20 @@ pub struct EndpointIP {
     types: TranslationTable<TypeId>,
     senders: TranslationTable<SenderId>,
     wr: BytesMut,
-    reliable_channel: MessageFramed,
-    low_latency_channel: Option<MessageFramedUdp>,
+    reliable_channel: EndpointChannel<TcpStream>,
+    // low_latency_tx: Option<MessageFramedUdp>,
 }
 
 impl EndpointIP {
     pub fn new(
-        reliable_channel: MessageFramed,
-        low_latency_channel: Option<MessageFramedUdp>,
+        reliable_stream: TcpStream //low_latency_channel: Option<MessageFramedUdp>
     ) -> EndpointIP {
         EndpointIP {
             types: TranslationTable::new(),
             senders: TranslationTable::new(),
             wr: BytesMut::new(),
-            reliable_channel,
-            low_latency_channel,
+            reliable_channel: EndpointChannel::new(reliable_stream, TCP_BUFLEN),
+            // low_latency_channel,
         }
     }
 }
@@ -99,5 +102,13 @@ impl Endpoint for EndpointIP {
         desc_msg
             .buffer_ref(&mut self.wr)
             .map_err(|e| TranslationTableError::BufferError(e))
+    }
+}
+
+impl Future for EndpointIP {
+    type Item = Option<GenericMessage>;
+    type Error = EndpointError;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        poll_channel(&mut self.reliable_channel)
     }
 }

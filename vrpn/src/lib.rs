@@ -7,6 +7,9 @@ extern crate bytes;
 extern crate socket2;
 
 #[macro_use]
+extern crate futures;
+
+#[macro_use]
 extern crate tokio;
 
 #[macro_use]
@@ -19,10 +22,10 @@ extern crate vrpn_buffer;
 extern crate vrpn_connection;
 
 pub mod codec;
+pub mod connect;
 pub mod connection_ip;
+pub(crate) mod endpoint_channel;
 pub mod endpoint_ip;
-pub mod error;
-pub mod vrpn_tokio;
 
 pub use connection_ip::ConnectionIP;
 

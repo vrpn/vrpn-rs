@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::endpoint_ip::{EndpointIP, MessageFramed, MessageFramedUdp};
+use super::{
+    connect::ConnectError,
+    endpoint_ip::{EndpointIP, MessageFramed, MessageFramedUdp},
+};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use tokio::net::{TcpListener, TcpStream};
 use vrpn_base::types::{HandlerParams, SenderId, SenderName, TypeId, TypeName};
 use vrpn_connection::{
     make_log_names, make_none_log_names, Connection, HandlerResult, LogFileNames, MappingResult,
@@ -14,6 +19,7 @@ pub struct ConnectionIP {
     remote_log_names: LogFileNames,
     local_log_names: LogFileNames,
     endpoints: Vec<Option<EndpointIP>>,
+    server_tcp: Option<TcpListener>,
 }
 
 impl ConnectionIP {
@@ -28,13 +34,20 @@ impl ConnectionIP {
     }
 
     /// Create a new ConnectionIP that is a server.
-    pub fn new_server(local_log_names: Option<LogFileNames>) -> HandlerResult<ConnectionIP> {
+    pub fn new_server(
+        local_log_names: Option<LogFileNames>,
+        addr: Option<SocketAddr>,
+    ) -> Result<ConnectionIP, ConnectError> {
         let disp = TypeDispatcher::new()?;
+        let addr =
+            addr.unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
+        let listener = TcpListener::bind(&addr)?;
         let mut ret = ConnectionIP {
             type_dispatcher: disp,
             remote_log_names: make_none_log_names(),
             local_log_names: make_log_names(local_log_names),
             endpoints: Vec::new(),
+            server_tcp: Some(listener),
         };
         ret.init()?;
         Ok(ret)
@@ -44,8 +57,8 @@ impl ConnectionIP {
     pub fn new_client(
         local_log_names: Option<LogFileNames>,
         remote_log_names: Option<LogFileNames>,
-        reliable_channel: MessageFramed,
-        low_latency_channel: Option<MessageFramedUdp>,
+        reliable_channel: TcpStream,
+        // low_latency_channel: Option<MessageFramedUdp>,
     ) -> HandlerResult<ConnectionIP> {
         let disp = TypeDispatcher::new()?;
         let mut ret = ConnectionIP {
@@ -53,10 +66,10 @@ impl ConnectionIP {
             remote_log_names: make_log_names(remote_log_names),
             local_log_names: make_log_names(local_log_names),
             endpoints: Vec::new(),
+            server_tcp: None,
         };
         // Create our single endpoint
-        ret.endpoints
-            .push(Some(EndpointIP::new(reliable_channel, low_latency_channel)));
+        ret.endpoints.push(Some(EndpointIP::new(reliable_channel)));
         ret.init()?;
         Ok(ret)
     }
