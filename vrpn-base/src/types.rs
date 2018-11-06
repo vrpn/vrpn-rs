@@ -27,11 +27,11 @@ where
 
 /// Local-side ID in the translation table
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct LocalId<T: TypeSafeId>(pub T);
+pub struct LocalId<T: BaseTypeSafeId>(pub T);
 
 /// Remote-side ID in the translation table
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct RemoteId<T: TypeSafeId>(pub T);
+pub struct RemoteId<T: BaseTypeSafeId>(pub T);
 
 /// ID for a message type
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -41,7 +41,7 @@ pub struct TypeId(pub IdType);
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SenderId(pub IdType);
 
-impl<T: TypeSafeId> TypeSafeId for LocalId<T> {
+impl<T: BaseTypeSafeId> TypeSafeId for LocalId<T> {
     fn get(&self) -> IdType {
         self.0.get()
     }
@@ -50,7 +50,7 @@ impl<T: TypeSafeId> TypeSafeId for LocalId<T> {
     }
 }
 
-impl<T: TypeSafeId> TypeSafeId for RemoteId<T> {
+impl<T: BaseTypeSafeId> TypeSafeId for RemoteId<T> {
     fn get(&self) -> IdType {
         self.0.get()
     }
@@ -67,6 +67,7 @@ impl TypeSafeId for TypeId {
         TypeId(val)
     }
 }
+
 impl BaseTypeSafeId for TypeId {
     type Name = TypeName;
     fn name_to_bytes(name: Self::Name) -> Bytes {
