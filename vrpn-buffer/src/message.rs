@@ -25,7 +25,7 @@ impl WrappedConstantSize for SequenceNumber {
     fn get<'a>(&'a self) -> &'a Self::WrappedType {
         &self.0
     }
-    fn create(v: Self::WrappedType) -> Self {
+    fn new(v: Self::WrappedType) -> Self {
         SequenceNumber(v)
     }
 }
@@ -35,7 +35,7 @@ impl WrappedConstantSize for SenderId {
     fn get<'a>(&'a self) -> &'a Self::WrappedType {
         &self.0
     }
-    fn create(v: Self::WrappedType) -> Self {
+    fn new(v: Self::WrappedType) -> Self {
         SenderId(v)
     }
 }
@@ -45,15 +45,16 @@ impl WrappedConstantSize for TypeId {
     fn get<'a>(&'a self) -> &'a Self::WrappedType {
         &self.0
     }
-    fn create(v: Self::WrappedType) -> Self {
+    fn new(v: Self::WrappedType) -> Self {
         TypeId(v)
     }
 }
-
+#[inline]
 fn compute_padding(len: usize) -> usize {
     ALIGN - (len % ALIGN)
 }
 
+#[inline]
 fn padded(len: usize) -> usize {
     len + compute_padding(len)
 }

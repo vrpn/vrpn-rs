@@ -162,3 +162,10 @@ impl TypedName for TypeName {}
 /// Sequence number - not used on receive side, only used for sniffers (?)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SequenceNumber(pub u32);
+
+pub struct LogDescription {
+    /// incoming log file name
+    in_name: Bytes,
+    /// outgoing log file name
+    out_name: Bytes,
+}

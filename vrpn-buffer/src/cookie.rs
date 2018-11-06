@@ -11,11 +11,7 @@ use super::{
     },
 };
 use bytes::{BufMut, Bytes};
-use std::{
-    fmt::{self, Display, Formatter},
-    num::ParseIntError,
-    result,
-};
+use std::{num::ParseIntError, result};
 use vrpn_base::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
     cookie::{CookieData, Version},

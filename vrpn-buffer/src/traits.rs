@@ -29,7 +29,7 @@ pub mod buffer {
 
     pub type Result = std::result::Result<(), Error>;
 
-    pub type ResultWithBuf<T: Sized> = std::result::Result<T, Error>;
+    pub type ResultWithBuf<T> = std::result::Result<T, Error>;
 
     pub trait BufMutExtras
     where
@@ -354,7 +354,7 @@ impl<T: ConstantBufferSize> BufferSize for T {
 pub trait WrappedConstantSize {
     type WrappedType: buffer::Buffer + unbuffer::UnbufferConstantSize + ConstantBufferSize;
     fn get<'a>(&'a self) -> &'a Self::WrappedType;
-    fn create(v: Self::WrappedType) -> Self;
+    fn new(v: Self::WrappedType) -> Self;
 }
 
 impl<T: WrappedConstantSize> ConstantBufferSize for T {

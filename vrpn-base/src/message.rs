@@ -18,6 +18,8 @@ pub struct Message<T> {
     pub sequence_number: Option<SequenceNumber>,
 }
 
+pub type GenericMessage = Message<GenericBody>;
+
 impl<T> Message<T> {
     pub fn new(
         time: Option<TimeVal>,

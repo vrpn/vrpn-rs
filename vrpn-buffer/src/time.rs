@@ -18,7 +18,7 @@ impl WrappedConstantSize for Seconds {
     fn get<'a>(&'a self) -> &'a Self::WrappedType {
         &self.0
     }
-    fn create(v: Self::WrappedType) -> Self {
+    fn new(v: Self::WrappedType) -> Self {
         Seconds(v)
     }
 }
@@ -28,7 +28,7 @@ impl WrappedConstantSize for Microseconds {
     fn get<'a>(&'a self) -> &'a Self::WrappedType {
         &self.0
     }
-    fn create(v: Self::WrappedType) -> Self {
+    fn new(v: Self::WrappedType) -> Self {
         Microseconds(v)
     }
 }
