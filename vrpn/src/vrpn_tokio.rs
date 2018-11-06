@@ -93,8 +93,8 @@ pub fn connect_tcp(
         })
 }
 
-pub struct FramedMessageDecoder {}
-impl Decoder for FramedMessageDecoder {
+pub struct FramedMessageCodec {}
+impl Decoder for FramedMessageCodec {
     type Item = GenericMessage;
     type Error = unbuffer::Error;
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<GenericMessage>, Self::Error> {
@@ -119,6 +119,14 @@ impl Decoder for FramedMessageDecoder {
     }
 }
 
+impl Encoder for FramedMessageCodec {
+    type Error = buffer::Error;
+    type Item = GenericMessage;
+    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        dst.reserve(item.required_buffer_size());
+        item.buffer_ref(dst)
+    }
+}
 // pub fn handle_tcp_connection(socket: TcpStream) {
 //     let sock = make_tcp_socket(addr).expect("failure making the socket");
 

@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use vrpn_base::{
-    constants,
     message::{Description, Message},
     types::*,
 };

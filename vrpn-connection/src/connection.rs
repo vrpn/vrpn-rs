@@ -100,16 +100,3 @@ pub trait Connection<'a> {
     // }
 }
 
-#[cfg(test)]
-mod tests {
-    use connection::*;
-    #[test]
-    fn log_names() {
-        assert_eq!(make_log_name(None), None);
-        assert_eq!(make_log_name(Some(String::from(""))), None);
-        assert_eq!(
-            make_log_name(Some(String::from("asdf"))),
-            Some(String::from("asdf"))
-        );
-    }
-}

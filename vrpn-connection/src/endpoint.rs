@@ -3,13 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use super::{
-    translationtable::{Result as TranslationTableResult, TranslationTable, TranslationTableError},
-    typedispatcher::{HandlerResult, MappingResult, RegisterMapping, TypeDispatcher},
+    translationtable::{Result as TranslationTableResult, TranslationTable},
+    typedispatcher::HandlerResult,
 };
-use vrpn_base::{
-    message::{Description, Message},
-    types::*,
-};
+use vrpn_base::types::*;
 
 #[derive(Debug, Clone)]
 pub struct LogFileNames {
@@ -100,4 +97,18 @@ pub trait Endpoint {
     ) -> TranslationTableResult<()>;
 
     fn pack_type_description(&mut self, local_type: LocalId<TypeId>) -> TranslationTableResult<()>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn log_names() {
+        assert_eq!(make_log_name(None), None);
+        assert_eq!(make_log_name(Some(String::from(""))), None);
+        assert_eq!(
+            make_log_name(Some(String::from("asdf"))),
+            Some(String::from("asdf"))
+        );
+    }
 }

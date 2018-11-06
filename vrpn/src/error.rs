@@ -3,17 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use super::{
-    base::{
-        cookie::{self, check_ver_nonfile_compatible, CookieData},
-        types::{LocalId, RemoteId, SenderId},
-    },
-    buffer::{buffer, unbuffer, Buffer, BufferSize, ConstantBufferSize, Output, Unbuffer},
-    connection::translationtable::TranslationTable,
-    prelude::*,
-    *,
+    base::cookie,
+    buffer::{buffer, unbuffer},
 };
-use bytes::{Bytes, BytesMut};
-use tokio::{io, net::TcpStream, prelude::*};
+use std::io;
 
 quick_error! {
     #[derive(Debug)]

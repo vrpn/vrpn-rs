@@ -8,14 +8,36 @@ use super::{
 };
 use bytes::Bytes;
 
-/// A message with header information, ready to be buffered to the wire.
+/// Header information for a message.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Message<T> {
+pub struct MessageHeader {
     pub time: TimeVal,
     pub message_type: TypeId,
     pub sender: SenderId,
-    pub data: T,
     pub sequence_number: Option<SequenceNumber>,
+}
+
+impl MessageHeader {
+    pub fn new(
+        time: Option<TimeVal>,
+        message_type: TypeId,
+        sender: SenderId,
+        sequence_number: Option<SequenceNumber>,
+    ) -> MessageHeader {
+        MessageHeader {
+            time: time.unwrap_or_else(|| TimeVal::get_time_of_day()),
+            message_type,
+            sender,
+            sequence_number,
+        }
+    }
+}
+
+/// A message with header information, ready to be buffered to the wire.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct Message<T> {
+    pub header: MessageHeader,
+    pub body: T,
 }
 
 pub type GenericMessage = Message<GenericBody>;
@@ -25,38 +47,29 @@ impl<T> Message<T> {
         time: Option<TimeVal>,
         message_type: TypeId,
         sender: SenderId,
-        data: T,
+        body: T,
         sequence_number: Option<SequenceNumber>,
     ) -> Message<T> {
         Message {
-            time: time.unwrap_or_else(|| TimeVal::get_time_of_day()),
-            message_type,
-            sender,
-            data,
-            sequence_number,
+            header: MessageHeader::new(time, message_type, sender, sequence_number),
+            body,
         }
     }
 
-    pub fn from_parsed_generic<U>(generic: Message<GenericBody>, data: U) -> Message<U> {
-        Message {
-            time: generic.time,
-            message_type: generic.message_type,
-            sender: generic.sender,
-            data,
-            sequence_number: generic.sequence_number,
-        }
+    pub fn from_header_and_body(header: MessageHeader, body: T) -> Message<T> {
+        Message { header, body }
     }
 }
 
 /// Generic body struct used in unbuffering process, before dispatch on type to fully decode.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct GenericBody {
-    pub body_bytes: Bytes,
+    pub inner: Bytes,
 }
 
 impl GenericBody {
-    pub fn new(body_bytes: Bytes) -> GenericBody {
-        GenericBody { body_bytes }
+    pub fn new(inner: Bytes) -> GenericBody {
+        GenericBody { inner }
     }
 }
 
