@@ -5,8 +5,8 @@
 use endpoint_ip::EndpointIP;
 use vrpn_base::types::{HandlerParams, SenderId, SenderName, TypeId, TypeName};
 use vrpn_connection::{
-    connection::{self, make_log_names, make_none_log_names, LogFileNames},
-    typedispatcher::{HandlerResult, MappingResult, TypeDispatcher},
+    make_log_names, make_none_log_names, Connection, HandlerResult, LogFileNames, MappingResult,
+    TypeDispatcher,
 };
 
 pub struct ConnectionIP {
@@ -59,7 +59,7 @@ impl ConnectionIP {
     }
 }
 
-impl<'a> connection::Connection<'a> for ConnectionIP {
+impl<'a> Connection<'a> for ConnectionIP {
     type EndpointItem = EndpointIP;
     type EndpointIteratorMut = std::slice::IterMut<'a, Option<EndpointIP>>;
     type EndpointIterator = std::slice::Iter<'a, Option<EndpointIP>>;
@@ -72,13 +72,13 @@ impl<'a> connection::Connection<'a> for ConnectionIP {
         self.endpoints.iter()
     }
 
-    fn dispatcher(&self) -> &TypeDispatcher {
-        &self.type_dispatcher
-    }
+    // fn dispatcher(&self) -> &TypeDispatcher {
+    //     &self.type_dispatcher
+    // }
 
-    fn dispatcher_mut(&mut self) -> &mut TypeDispatcher {
-        &mut self.type_dispatcher
-    }
+    // fn dispatcher_mut(&'a mut self) -> &'a mut TypeDispatcher {
+    //     &mut self.type_dispatcher
+    // }
 
     fn add_type(&mut self, name: TypeName) -> MappingResult<TypeId> {
         self.type_dispatcher.add_type(name)

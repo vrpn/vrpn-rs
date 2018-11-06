@@ -15,6 +15,9 @@ quick_error! {
         InvalidRemoteId(id: IdType) {
             display("invalid remote id {}", id)
         }
+        InvalidLocalId(id: IdType) {
+            display("invalid local id {}", id)
+        }
         EmptyEntry {
             description("empty entry")
         }
@@ -23,6 +26,16 @@ quick_error! {
             cause(err)
             display("buffer error: {}", err)
         }
+        ConsErrors(err: Box<TranslationTableError>, tail: Box<TranslationTableError>) {
+            cause(err)
+            display("{}, {}", err, tail)
+        }
+    }
+}
+
+impl TranslationTableError {
+    pub fn append(self, new_err: TranslationTableError) -> TranslationTableError {
+        TranslationTableError::ConsErrors(Box::new(new_err), Box::new(self))
     }
 }
 
@@ -128,14 +141,14 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
         }
     }
 
-    pub fn get_by_local_id(&self, local_id: LocalId<T>) -> Option<&TranslationEntry<T>> {
+    fn find_by_predicate<F>(&self, f: F) -> Option<&TranslationEntry<T>>
+    where
+        F: Fn(&TranslationEntry<T>) -> bool,
+    {
         let result = self.entries.iter().position(|ref x| match x {
-            Some(entry) => entry.local_id == local_id,
+            Some(entry) => f(entry),
             _ => false,
         });
-        if result.is_none() {
-            return None;
-        }
         match result {
             Some(i) => match self.entries[i] {
                 Some(ref entry) => Some(&entry),
@@ -143,6 +156,14 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
             },
             None => None,
         }
+    }
+
+    pub fn find_by_name(&self, name: Bytes) -> Option<&TranslationEntry<T>> {
+        self.find_by_predicate(|entry| entry.name == name)
+    }
+
+    pub fn find_by_local_id(&self, local_id: LocalId<T>) -> Option<&TranslationEntry<T>> {
+        self.find_by_predicate(|entry| entry.local_id == local_id)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &TranslationEntry<T>> {

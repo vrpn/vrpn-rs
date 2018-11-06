@@ -8,7 +8,10 @@ use super::{
         message::{GenericMessage, Message},
         types::{LocalId, RemoteId, SenderId},
     },
-    buffer::{buffer, unbuffer, Buffer, BufferSize, ConstantBufferSize, Output, Unbuffer},
+    buffer::{
+        buffer, message::MessageSize, unbuffer, Buffer, BufferSize, ConstantBufferSize, Output,
+        Unbuffer,
+    },
     connection::translationtable::TranslationTable,
     error::ConnectError,
     prelude::*,
@@ -96,7 +99,15 @@ impl Decoder for FramedMessageDecoder {
     type Error = unbuffer::Error;
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<GenericMessage>, Self::Error> {
         let initial_len = buf.len();
-        let mut temp_buf = BytesMut::clone(buf);
+        let mut temp_buf = BytesMut::clone(buf).freeze();
+        let combined_size = u32::unbuffer_ref(&mut temp_buf)
+            .map_exactly_err_to_at_least()?
+            .data() as usize;
+        let size = MessageSize::from_unpadded_message_size(combined_size);
+        if initial_len < size.padded_message_size() {
+            return Ok(None);
+        }
+        let mut temp_buf = BytesMut::clone(buf).freeze();
         match GenericMessage::unbuffer_ref(&mut temp_buf) {
             Ok(Output(v)) => {
                 buf.advance(initial_len - temp_buf.len());
