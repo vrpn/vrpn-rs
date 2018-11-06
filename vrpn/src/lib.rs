@@ -18,6 +18,7 @@ extern crate vrpn_buffer;
 
 extern crate vrpn_connection;
 
+pub mod codec;
 pub mod connection_ip;
 pub mod endpoint_ip;
 pub mod error;

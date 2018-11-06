@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use super::codec::{self, FramedMessageCodec};
 use bytes::BytesMut;
+use tokio::{
+    codec::{Decoder, Encoder, Framed},
+    io,
+    net::{TcpStream, UdpFramed, UdpSocket},
+    prelude::*,
+};
 use vrpn_base::{
     message::{Description, Message},
     types::*,
@@ -12,19 +19,28 @@ use vrpn_connection::{
     typedispatcher::HandlerResult, Endpoint, TranslationTable, TranslationTableError,
     TranslationTableResult,
 };
+pub type MessageFramed = codec::MessageFramed<TcpStream>;
+pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
 
 pub struct EndpointIP {
     types: TranslationTable<TypeId>,
     senders: TranslationTable<SenderId>,
     wr: BytesMut,
+    reliable_channel: MessageFramed,
+    low_latency_channel: Option<MessageFramedUdp>,
 }
 
 impl EndpointIP {
-    pub fn new() -> EndpointIP {
+    pub fn new(
+        reliable_channel: MessageFramed,
+        low_latency_channel: Option<MessageFramedUdp>,
+    ) -> EndpointIP {
         EndpointIP {
             types: TranslationTable::new(),
             senders: TranslationTable::new(),
             wr: BytesMut::new(),
+            reliable_channel,
+            low_latency_channel,
         }
     }
 }

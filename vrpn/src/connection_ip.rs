@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use endpoint_ip::EndpointIP;
+use super::endpoint_ip::{EndpointIP, MessageFramed, MessageFramedUdp};
 use vrpn_base::types::{HandlerParams, SenderId, SenderName, TypeId, TypeName};
 use vrpn_connection::{
     make_log_names, make_none_log_names, Connection, HandlerResult, LogFileNames, MappingResult,
@@ -44,6 +44,8 @@ impl ConnectionIP {
     pub fn new_client(
         local_log_names: Option<LogFileNames>,
         remote_log_names: Option<LogFileNames>,
+        reliable_channel: MessageFramed,
+        low_latency_channel: Option<MessageFramedUdp>,
     ) -> HandlerResult<ConnectionIP> {
         let disp = TypeDispatcher::new()?;
         let mut ret = ConnectionIP {
@@ -53,7 +55,8 @@ impl ConnectionIP {
             endpoints: Vec::new(),
         };
         // Create our single endpoint
-        ret.endpoints.push(Some(EndpointIP::new()));
+        ret.endpoints
+            .push(Some(EndpointIP::new(reliable_channel, low_latency_channel)));
         ret.init()?;
         Ok(ret)
     }
