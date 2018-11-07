@@ -221,7 +221,7 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
         let sequence_number = Unbuffer::unbuffer_ref(buf)?.data();
 
         // Assert that handling the sequence number meant we're now aligned again.
-        assert_eq!(initial_remaining - buf.len() % ALIGN, 0);
+        assert_eq!((initial_remaining - buf.len()) % ALIGN, 0);
 
         let body;
         {

@@ -8,6 +8,7 @@ use super::{
     prelude::*,
 };
 use bytes::BytesMut;
+use pretty_hex::*;
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     prelude::*,
@@ -27,7 +28,13 @@ impl Decoder for FramedMessageCodec {
         if initial_len < size.padded_message_size() {
             return Ok(None);
         }
-        let mut temp_buf = BytesMut::clone(buf).freeze();
+        println!(
+            "Got {} bytes, need {} for this message",
+            initial_len,
+            size.padded_message_size()
+        );
+        let mut temp_buf = buf.split_to(size.padded_message_size()).freeze();
+        println!("{:?}", temp_buf.as_ref().hex_dump());
         match GenericMessage::unbuffer_ref(&mut temp_buf) {
             Ok(Output(v)) => {
                 buf.advance(initial_len - temp_buf.len());

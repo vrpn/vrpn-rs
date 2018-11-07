@@ -13,4 +13,5 @@ futures = "0.1.25"
 quick-error = "1.2.2"
 vrpn-base = { path = "../vrpn-base" }
 vrpn-buffer = { path = "../vrpn-buffer" }
+pretty-hex = "0.1.0"
 vrpn-connection = { path = "../vrpn-connection" }

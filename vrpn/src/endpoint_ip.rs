@@ -38,13 +38,18 @@ impl EndpointIP {
     pub fn new(
         reliable_stream: TcpStream //low_latency_channel: Option<MessageFramedUdp>
     ) -> EndpointIP {
+        let framed = codec::apply_message_framing(reliable_stream);
         EndpointIP {
             types: TranslationTable::new(),
             senders: TranslationTable::new(),
             wr: BytesMut::new(),
             reliable_channel: EndpointChannel::new(
-                codec::apply_message_framing(reliable_stream),
+                framed,
                 TCP_BUFLEN,
+                Box::new(framed.for_each(|m| {
+                    println!("{:?}", m);
+                    Ok(())
+                })),
             ),
             // low_latency_channel,
         }
@@ -109,10 +114,26 @@ impl Endpoint for EndpointIP {
 }
 
 impl Future for EndpointIP {
-    type Item = Option<GenericMessage>;
+    type Item = ();
     type Error = EndpointError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        poll_channel(&mut self.reliable_channel)
+        loop {
+            match poll_channel(&mut self.reliable_channel)? {
+                Async::Ready(v) => match v {
+                    Some(msg) => {
+                        println!("got message {:?}", msg);
+                    }
+                    None => {
+                        // Only return ready when closed.
+                        return Ok(Async::Ready(()));
+                    }
+                },
+                Async::NotReady => {
+                    return Ok(Async::NotReady);
+                }
+            }
+        }
+        unreachable!()
     }
 }
 
@@ -124,6 +145,8 @@ mod tests {
         use connect::connect_tcp;
         let addr = "127.0.0.1:3883".parse().unwrap();
         let stream = connect_tcp(addr).wait().unwrap();
-        let ep = EndpointIP::new(stream);
+        let mut ep = EndpointIP::new(stream);
+        ep.poll();
+        ep.poll();
     }
 }

@@ -23,7 +23,6 @@ use super::{
 };
 use bytes::BytesMut;
 use futures::StartSend;
-use std::task::Poll as StdPoll;
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     io,
@@ -49,6 +48,11 @@ quick_error!{
             cause(err)
             display("unbuffer error: {}", err)
         }
+        // NoneError(err: std::option::NoneError) {
+        //     from()
+        //     cause(err)
+        //     display("none error: {}", err)
+        // }
 }
 }
 
@@ -61,22 +65,30 @@ pub(crate) enum EndpointDisposition {
     StillActive,
     ReadyForCleanup,
 }
+pub type ReceiveFuture = Box<dyn Future<Item = (), Error = EpStreamError>>;
 
 pub(crate) struct EndpointChannel<T> {
     framed_stream: T,
     buf_size: usize,
     rd: BytesMut,
+    receive_future: ReceiveFuture,
 }
 impl<T> EndpointChannel<T>
 where
-    T: Stream<Item = EpStreamItem, Error = EpStreamError>
-        + Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>,
+    T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>,
 {
-    pub(crate) fn new(framed_stream: T, buf_size: usize) -> EndpointChannel<T> {
+    pub(crate) fn new<U, F>(
+        framed_stream: U,
+        buf_size: usize,
+        receiver: F,
+    ) -> EndpointChannel<T> 
+    where U: Stream<Item = Option<EpStreamError>, Error=EpStreamError>,
+    F: FnMut(GenericMessage) -> () {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
         EndpointChannel {
             framed_stream,
             buf_size,
+            receive_future,
             // wr: BytesMut::new(),
             rd: BytesMut::with_capacity(buf_size),
         }
@@ -135,61 +147,70 @@ where
     //         }
     //     }
     // }
-}
 
-impl<T> Stream for EndpointChannel<T>
-where
-    T: Stream<Item = EpStreamItem> + Sink<SinkItem = EpSinkItem>,
-{
-    type Item = GenericMessage;
-    type Error = EndpointError;
+    pub(crate) fn poll_channel(&mut self) -> Poll<(), EndpointError> {
+        let _ = self.poll_flush()?;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        // First, read any new data that might have been received off the socket
-        let sock_closed = self.fill_read_buf()?.is_ready();
-
-        // Now, try parsing.
-        let initial_len = self.rd.len();
-        let mut temp_buf = BytesMut::clone(&self.rd).freeze();
-        let combined_size = u32::unbuffer_ref(&mut temp_buf)
-            .map_exactly_err_to_at_least()?
-            .data() as usize;
-        let size = MessageSize::from_unpadded_message_size(combined_size);
-        let not_enough = if sock_closed {
-            Ok(Async::Ready(None))
-        } else {
-            Ok(Async::NotReady)
-        };
-        if initial_len < size.padded_message_size() {
-            return not_enough;
-        }
-        let mut temp_buf = BytesMut::clone(&self.rd).freeze();
-        match GenericMessage::unbuffer_ref(&mut temp_buf) {
-            Ok(Output(v)) => {
-                self.rd.advance(initial_len - temp_buf.len());
-                Ok(Async::Ready(Some(v)))
-            }
-            Err(unbuffer::Error::NeedMoreData(_)) => not_enough,
-            Err(e) => Err(Self::Error::from(e)),
-        }
+        // ch.framed_stream
+        //     .poll()
+        self.receive_future
+            .poll()
+            .map_err(|e| EndpointError::UnbufferError(e))
     }
 }
 
-pub(crate) fn poll_channel<T>(
-    ch: &mut EndpointChannel<T>,
-) -> Poll<Option<GenericMessage>, EndpointError>
-where
-    T: Stream<Item = EpStreamItem> + Sink<SinkItem = EpSinkItem>,
-{
-    let _ = ch.poll_flush()?;
+// impl<T> Stream for EndpointChannel<T>
+// where
+//     T: Stream<Item = EpStreamItem, Error = EpStreamError>
+//         + Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>,
+// {
+//     type Item = EpStreamItem;
+//     type Error = EndpointError;
 
-    while let Async::Ready(msg) = ch.poll()? {
-        return Ok(Async::Ready(msg));
-    }
-    // As always, it is important to not just return `NotReady` without
-    // ensuring an inner future also returned `NotReady`.
-    //
-    // We know we got a `NotReady` from either `self.rx` or `self.lines`, so
-    // the contract is respected.
-    Ok(Async::NotReady)
-}
+//     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+//         loop {
+//             match try_ready!(self.framed_stream.poll()) {
+//                 Some(msg) => {
+//                     println!("Received message {:?}", msg);
+//                     // do something
+//                     return Ok(Async::Ready(Some(msg)));
+//                 }
+//                 None => {
+//                     return Ok(Async::Ready(None));
+//                 }
+//             }
+//         }
+//         // loop {
+//         //     match self.framed_stream.poll()? {
+//         //         Async::NotReady => {
+//         //             return Ok(Async::NotReady);
+//         //         }
+//         //         Async::Ready(message) => {
+//         //             println!("Received message {:?}", message);
+//         //             if let Some(generic_message) = message {
+//         //                 // do something
+//         //                 println!("Destructured OK");
+//         //             } else {
+//         //                 // EOF was reached. The remote has disconnected. There is
+//         //                 // nothing more to do.
+//         //                 return Ok(Async::Ready(None));
+//         //             }
+//         //         }
+//         //     }
+//         // }
+//     }
+// }
+
+// pub(crate) fn poll_channel<T>(
+//     ch: &mut EndpointChannel<T>,
+// ) -> Poll<Option<GenericMessage>, EndpointError>
+// where
+//     T: Stream<Item = EpStreamItem, Error = EpStreamError>
+//         + Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>,
+// {
+//     let _ = ch.poll_flush()?;
+
+//     ch.framed_stream
+//         .poll()
+//         .map_err(|e| EndpointError::UnbufferError(e))
+// }

@@ -12,6 +12,8 @@ extern crate futures;
 #[macro_use]
 extern crate tokio;
 
+extern crate pretty_hex;
+
 #[macro_use]
 extern crate quick_error;
 
