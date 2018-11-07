@@ -5,10 +5,7 @@
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
 use super::{
-    base::{
-        message::{Description, GenericMessage, Message},
-        types::*,
-    },
+    base::message::{GenericMessage, Message},
     buffer::{
         buffer,
         message::{make_message_body_generic, MessageSize},
@@ -22,7 +19,8 @@ use super::{
     prelude::*,
 };
 use bytes::BytesMut;
-use futures::StartSend;
+use futures::{sync::mpsc, StartSend};
+
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     io,
@@ -48,169 +46,173 @@ quick_error!{
             cause(err)
             display("unbuffer error: {}", err)
         }
+        MpscSendError(err: mpsc::SendError<GenericMessage>) {
+            from()
+            cause(err)
+            display("mpsc send error: {}", err)
+        }
         // NoneError(err: std::option::NoneError) {
         //     from()
         //     cause(err)
         //     display("none error: {}", err)
         // }
-}
+    }
 }
 
-type EpStreamItem = GenericMessage;
-type EpStreamError = <FramedMessageCodec as Decoder>::Error;
-type EpSinkItem = EpStreamItem;
+type EpSinkItem = GenericMessage;
 type EpSinkError = <FramedMessageCodec as Encoder>::Error;
+type EpStreamItem = EpSinkItem;
+type EpStreamError = <FramedMessageCodec as Decoder>::Error;
 
 pub(crate) enum EndpointDisposition {
     StillActive,
     ReadyForCleanup,
 }
-pub type ReceiveFuture = Box<dyn Future<Item = (), Error = EpStreamError>>;
-
+pub type ReceiveFuture = Box<dyn Future<Item = (), Error = EndpointError>>;
+type Tx = mpsc::UnboundedSender<GenericMessage>;
+type Rx = mpsc::UnboundedReceiver<GenericMessage>;
 pub(crate) struct EndpointChannel<T> {
-    framed_stream: T,
+    tx: stream::SplitSink<T>,
+    rx: stream::SplitStream<T>,
+
     buf_size: usize,
-    rd: BytesMut,
-    receive_future: ReceiveFuture,
+
+    // /// The "internal" end of the mpsc channel for sending messages out the endpoint.
+    // out_rx: Rx,
+
+    // /// The "external" end of the mpsc channel for sending messages out the endpoint.
+    // out_tx: Option<Tx>,
+    /// The "internal" end of the mpsc channel for returning received messages from the endpoint.
+    in_tx: Tx,
+
+    /// The "external" end of the mpsc channel for returning received messages from the endpoint.
+    in_rx: Rx,
 }
+
 impl<T> EndpointChannel<T>
 where
-    T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>,
+    T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>
+        + Stream<Item = EpStreamItem, Error = EpStreamError>,
 {
-    pub(crate) fn new<U, F>(
-        framed_stream: U,
-        buf_size: usize,
-        receiver: F,
-    ) -> EndpointChannel<T> 
-    where U: Stream<Item = Option<EpStreamError>, Error=EpStreamError>,
-    F: FnMut(GenericMessage) -> () {
+    pub(crate) fn new(framed_stream: T, buf_size: usize) -> EndpointChannel<T> {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
+        let (tx, rx) = framed_stream.split();
+        // let (out_tx, out_rx) = mpsc::unbounded();
+        let (in_tx, in_rx) = mpsc::unbounded();
         EndpointChannel {
-            framed_stream,
+            tx,
             buf_size,
-            receive_future,
-            // wr: BytesMut::new(),
-            rd: BytesMut::with_capacity(buf_size),
+            rx,
+            // out_rx,
+            // out_tx: Some(out_tx),
+            in_tx,
+            in_rx,
         }
     }
     /// Buffer a message.
     ///
     /// This serializes a message to an internal buffer. Calls to `poll_flush` will
     /// attempt to flush this buffer to the socket.
-    pub(crate) fn buffer<U: Buffer>(
-        &mut self,
-        message: Message<U>,
-    ) -> StartSend<GenericMessage, EpSinkError> {
+    fn buffer<U: Buffer>(&mut self, message: Message<U>) -> StartSend<GenericMessage, EpSinkError> {
         let message = make_message_body_generic(message)?;
-        self.framed_stream.start_send(message)?;
+        self.tx.start_send(message)?;
         Ok(AsyncSink::Ready)
-        // // Ensure the buffer has capacity.
-        // self.wr.reserve(message.required_buffer_size());
-
-        // message.buffer_ref(&mut self.wr)
     }
 
     /// Flush the write buffer to the socket
     fn poll_flush(&mut self) -> Poll<(), EpSinkError> {
-        // // As long as there is buffered data to write, try to write it.
-        // while !self.wr.is_empty() {
-        //     // Try to write some bytes to the socket
-        //     let n = try_ready!(self.socket.poll_write(&self.wr));
+        // const MESSAGES_PER_TICK: usize = 10;
 
-        //     // As long as the wr is not empty, a successful write should
-        //     // never write 0 bytes.
-        //     assert!(n > 0);
+        // // Receive all messages from peers.
+        // for i in 0..MESSAGES_PER_TICK {
+        //     // Polling an `UnboundedReceiver` cannot fail, so `unwrap` here is
+        //     // safe.
+        //     match self.out_rx.poll().unwrap() {
+        //         Async::Ready(Some(message)) => {
+        //             // Buffer the message. Once all messages are buffered, they will
+        //             // be flushed to the socket (right below).
+        //             self.buffer(message)?;
 
-        //     // This discards the first `n` bytes of the buffer.
-        //     let _ = self.wr.split_to(n);
+        //             // If this is the last iteration, the loop will break even
+        //             // though there could still be lines to read. Because we did
+        //             // not reach `Async::NotReady`, we have to notify ourselves
+        //             // in order to tell the executor to schedule the task again.
+        //             if i + 1 == MESSAGES_PER_TICK {
+        //                 task::current().notify();
+        //             }
+        //         }
+        //         _ => break,
+        //     }
         // }
 
-        // Ok(Async::Ready(()))
-        self.framed_stream.poll_complete()
+        // Flush the write buffer to the socket
+        self.tx.poll_complete()
     }
 
-    // /// Read data from the socket.
-    // ///
-    // /// This only returns `Ready` when the socket has closed.
-    // fn fill_read_buf(&mut self) -> Poll<(), io::Error> {
-    //     loop {
-    //         // Ensure the read buffer has capacity.
-    //         //
-    //         // This might result in an internal allocation.
-    //         self.rd.reserve(self.buf_size);
+    fn receive(&mut self) -> Poll<(), EndpointError> {
+        loop {
+            let poll = self.rx.poll()?;
+            match poll {
+                Async::Ready(msg) => {
+                    println!("receive got message {:?}", msg);
+                    match msg {
+                        Some(msg) => self.in_tx.unbounded_send(msg).unwrap(),
+                        None => return Ok(Async::Ready(())),
+                    }
+                }
+                Async::NotReady => return Ok(Async::NotReady),
+            }
+            // if let Some(msg) = try_ready!(self.rx.poll()) {
+            //     self.in_tx.unbounded_send(msg).unwrap();
+            // } else {
+            //     break;
+            // }
+        }
+        // Other end has disconnected
+        return Ok(Async::Ready(()));
+    }
 
-    //         // Read data into the buffer.
-    //         let n = try_ready!(self.socket.read_buf(&mut self.rd));
+    /// Method for polling the MPSC channel that decoded generic messages are placed in.
+    fn poll_receive(&mut self) -> Poll<Option<GenericMessage>, EndpointError> {
+        // treat errors like a closed connection
+        let poll = self.in_rx.poll();
+        poll.or(Ok(Async::Ready(None)))
+    }
 
-    //         if n == 0 {
-    //             return Ok(Async::Ready(()));
-    //         }
-    //     }
-    // }
-
-    pub(crate) fn poll_channel(&mut self) -> Poll<(), EndpointError> {
+    /// Async::Ready(()) means the channel was closed.
+    /// Async::NotReady is returned otherwise.
+    pub(crate) fn poll_channel<F>(&mut self, message_handler: F) -> Poll<(), EndpointError>
+    where
+        F: FnMut(GenericMessage) -> Result<(), EndpointError>,
+    {
+        let mut message_handler = message_handler;
         let _ = self.poll_flush()?;
 
-        // ch.framed_stream
-        //     .poll()
-        self.receive_future
-            .poll()
-            .map_err(|e| EndpointError::UnbufferError(e))
+        let _ = self.receive()?;
+        const MAX_PER_TICK: usize = 10;
+        for i in 0..MAX_PER_TICK {
+            match try_ready!(self.poll_receive()) {
+                Some(msg) => {
+                    println!("poll_channel: received message {:?}", msg);
+                    message_handler(msg)?;
+                }
+                None => {
+                    println!("poll_channel: received None");
+                    return Ok(Async::Ready(()));
+                }
+            }
+
+            // If this is the last iteration, the loop will break even
+            // though there could still be messages to read. Because we did
+            // not reach `Async::NotReady`, we have to notify ourselves
+            // in order to tell the executor to schedule the task again.
+            if i + 1 == MAX_PER_TICK {
+                task::current().notify();
+            }
+        }
+
+        // OK to do because we either got not ready from self.poll_flush(),
+        // self.receive(), or we've hit the limit (and have notified ourselves again accordingly)
+        Ok(Async::NotReady)
     }
 }
-
-// impl<T> Stream for EndpointChannel<T>
-// where
-//     T: Stream<Item = EpStreamItem, Error = EpStreamError>
-//         + Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>,
-// {
-//     type Item = EpStreamItem;
-//     type Error = EndpointError;
-
-//     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-//         loop {
-//             match try_ready!(self.framed_stream.poll()) {
-//                 Some(msg) => {
-//                     println!("Received message {:?}", msg);
-//                     // do something
-//                     return Ok(Async::Ready(Some(msg)));
-//                 }
-//                 None => {
-//                     return Ok(Async::Ready(None));
-//                 }
-//             }
-//         }
-//         // loop {
-//         //     match self.framed_stream.poll()? {
-//         //         Async::NotReady => {
-//         //             return Ok(Async::NotReady);
-//         //         }
-//         //         Async::Ready(message) => {
-//         //             println!("Received message {:?}", message);
-//         //             if let Some(generic_message) = message {
-//         //                 // do something
-//         //                 println!("Destructured OK");
-//         //             } else {
-//         //                 // EOF was reached. The remote has disconnected. There is
-//         //                 // nothing more to do.
-//         //                 return Ok(Async::Ready(None));
-//         //             }
-//         //         }
-//         //     }
-//         // }
-//     }
-// }
-
-// pub(crate) fn poll_channel<T>(
-//     ch: &mut EndpointChannel<T>,
-// ) -> Poll<Option<GenericMessage>, EndpointError>
-// where
-//     T: Stream<Item = EpStreamItem, Error = EpStreamError>
-//         + Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>,
-// {
-//     let _ = ch.poll_flush()?;
-
-//     ch.framed_stream
-//         .poll()
-//         .map_err(|e| EndpointError::UnbufferError(e))
-// }

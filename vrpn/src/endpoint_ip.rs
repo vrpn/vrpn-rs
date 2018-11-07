@@ -14,7 +14,7 @@ use super::{
         typedispatcher::HandlerResult, Endpoint, TranslationTable, TranslationTableError,
         TranslationTableResult,
     },
-    endpoint_channel::{poll_channel, EndpointChannel, EndpointError},
+    endpoint_channel::{EndpointChannel, EndpointError},
 };
 use bytes::BytesMut;
 use tokio::{
@@ -43,14 +43,7 @@ impl EndpointIP {
             types: TranslationTable::new(),
             senders: TranslationTable::new(),
             wr: BytesMut::new(),
-            reliable_channel: EndpointChannel::new(
-                framed,
-                TCP_BUFLEN,
-                Box::new(framed.for_each(|m| {
-                    println!("{:?}", m);
-                    Ok(())
-                })),
-            ),
+            reliable_channel: EndpointChannel::new(framed, TCP_BUFLEN),
             // low_latency_channel,
         }
     }
@@ -117,23 +110,11 @@ impl Future for EndpointIP {
     type Item = ();
     type Error = EndpointError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        loop {
-            match poll_channel(&mut self.reliable_channel)? {
-                Async::Ready(v) => match v {
-                    Some(msg) => {
-                        println!("got message {:?}", msg);
-                    }
-                    None => {
-                        // Only return ready when closed.
-                        return Ok(Async::Ready(()));
-                    }
-                },
-                Async::NotReady => {
-                    return Ok(Async::NotReady);
-                }
-            }
-        }
-        unreachable!()
+        self.reliable_channel.poll_channel(|msg| {
+            println!("Received message {:?}", msg);
+            // todo do something here
+            Ok(())
+        })
     }
 }
 
@@ -144,9 +125,19 @@ mod tests {
     fn make_endpoint() {
         use connect::connect_tcp;
         let addr = "127.0.0.1:3883".parse().unwrap();
-        let stream = connect_tcp(addr).wait().unwrap();
-        let mut ep = EndpointIP::new(stream);
-        ep.poll();
-        ep.poll();
+        let _ = connect_tcp(addr)
+            .and_then(|stream| {
+                let mut ep = EndpointIP::new(stream);
+                // future::poll_fn(move || ep.poll())
+                // .map_err(|e| {
+                //     eprintln!("{}", e);
+                //     panic!()
+                // })
+                let _ = ep.poll().unwrap();
+                let _ = ep.poll().unwrap();
+                let _ = ep.poll().unwrap();
+                Ok(())
+            })
+            .wait().unwrap();
     }
 }
