@@ -9,7 +9,11 @@ use super::{
         message::{Description, GenericMessage, Message},
         types::*,
     },
-    buffer::{buffer, message::MessageSize, unbuffer, Buffer, Output, Unbuffer},
+    buffer::{
+        buffer,
+        message::{make_message_body_generic, MessageSize},
+        unbuffer, Buffer, Output, Unbuffer,
+    },
     codec::{self, FramedMessageCodec},
     connection::{
         typedispatcher::HandlerResult, Endpoint, TranslationTable, TranslationTableError,
@@ -18,6 +22,8 @@ use super::{
     prelude::*,
 };
 use bytes::BytesMut;
+use futures::StartSend;
+use std::task::Poll as StdPoll;
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     io,
@@ -45,31 +51,33 @@ quick_error!{
         }
 }
 }
+
+type EpStreamItem = GenericMessage;
+type EpStreamError = <FramedMessageCodec as Decoder>::Error;
+type EpSinkItem = EpStreamItem;
+type EpSinkError = <FramedMessageCodec as Encoder>::Error;
+
 pub(crate) enum EndpointDisposition {
     StillActive,
     ReadyForCleanup,
 }
 
-pub(crate) struct EndpointChannel<T>
-where
-    T: AsyncRead + AsyncWrite,
-{
-    socket: T,
+pub(crate) struct EndpointChannel<T> {
+    framed_stream: T,
     buf_size: usize,
-    wr: BytesMut,
     rd: BytesMut,
 }
-
 impl<T> EndpointChannel<T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: Stream<Item = EpStreamItem, Error = EpStreamError>
+        + Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>,
 {
-    pub(crate) fn new(socket: T, buf_size: usize) -> EndpointChannel<T> {
+    pub(crate) fn new(framed_stream: T, buf_size: usize) -> EndpointChannel<T> {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
         EndpointChannel {
-            socket,
+            framed_stream,
             buf_size,
-            wr: BytesMut::new(),
+            // wr: BytesMut::new(),
             rd: BytesMut::with_capacity(buf_size),
         }
     }
@@ -77,54 +85,61 @@ where
     ///
     /// This serializes a message to an internal buffer. Calls to `poll_flush` will
     /// attempt to flush this buffer to the socket.
-    pub(crate) fn buffer<U: Buffer>(&mut self, message: &Message<U>) -> buffer::Result {
-        // Ensure the buffer has capacity.
-        self.wr.reserve(message.required_buffer_size());
+    pub(crate) fn buffer<U: Buffer>(
+        &mut self,
+        message: Message<U>,
+    ) -> StartSend<GenericMessage, EpSinkError> {
+        let message = make_message_body_generic(message)?;
+        self.framed_stream.start_send(message)?;
+        Ok(AsyncSink::Ready)
+        // // Ensure the buffer has capacity.
+        // self.wr.reserve(message.required_buffer_size());
 
-        message.buffer_ref(&mut self.wr)
+        // message.buffer_ref(&mut self.wr)
     }
 
     /// Flush the write buffer to the socket
-    fn poll_flush(&mut self) -> Poll<(), io::Error> {
-        // As long as there is buffered data to write, try to write it.
-        while !self.wr.is_empty() {
-            // Try to write some bytes to the socket
-            let n = try_ready!(self.socket.poll_write(&self.wr));
+    fn poll_flush(&mut self) -> Poll<(), EpSinkError> {
+        // // As long as there is buffered data to write, try to write it.
+        // while !self.wr.is_empty() {
+        //     // Try to write some bytes to the socket
+        //     let n = try_ready!(self.socket.poll_write(&self.wr));
 
-            // As long as the wr is not empty, a successful write should
-            // never write 0 bytes.
-            assert!(n > 0);
+        //     // As long as the wr is not empty, a successful write should
+        //     // never write 0 bytes.
+        //     assert!(n > 0);
 
-            // This discards the first `n` bytes of the buffer.
-            let _ = self.wr.split_to(n);
-        }
+        //     // This discards the first `n` bytes of the buffer.
+        //     let _ = self.wr.split_to(n);
+        // }
 
-        Ok(Async::Ready(()))
+        // Ok(Async::Ready(()))
+        self.framed_stream.poll_complete()
     }
 
-    /// Read data from the socket.
-    ///
-    /// This only returns `Ready` when the socket has closed.
-    fn fill_read_buf(&mut self) -> Poll<(), io::Error> {
-        loop {
-            // Ensure the read buffer has capacity.
-            //
-            // This might result in an internal allocation.
-            self.rd.reserve(self.buf_size);
+    // /// Read data from the socket.
+    // ///
+    // /// This only returns `Ready` when the socket has closed.
+    // fn fill_read_buf(&mut self) -> Poll<(), io::Error> {
+    //     loop {
+    //         // Ensure the read buffer has capacity.
+    //         //
+    //         // This might result in an internal allocation.
+    //         self.rd.reserve(self.buf_size);
 
-            // Read data into the buffer.
-            let n = try_ready!(self.socket.read_buf(&mut self.rd));
+    //         // Read data into the buffer.
+    //         let n = try_ready!(self.socket.read_buf(&mut self.rd));
 
-            if n == 0 {
-                return Ok(Async::Ready(()));
-            }
-        }
-    }
+    //         if n == 0 {
+    //             return Ok(Async::Ready(()));
+    //         }
+    //     }
+    // }
 }
 
 impl<T> Stream for EndpointChannel<T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: Stream<Item = EpStreamItem> + Sink<SinkItem = EpSinkItem>,
 {
     type Item = GenericMessage;
     type Error = EndpointError;
@@ -164,7 +179,7 @@ pub(crate) fn poll_channel<T>(
     ch: &mut EndpointChannel<T>,
 ) -> Poll<Option<GenericMessage>, EndpointError>
 where
-    T: AsyncRead + AsyncWrite,
+    T: Stream<Item = EpStreamItem> + Sink<SinkItem = EpSinkItem>,
 {
     let _ = ch.poll_flush()?;
 

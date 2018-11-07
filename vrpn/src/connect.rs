@@ -91,7 +91,7 @@ where
 
 pub fn connect_tcp(
     addr: std::net::SocketAddr,
-) -> impl Future<Item = MessageFramed<tokio::net::TcpStream>, Error = ConnectError> {
+) -> impl Future<Item = tokio::net::TcpStream, Error = ConnectError> {
     let sock = make_tcp_socket(addr).expect("failure making the socket");
 
     let stream_future = TcpStream::connect_std(sock, &addr, &tokio::reactor::Handle::default());
@@ -122,7 +122,7 @@ pub fn connect_tcp(
                 })
                 // TODO can pack log description here if we're enabling remote logging.
                 // TODO if we have permission to use UDP, open an incoming socket and notify the other end about it here.
-                .and_then(|()| Ok(apply_message_framing(stream)))
+                .and_then(|()| Ok(stream))
         })
 }
 

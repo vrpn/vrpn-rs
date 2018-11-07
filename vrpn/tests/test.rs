@@ -25,7 +25,7 @@ fn main() {
         )
         .expect("Failed adding remote entry");
     let _conn = connect_tcp(addr)
-        .and_then(|tcp_stream| Ok(ConnectionIP::new_client(None, None, tcp_stream, None)))
+        .and_then(|tcp_stream| Ok(ConnectionIP::new_client(None, None, tcp_stream)))
         .wait()
         .unwrap();
     println!("Hello, world!");

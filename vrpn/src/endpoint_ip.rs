@@ -30,7 +30,7 @@ pub struct EndpointIP {
     types: TranslationTable<TypeId>,
     senders: TranslationTable<SenderId>,
     wr: BytesMut,
-    reliable_channel: EndpointChannel<TcpStream>,
+    reliable_channel: EndpointChannel<MessageFramed>,
     // low_latency_tx: Option<MessageFramedUdp>,
 }
 
@@ -42,7 +42,10 @@ impl EndpointIP {
             types: TranslationTable::new(),
             senders: TranslationTable::new(),
             wr: BytesMut::new(),
-            reliable_channel: EndpointChannel::new(reliable_stream, TCP_BUFLEN),
+            reliable_channel: EndpointChannel::new(
+                codec::apply_message_framing(reliable_stream),
+                TCP_BUFLEN,
+            ),
             // low_latency_channel,
         }
     }
@@ -110,5 +113,17 @@ impl Future for EndpointIP {
     type Error = EndpointError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         poll_channel(&mut self.reliable_channel)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn make_endpoint() {
+        use connect::connect_tcp;
+        let addr = "127.0.0.1:3883".parse().unwrap();
+        let stream = connect_tcp(addr).wait().unwrap();
+        let ep = EndpointIP::new(stream);
     }
 }
