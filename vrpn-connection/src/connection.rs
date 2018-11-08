@@ -28,14 +28,14 @@ pub trait Connection<'a> {
             disp.set_system_handler(constants::DISCONNECT_MESSAGE, handle_disconnect_message);
     */
     type EndpointItem: 'a + Endpoint;
-    type EndpointIterator: std::iter::Iterator<Item = &'a Option<Self::EndpointItem>>;
-    type EndpointIteratorMut: std::iter::Iterator<Item = &'a mut Option<Self::EndpointItem>>;
+    // type EndpointIterator: std::iter::Iterator<Item = &'a Option<Self::EndpointItem>>;
+    // type EndpointIteratorMut: std::iter::Iterator<Item = &'a mut Option<Self::EndpointItem>>;
 
-    /// Get an iterator over the (mutable) endpoints
-    fn endpoints_iter_mut(&'a mut self) -> Self::EndpointIteratorMut;
+    // /// Get an iterator over the (mutable) endpoints
+    // fn endpoints_iter_mut(&'a mut self) -> Self::EndpointIteratorMut;
 
-    /// Get an iterator over the endpoints.
-    fn endpoints_iter(&'a self) -> Self::EndpointIterator;
+    // /// Get an iterator over the endpoints.
+    // fn endpoints_iter(&'a self) -> Self::EndpointIterator;
 
     /// Borrow a reference to the type dispatcher.
     // fn dispatcher(&'a self) -> &'a TypeDispatcher;
@@ -91,11 +91,7 @@ pub trait Connection<'a> {
         my_result
     }
 
-    // fn register_sender(&'a mut self, name: SenderName) -> MappingResult<RegisterMapping<SenderId>> {
-    //     self.dispatcher_mut().register_sender(name)
-    // }
+    fn register_sender(&'a mut self, name: SenderName) -> MappingResult<RegisterMapping<SenderId>>;
 
-    // fn register_type(&'a mut self, name: TypeName) -> MappingResult<RegisterMapping<TypeId>> {
-    //     self.dispatcher_mut().register_type(name)
-    // }
+    fn register_type(&'a mut self, name: TypeName) -> MappingResult<RegisterMapping<TypeId>>;
 }
