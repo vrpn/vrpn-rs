@@ -119,18 +119,6 @@ bitmask! {
     }
 }
 
-
-/// @todo temporary
-pub type Time = u32;
-
-#[derive(Debug, Clone)]
-pub struct HandlerParams {
-    pub message_type: TypeId,
-    pub sender: SenderId,
-    pub msg_time: Time,
-    pub buffer: bytes::Bytes,
-}
-
 pub trait TypedName {}
 
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
