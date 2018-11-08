@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use bytes::{Bytes, BytesMut};
+use crate::{
     base::cookie::{self, check_ver_nonfile_compatible, CookieData},
     buffer::{buffer, unbuffer, ConstantBufferSize, Output, Unbuffer},
     connection::typedispatcher,
     prelude::*,
     *,
 };
-use bytes::{Bytes, BytesMut};
 use std::net::SocketAddr;
 use tokio::{
     io,
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn sync_connect() {
-        use buffer::Buffer;
+        use crate::buffer::Buffer;
         let addr = "127.0.0.1:3883".parse().unwrap();
 
         let sock = make_tcp_socket(addr).expect("failure making the socket");

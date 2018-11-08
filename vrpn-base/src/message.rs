@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use bytes::Bytes;
+use crate::{
     time::TimeVal,
     types::{BaseTypeSafeId, SenderId, SequenceNumber, TypeId},
 };
-use bytes::Bytes;
 
 /// Header information for a message.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use bytes::{BufMut, Bytes};
+use crate::{
     prelude::*,
     traits::{
         buffer::{self, Buffer},
@@ -10,7 +11,6 @@ use super::{
         BytesRequired,
     },
 };
-use bytes::{BufMut, Bytes};
 use std::mem::size_of;
 
 /// Does the "length prefix" value include a trailing null character (strlen() + 1)?

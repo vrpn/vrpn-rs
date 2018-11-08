@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use bytes::BytesMut;
+use crate::{
     base::{
         constants::TCP_BUFLEN,
         message::{Description, GenericMessage, Message},
@@ -16,7 +17,6 @@ use super::{
     },
     endpoint_channel::{EndpointChannel, EndpointError},
 };
-use bytes::BytesMut;
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     io,
@@ -51,11 +51,11 @@ impl EndpointIP {
 impl Endpoint for EndpointIP {
     fn send_message(
         &mut self,
-        time: Time,
-        id: TypeId,
-        sender: SenderId,
-        buffer: bytes::Bytes,
-        class: ClassOfService,
+        _time: Time,
+        _id: TypeId,
+        _sender: SenderId,
+        _buffer: bytes::Bytes,
+        _class: ClassOfService,
     ) -> HandlerResult<()> {
         unimplemented!();
     }
@@ -123,7 +123,7 @@ mod tests {
     use super::*;
     #[test]
     fn make_endpoint() {
-        use connect::connect_tcp;
+        use crate::connect::connect_tcp;
         let addr = "127.0.0.1:3883".parse().unwrap();
         let _ = connect_tcp(addr)
             .and_then(|stream| {
@@ -138,6 +138,7 @@ mod tests {
                 let _ = ep.poll().unwrap();
                 Ok(())
             })
-            .wait().unwrap();
+            .wait()
+            .unwrap();
     }
 }

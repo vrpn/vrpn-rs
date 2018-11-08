@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use crate::{
     connect::ConnectError,
     endpoint_ip::{EndpointIP, MessageFramed, MessageFramedUdp},
 };
@@ -25,7 +25,7 @@ pub struct ConnectionIP {
 impl ConnectionIP {
     /// Common initialization
     fn init(&mut self) -> HandlerResult<()> {
-        let handle_udp_message = |params: HandlerParams| -> HandlerResult<()> { Ok(()) };
+        let _handle_udp_message = |_params: HandlerParams| -> HandlerResult<()> { Ok(()) };
         /*
         self.type_dispatcher
             .set_system_handler(constants::UDP_DESCRIPTION, handle_udp_message)

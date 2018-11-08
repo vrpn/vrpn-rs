@@ -4,7 +4,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>, based in part on
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
-use super::{
+use bytes::BytesMut;
+use crate::{
     base::message::{GenericMessage, Message},
     buffer::{
         buffer,
@@ -18,7 +19,6 @@ use super::{
     },
     prelude::*,
 };
-use bytes::BytesMut;
 use futures::{sync::mpsc, StartSend};
 
 use tokio::{

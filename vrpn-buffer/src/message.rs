@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use crate::{
     length_prefixed::{self, LengthBehavior, NullTermination},
     prelude::*,
     traits::{
@@ -11,7 +12,6 @@ use super::{
         BufferSize, BytesRequired, ConstantBufferSize, WrappedConstantSize,
     },
 };
-use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::{
     mem::size_of,
     ops::{Deref, DerefMut},

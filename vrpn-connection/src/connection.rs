@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use crate::{
     endpoint::Endpoint,
     translationtable::{Result as TranslationTableResult, TranslationTable, TranslationTableError},
     typedispatcher::{HandlerResult, MappingResult, RegisterMapping, TypeDispatcher},

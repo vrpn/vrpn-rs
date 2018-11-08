@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use bytes::BytesMut;
+use crate::{
     base::message::GenericMessage,
     buffer::{buffer, message::MessageSize, unbuffer, Buffer, Output, Unbuffer},
     prelude::*,
 };
-use bytes::BytesMut;
 use pretty_hex::*;
 use tokio::{
     codec::{Decoder, Encoder, Framed},

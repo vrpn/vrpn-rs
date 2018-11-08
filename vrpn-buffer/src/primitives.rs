@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::traits::{
+use bytes::{Buf, BufMut, Bytes, IntoBuf};
+use crate::traits::{
     buffer::{self, Buffer},
     unbuffer::{self, Source, UnbufferConstantSize},
     ConstantBufferSize,
 };
-use bytes::{Buf, BufMut, Bytes, IntoBuf};
 
 macro_rules! buffer_primitive {
     ($t:ty, $put:ident, $get:ident) => {

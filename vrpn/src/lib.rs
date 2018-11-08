@@ -29,7 +29,7 @@ pub mod connection_ip;
 pub(crate) mod endpoint_channel;
 pub mod endpoint_ip;
 
-pub use connection_ip::ConnectionIP;
+pub use crate::connection_ip::ConnectionIP;
 
 pub mod base {
     pub use vrpn_base::*;
@@ -43,8 +43,8 @@ pub mod connection {
     pub use vrpn_connection::*;
 }
 
-pub use base::constants;
+pub use crate::base::constants;
 
 pub mod prelude {
-    pub use buffer::prelude::*;
+    pub use crate::buffer::prelude::*;
 }

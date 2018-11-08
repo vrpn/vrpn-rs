@@ -351,8 +351,8 @@ impl<'a> TypeDispatcher<'a> {
 }
 #[cfg(test)]
 mod tests {
+    use crate::typedispatcher::*;
     use std::rc::Rc;
-    use typedispatcher::*;
     #[test]
     fn callback_collection() {
         /*

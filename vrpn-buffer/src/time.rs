@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use bytes::{BufMut, Bytes};
+use crate::{
     prelude::*,
     traits::{
         buffer::{self, Buffer},
@@ -10,7 +11,6 @@ use super::{
         ConstantBufferSize, WrappedConstantSize,
     },
 };
-use bytes::{BufMut, Bytes};
 use vrpn_base::time::{Microseconds, Seconds, TimeVal};
 
 impl WrappedConstantSize for Seconds {

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use bytes::{BufMut, Bytes};
+use crate::{
     prelude::*,
     traits::{
         buffer::{self, Buffer},
@@ -10,7 +11,6 @@ use super::{
         ConstantBufferSize,
     },
 };
-use bytes::{BufMut, Bytes};
 use std::{num::ParseIntError, result};
 use vrpn_base::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
@@ -90,10 +90,10 @@ impl Unbuffer for CookieData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::BytesMut;
     #[test]
     fn magic_size() {
         // Make sure the size is right.
-        use super::{constants, Buffer, CookieData};
 
         let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
         magic_cookie.log_mode = Some(LogMode::none());
@@ -108,9 +108,6 @@ mod tests {
 
     #[test]
     fn roundtrip() {
-        use super::{constants, Buffer, CookieData, Unbuffer};
-        use bytes::BytesMut;
-
         let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
         magic_cookie.log_mode = Some(LogMode::none());
         let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
@@ -127,9 +124,6 @@ mod tests {
 
     #[test]
     fn roundtrip_bytesmut() {
-        use super::{constants, Buffer, CookieData, Unbuffer};
-        use bytes::BytesMut;
-
         let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
         magic_cookie.log_mode = Some(LogMode::none());
 
@@ -165,7 +159,7 @@ mod tests {
     #[test]
     fn parse_decimal() {
         fn parse_decimal_u8(v: &'static [u8]) -> u8 {
-            super::from_dec(v).unwrap()
+            from_dec(v).unwrap()
         }
         assert_eq!(0_u8, parse_decimal_u8(b"0"));
         assert_eq!(0_u8, parse_decimal_u8(b"00"));

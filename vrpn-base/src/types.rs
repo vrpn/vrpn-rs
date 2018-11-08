@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::constants;
 use bytes::Bytes;
+use crate::constants;
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;

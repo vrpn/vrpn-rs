@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{
+use crate::{
     constants::{self, MAGIC_PREFIX},
     types::{LogFlags, LogMode},
 };
@@ -127,18 +127,17 @@ pub fn check_ver_file_compatible(ver: Version) -> result::Result<(), VersionErro
 
 #[cfg(test)]
 mod tests {
+    use super::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData};
+    use crate::constants::{FILE_MAGIC_DATA, MAGICLEN, MAGIC_DATA, MAGIC_PREFIX};
     #[test]
     fn formatting() {
-        assert_eq!(format!("{}", super::constants::MAGIC_DATA), "07.35");
+        assert_eq!(format!("{}", MAGIC_DATA), "07.35");
         assert_eq!(
-            format!("{}", super::CookieData::from(super::constants::MAGIC_DATA)),
+            format!("{}", CookieData::from(MAGIC_DATA)),
             "vrpn: ver. 07.35  0"
         );
         assert_eq!(
-            format!(
-                "{}",
-                super::CookieData::from(super::constants::FILE_MAGIC_DATA)
-            ),
+            format!("{}", CookieData::from(FILE_MAGIC_DATA)),
             "vrpn: ver. 04.00  0"
         );
     }
@@ -146,15 +145,12 @@ mod tests {
     #[test]
     fn magic_size() {
         // Make sure the size is right.
-        assert_eq!(
-            super::constants::MAGIC_DATA.to_string().len(),
-            super::constants::MAGICLEN - super::constants::MAGIC_PREFIX.len()
-        );
+        assert_eq!(MAGIC_DATA.to_string().len(), MAGICLEN - MAGIC_PREFIX.len());
     }
 
     #[test]
     fn ver_compat() {
-        assert!(super::check_ver_nonfile_compatible(super::constants::MAGIC_DATA).is_ok());
-        assert!(super::check_ver_file_compatible(super::constants::FILE_MAGIC_DATA).is_ok());
+        assert!(check_ver_nonfile_compatible(MAGIC_DATA).is_ok());
+        assert!(check_ver_file_compatible(FILE_MAGIC_DATA).is_ok());
     }
 }
