@@ -2,50 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::typedispatcher;
 use bytes::{Bytes, BytesMut};
+use crate::{typedispatcher, Error, Result};
 use vrpn_base::{
     message::{Description, SequencedMessage},
     types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId},
 };
 use vrpn_buffer::{buffer, Buffer};
-
-quick_error! {
-    #[derive(Debug)]
-    pub enum TranslationTableError {
-        InvalidRemoteId(id: IdType) {
-            display("invalid remote id {}", id)
-        }
-        InvalidLocalId(id: IdType) {
-            display("invalid local id {}", id)
-        }
-        EmptyEntry {
-            description("empty entry")
-        }
-        BufferError(err: buffer::Error) {
-            from()
-            cause(err)
-            display("buffer error: {}", err)
-        }
-        ConsErrors(err: Box<TranslationTableError>, tail: Box<TranslationTableError>) {
-            cause(err)
-            display("{}, {}", err, tail)
-        }
-        HandlerError(err: typedispatcher::HandlerError) {
-            cause(err)
-            display("{}", err)
-            from(err)
-        }
-    }
-}
-
-impl TranslationTableError {
-    pub fn append(self, new_err: TranslationTableError) -> TranslationTableError {
-        TranslationTableError::ConsErrors(Box::new(new_err), Box::new(self))
-    }
-}
-
-pub type Result<T> = std::result::Result<T, TranslationTableError>;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct TranslationEntry<T: BaseTypeSafeId> {
@@ -71,7 +34,7 @@ impl<T: BaseTypeSafeId> TranslationEntry<T> {
         // let msg = SequencedMessage::from(Description::new(id, self.name.clone()));
         // buf.reserve(msg.required_buffer_size());
         // msg.buffer_ref(buf)
-        //     .map_err(|e| TranslationTableError::BufferError(e))
+        //     .map_err(|e| Error::BufferError(e))
         unimplemented!();
     }
 
@@ -101,12 +64,12 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
             return Ok(None);
         }
         if index >= self.entries.len() as i32 {
-            return Err(TranslationTableError::InvalidRemoteId(index));
+            return Err(Error::InvalidRemoteId(index));
         }
         if let Some(ref entry) = self.entries[index as usize] {
             Ok(Some(entry.local_id.clone()))
         } else {
-            Err(TranslationTableError::EmptyEntry)
+            Err(Error::EmptyEntry)
         }
     }
 
@@ -118,7 +81,7 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
     ) -> Result<RemoteId<T>> {
         let real_index = remote_id.get();
         if real_index < 0 {
-            return Err(TranslationTableError::InvalidRemoteId(real_index));
+            return Err(Error::InvalidRemoteId(real_index));
         }
         while real_index as usize >= self.entries.len() {
             self.entries.push(None);

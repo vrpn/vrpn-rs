@@ -4,19 +4,22 @@
 
 use crate::{
     cookie::Version,
-    types::{SenderName, TypeId, TypeName},
+    types::{StaticSenderName, StaticTypeName, TypeId},
 };
 
 // Constants in this file must remain unchanged so that they match the C++ implementation.
-pub const GOT_FIRST_CONNECTION: TypeName = TypeName(b"VRPN_Connection_Got_First_Connection");
-pub const GOT_CONNECTION: TypeName = TypeName(b"VRPN_Connection_Got_Connection");
-pub const DROPPED_CONNECTION: TypeName = TypeName(b"VRPN_Connection_Dropped_Connection");
-pub const DROPPED_LAST_CONNECTION: TypeName = TypeName(b"VRPN_Connection_Dropped_Last_Connection");
+pub const GOT_FIRST_CONNECTION: StaticTypeName =
+    StaticTypeName(b"VRPN_Connection_Got_First_Connection");
+pub const GOT_CONNECTION: StaticTypeName = StaticTypeName(b"VRPN_Connection_Got_Connection");
+pub const DROPPED_CONNECTION: StaticTypeName =
+    StaticTypeName(b"VRPN_Connection_Dropped_Connection");
+pub const DROPPED_LAST_CONNECTION: StaticTypeName =
+    StaticTypeName(b"VRPN_Connection_Dropped_Last_Connection");
 
-pub const CONTROL: SenderName = SenderName(b"VRPN Control");
+pub const CONTROL: StaticSenderName = StaticSenderName(b"VRPN Control");
 
 // This one might not go over the wire, so it might not be critical that it remain unchanged.
-pub const GENERIC: TypeName = TypeName(b"generic");
+pub const GENERIC: &[u8] = b"generic";
 
 pub const SENDER_DESCRIPTION: TypeId = TypeId(-1);
 pub const TYPE_DESCRIPTION: TypeId = TypeId(-2);

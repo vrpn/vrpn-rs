@@ -5,8 +5,8 @@
 use bytes::{Bytes, BytesMut};
 use crate::{
     base::cookie::{self, check_ver_nonfile_compatible, CookieData},
-    buffer::{buffer, unbuffer, ConstantBufferSize, Output, Unbuffer},
-    connection::typedispatcher,
+    buffer::{buffer, unbuffer, ConstantBufferSize, Unbuffer},
+    connection::Error as ConnectionError,
     prelude::*,
     *,
 };
@@ -40,10 +40,20 @@ quick_error! {
             display("IO error: {}", err)
             cause(err)
         }
-        HandlerError(err: typedispatcher::HandlerError) {
+        WrappedConnectionError(err: ConnectionError) {
             from()
             display("{}", err)
             cause(err)
+        }
+        Other(err: Box<std::error::Error>) {
+            cause(&**err)
+            from()
+            display("{}", err)
+            cause(err)
+        }
+        OtherMessage(s: String) {
+            from()
+            display("{}", s)
         }
     }
 }
@@ -101,9 +111,8 @@ where
     io::read_exact(stream, vec![0u8; CookieData::constant_buffer_size()]).from_err()
 }
 
-fn verify_version_nonfile(msg: Output<CookieData>) -> impl Future<Item = (), Error = ConnectError> {
-    let Output(parsed) = msg;
-    check_ver_nonfile_compatible(parsed.version)
+fn verify_version_nonfile(msg: CookieData) -> impl Future<Item = (), Error = ConnectError> {
+    check_ver_nonfile_compatible(msg.version)
         .into_future()
         .from_err()
 }

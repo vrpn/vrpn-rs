@@ -4,7 +4,7 @@
 
 use bytes::{BufMut, Bytes};
 use crate::traits::{
-    buffer::{self, Buffer},
+    buffer::{self, Buffer, BytesMutExtras},
     unbuffer::{self, check_expected, OutputResultExtras, Unbuffer},
     ConstantBufferSize,
 };
@@ -94,20 +94,20 @@ mod tests {
     fn magic_size() {
         // Make sure the size is right.
 
-        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
+        let mut magic_cookie = CookieData::from(MAGIC_DATA);
         magic_cookie.log_mode = Some(LogMode::none());
-        assert_eq!(magic_cookie.required_buffer_size(), constants::COOKIE_SIZE);
+        assert_eq!(magic_cookie.required_buffer_size(), COOKIE_SIZE);
 
         let mut buf = Vec::new();
         magic_cookie
             .buffer_ref(&mut buf)
             .expect("Buffering needs to succeed");
-        assert_eq!(buf.len(), constants::COOKIE_SIZE);
+        assert_eq!(buf.len(), COOKIE_SIZE);
     }
 
     #[test]
     fn roundtrip() {
-        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
+        let mut magic_cookie = CookieData::from(MAGIC_DATA);
         magic_cookie.log_mode = Some(LogMode::none());
         let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
         magic_cookie
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn roundtrip_bytesmut() {
-        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
+        let mut magic_cookie = CookieData::from(MAGIC_DATA);
         magic_cookie.log_mode = Some(LogMode::none());
 
         let mut buf = BytesMut::new()

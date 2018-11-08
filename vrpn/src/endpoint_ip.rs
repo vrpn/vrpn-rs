@@ -8,10 +8,7 @@ use crate::{
     base::{constants::TCP_BUFLEN, Description, GenericMessage, Message},
     buffer::{buffer, make_message_body_generic, unbuffer, Buffer},
     codec::{self, FramedMessageCodec},
-    connection::{
-        typedispatcher::HandlerResult, TranslationTable, TranslationTableError,
-        TranslationTableResult,
-    },
+    connection::{Error as ConnectionError, Result as ConnectionResult, TranslationTable},
     endpoint_channel::{EndpointChannel, EndpointError},
 };
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -24,20 +21,21 @@ use tokio::{
 pub type MessageFramed = codec::MessageFramed<TcpStream>;
 pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
 
-pub struct EndpointIP {
-    types: TranslationTable<TypeId>,
-    senders: TranslationTable<SenderId>,
+#[derive(Debug)]
+pub struct EndpointIp {
+    pub(crate) types: TranslationTable<TypeId>,
+    pub(crate) senders: TranslationTable<SenderId>,
     wr: BytesMut,
     reliable_channel: EndpointChannel<MessageFramed>,
     seq: AtomicUsize, // low_latency_tx: Option<MessageFramedUdp>
 }
 
-impl EndpointIP {
+impl EndpointIp {
     pub(crate) fn new(
         reliable_stream: TcpStream //low_latency_channel: Option<MessageFramedUdp>
-    ) -> EndpointIP {
+    ) -> EndpointIp {
         let framed = codec::apply_message_framing(reliable_stream);
-        EndpointIP {
+        EndpointIp {
             types: TranslationTable::new(),
             senders: TranslationTable::new(),
             wr: BytesMut::new(),
@@ -50,7 +48,7 @@ impl EndpointIP {
         &mut self,
         msg: GenericMessage,
         class: ClassOfService,
-    ) -> HandlerResult<()> {
+    ) -> ConnectionResult<()> {
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
 
         self.reliable_channel
@@ -62,7 +60,7 @@ impl EndpointIP {
         &mut self,
         msg: Message<T>,
         class: ClassOfService,
-    ) -> HandlerResult<()> {
+    ) -> ConnectionResult<()> {
         let generic_msg = make_message_body_generic(msg)?;
         self.buffer_generic_message(generic_msg, class)
     }
@@ -86,33 +84,31 @@ impl EndpointIP {
     pub(crate) fn pack_sender_description(
         &mut self,
         local_sender: LocalId<SenderId>,
-    ) -> TranslationTableResult<()> {
+    ) -> ConnectionResult<()> {
         let LocalId(id) = local_sender;
         let name = self
             .senders
             .find_by_local_id(local_sender)
-            .ok_or(TranslationTableError::InvalidLocalId(id.get()))
+            .ok_or(ConnectionError::InvalidLocalId(id.get()))
             .and_then(|entry| Ok(entry.name.clone()))?;
         let desc_msg = Message::from(Description::new(id, name));
         self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
-            .map_err(|e| TranslationTableError::HandlerError(e))
             .map(|_| ())
     }
 
     pub(crate) fn pack_type_description(
         &mut self,
         local_type: LocalId<TypeId>,
-    ) -> TranslationTableResult<()> {
+    ) -> ConnectionResult<()> {
         let LocalId(id) = local_type;
         let name = self
             .types
             .find_by_local_id(local_type)
-            .ok_or(TranslationTableError::InvalidLocalId(id.get()))
+            .ok_or(ConnectionError::InvalidLocalId(id.get()))
             .and_then(|entry| Ok(entry.name.clone()))?;
 
         let desc_msg = Message::from(Description::new(id, name));
         self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
-            .map_err(|e| TranslationTableError::HandlerError(e))
             .map(|_| ())
     }
 
@@ -137,19 +133,25 @@ impl EndpointIP {
 
     pub(crate) fn new_local_sender(
         &mut self,
-        name: SenderName,
+        name: impl Into<SenderName>,
         local_sender: LocalId<SenderId>,
     ) -> bool {
+        let name: SenderName = name.into();
         self.sender_table_mut()
             .add_local_id(name.into(), local_sender)
     }
 
-    pub(crate) fn new_local_type(&mut self, name: TypeName, local_type: LocalId<TypeId>) -> bool {
+    pub(crate) fn new_local_type(
+        &mut self,
+        name: impl Into<TypeName>,
+        local_type: LocalId<TypeId>,
+    ) -> bool {
+        let name: TypeName = name.into();
         self.type_table_mut().add_local_id(name.into(), local_type)
     }
 }
 
-impl Future for EndpointIP {
+impl Future for EndpointIp {
     type Item = ();
     type Error = EndpointError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -170,7 +172,7 @@ mod tests {
         let addr = "127.0.0.1:3883".parse().unwrap();
         let _ = connect_tcp(addr)
             .and_then(|stream| {
-                let mut ep = EndpointIP::new(stream);
+                let mut ep = EndpointIp::new(stream);
                 // future::poll_fn(move || ep.poll())
                 // .map_err(|e| {
                 //     eprintln!("{}", e);

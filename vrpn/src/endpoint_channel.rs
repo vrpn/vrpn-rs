@@ -9,10 +9,7 @@ use crate::{
     base::message::{GenericMessage, Message, SequencedGenericMessage},
     buffer::{buffer, make_message_body_generic, unbuffer, Buffer, MessageSize, Unbuffer},
     codec::{self, FramedMessageCodec},
-    connection::{
-        typedispatcher::HandlerResult, TranslationTable, TranslationTableError,
-        TranslationTableResult,
-    },
+    connection::{Error as ConnectionError, Result as ConnectionResult, TranslationTable},
     prelude::*,
 };
 use futures::{sync::mpsc, StartSend};
@@ -67,6 +64,8 @@ pub(crate) enum EndpointDisposition {
 pub type ReceiveFuture = Box<dyn Future<Item = (), Error = EndpointError>>;
 type Tx = mpsc::UnboundedSender<SequencedGenericMessage>;
 type Rx = mpsc::UnboundedReceiver<SequencedGenericMessage>;
+
+#[derive(Debug)]
 pub(crate) struct EndpointChannel<T> {
     tx: stream::SplitSink<T>,
     rx: stream::SplitStream<T>,

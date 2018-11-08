@@ -17,18 +17,18 @@ pub trait TypeSafeId: Clone + Eq + PartialEq + Ord + PartialOrd {
 
 pub trait BaseTypeSafeId
 where
-    Self: TypeSafeId,
+    Self: TypeSafeId + Clone + Copy + std::fmt::Debug + Eq,
 {
     fn description_type() -> TypeId;
 }
 
-pub trait BaseTypeSafeIdName<'a>
-where
-    Self: BaseTypeSafeId,
-    Self::Name: TypedName,
-{
-    type Name;
-}
+// pub trait BaseTypeSafeIdName<'a>
+// where
+//     Self: BaseTypeSafeId,
+//     Self::Name: TypedName,
+// {
+//     type Name;
+// }
 
 /// Local-side ID in the translation table
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -78,9 +78,9 @@ impl BaseTypeSafeId for TypeId {
         constants::TYPE_DESCRIPTION
     }
 }
-impl<'a> BaseTypeSafeIdName<'a> for TypeId {
-    type Name = TypeName<'a>;
-}
+// impl<'a> BaseTypeSafeIdName<'a> for TypeId {
+//     type Name = StaticTypeName<'a>;
+// }
 
 impl TypeSafeId for SenderId {
     fn get(&self) -> IdType {
@@ -97,9 +97,9 @@ impl BaseTypeSafeId for SenderId {
     }
 }
 
-impl<'a> BaseTypeSafeIdName<'a> for SenderId {
-    type Name = SenderName<'a>;
-}
+// impl<'a> BaseTypeSafeIdName<'a> for SenderId {
+//     type Name = StaticSenderName<'a>;
+// }
 
 /// Wrapper for an id associated with a handler.
 ///
@@ -113,6 +113,18 @@ pub enum IdToHandle<T> {
 }
 pub use self::IdToHandle::*;
 
+impl<T> IdToHandle<T>
+where
+    T: PartialEq + Copy,
+{
+    pub fn matches(&self, other: &T) -> bool {
+        match self {
+            AnyId => true,
+            SomeId(i) => i == other,
+        }
+    }
+}
+
 bitmask! {
     pub mask ClassOfService : u32 where flags ServiceFlags {
         RELIABLE = (1 << 0),
@@ -123,33 +135,89 @@ bitmask! {
     }
 }
 
-pub trait TypedName {
-    type Id;
-}
+// pub trait TypedName {
+//     type Id;
+// }
 
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct SenderName<'a>(pub &'a [u8]);
-
-impl<'a> From<SenderName<'a>> for Bytes {
-    fn from(val: SenderName<'a>) -> Bytes {
-        Bytes::from(val.0)
-    }
-}
-impl<'a> TypedName for SenderName<'a> {
-    type Id = SenderId;
-}
+pub struct StaticSenderName(pub &'static [u8]);
 
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct TypeName<'a>(pub &'a [u8]);
-impl<'a> From<TypeName<'a>> for Bytes {
-    fn from(val: TypeName<'a>) -> Bytes {
-        Bytes::from(val.0)
+pub struct SenderName(pub Bytes);
+
+impl From<StaticSenderName> for SenderName {
+    fn from(val: StaticSenderName) -> SenderName {
+        SenderName(Bytes::from(val))
     }
 }
 
-impl<'a> TypedName for TypeName<'a> {
-    type Id = TypeId;
+impl From<StaticSenderName> for Bytes {
+    fn from(val: StaticSenderName) -> Bytes {
+        Bytes::from_static(val.0)
+    }
 }
+
+impl From<SenderName> for Bytes {
+    fn from(val: SenderName) -> Bytes {
+        val.0
+    }
+}
+
+impl std::cmp::PartialEq<SenderName> for StaticSenderName {
+    fn eq(&self, other: &SenderName) -> bool {
+        Bytes::from_static(self.0) == other.0
+    }
+}
+
+impl std::cmp::PartialEq<StaticSenderName> for SenderName {
+    fn eq(&self, other: &StaticSenderName) -> bool {
+        self.0 == Bytes::from_static(other.0)
+    }
+}
+
+// impl TypedName for StaticSenderName {
+//     type Id = SenderId;
+// }
+
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+pub struct StaticTypeName(pub &'static [u8]);
+
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+pub struct TypeName(pub Bytes);
+
+impl From<StaticTypeName> for TypeName {
+    fn from(val: StaticTypeName) -> TypeName {
+        TypeName(Bytes::from(val))
+    }
+}
+
+impl From<StaticTypeName> for Bytes {
+    fn from(val: StaticTypeName) -> Bytes {
+        Bytes::from_static(val.0)
+    }
+}
+
+impl From<TypeName> for Bytes {
+    fn from(val: TypeName) -> Bytes {
+        val.0
+    }
+}
+
+impl std::cmp::PartialEq<TypeName> for StaticTypeName {
+    fn eq(&self, other: &TypeName) -> bool {
+        Bytes::from_static(self.0) == other.0
+    }
+}
+
+impl std::cmp::PartialEq<StaticTypeName> for TypeName {
+    fn eq(&self, other: &StaticTypeName) -> bool {
+        self.0 == Bytes::from_static(other.0)
+    }
+}
+
+// impl TypedName for StaticTypeName {
+//     type Id = TypeId;
+// }
 
 /// Sequence number - not used on receive side, only used for sniffers (?)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]

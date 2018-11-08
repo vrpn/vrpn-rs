@@ -5,9 +5,7 @@
 use bytes::{Bytes, BytesMut};
 use crate::{
     base::message::SequencedGenericMessage,
-    buffer::{
-        buffer, message::MessageSize, unbuffer, Buffer, Output, OutputWithRemaining, Unbuffer,
-    },
+    buffer::{buffer, message::MessageSize, unbuffer, Buffer, Unbuffer},
     prelude::*,
 };
 use pretty_hex::*;
@@ -15,7 +13,7 @@ use tokio::{
     codec::{Decoder, Encoder, Framed},
     prelude::*,
 };
-
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FramedMessageCodec;
 impl Decoder for FramedMessageCodec {
     type Item = SequencedGenericMessage;
@@ -47,7 +45,7 @@ impl Decoder for FramedMessageCodec {
         let unbuffered = SequencedGenericMessage::unbuffer_ref(&mut temp_buf);
         eprintln!("{:?}", unbuffered);
         match unbuffered {
-            Ok(Output(v)) => {
+            Ok(v) => {
                 println!("Decoder::decode has message {:?}", v);
                 Ok(Some(v))
             }
