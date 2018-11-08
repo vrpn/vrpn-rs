@@ -240,10 +240,17 @@ pub mod unbuffer {
 
     /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
     pub trait Unbuffer: Sized {
-        /// Tries to unbuffer.
+        /// Required implementation function that tries to unbuffer.
         ///
         /// Returns Err(Error::NeedMoreData(n)) if not enough data.
-        fn unbuffer_ref(buf: &mut Bytes) -> Result<Output<Self>>;
+        fn unbuffer_ref_impl(buf: &mut Bytes) -> Result<Self>;
+
+        /// Tries to unbuffer.
+        ///
+        /// Delegates to unbuffer_ref_impl().
+        fn unbuffer_ref(buf: &mut Bytes) -> Result<Output<Self>> {
+            Self::unbuffer_ref_impl(buf).map(|v| Output(v))
+        }
 
         /// Tries to unbuffer.
         ///
@@ -264,16 +271,13 @@ pub mod unbuffer {
 
     /// Blanket impl for types ipmlementing UnbufferConstantSize.
     impl<T: UnbufferConstantSize> Unbuffer for T {
-        fn unbuffer_ref(buf: &mut Bytes) -> Result<Output<Self>> {
+        fn unbuffer_ref_impl(buf: &mut Bytes) -> Result<Self> {
             let len = Self::constant_buffer_size();
             if buf.len() < len {
                 Err(Error::NeedMoreData(BytesRequired::Exactly(buf.len() - len)))
             } else {
                 let my_buf = buf.split_to(len);
-                match Self::unbuffer_constant_size(my_buf) {
-                    Ok(v) => Ok(Output::new(v)),
-                    Err(e) => Err(e),
-                }
+                Self::unbuffer_constant_size(my_buf)
             }
         }
     }

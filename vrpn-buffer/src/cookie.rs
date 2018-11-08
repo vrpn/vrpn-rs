@@ -60,7 +60,7 @@ fn u8_to_log_mode(v: u8) -> LogMode {
 }
 
 impl Unbuffer for CookieData {
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<Self>> {
+    fn unbuffer_ref_impl(buf: &mut Bytes) -> unbuffer::Result<Self> {
         // remove "vrpn: ver. "
         check_expected(buf, MAGIC_PREFIX)?;
 
@@ -80,10 +80,10 @@ impl Unbuffer for CookieData {
         // remove padding
         check_expected(buf, COOKIE_PADDING)?;
 
-        Ok(Output(CookieData {
+        Ok(CookieData {
             version: Version { major, minor },
             log_mode: Some(log_mode),
-        }))
+        })
     }
 }
 

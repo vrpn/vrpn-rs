@@ -200,7 +200,7 @@ impl<U: Buffer> Buffer for SequencedMessage<U> {
 
 impl<U: Unbuffer> Unbuffer for SequencedMessage<U> {
     /// Deserialize from a buffer.
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<SequencedMessage<U>>> {
+    fn unbuffer_ref_impl(buf: &mut Bytes) -> unbuffer::Result<SequencedMessage<U>> {
         let initial_remaining = buf.len();
         let unpadded_len = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?.data();
         let size = MessageSize::from_unpadded_message_size(unpadded_len as usize);
@@ -232,21 +232,21 @@ impl<U: Unbuffer> Unbuffer for SequencedMessage<U> {
 
         // drop padding bytes
         buf.split_to(size.body_padding());
-        Ok(Output(SequencedMessage::new(
+        Ok(SequencedMessage::new(
             Some(time),
             message_type,
             sender,
             body,
             sequence_number,
-        )))
+        ))
     }
 }
 
 impl Unbuffer for GenericBody {
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<GenericBody>> {
+    fn unbuffer_ref_impl(buf: &mut Bytes) -> unbuffer::Result<GenericBody> {
         let my_buf = buf.clone();
         buf.advance(my_buf.len());
-        Ok(Output(GenericBody::new(my_buf)))
+        Ok(GenericBody::new(my_buf))
     }
 }
 
@@ -282,8 +282,8 @@ impl Buffer for InnerDescription {
 }
 
 impl Unbuffer for InnerDescription {
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<InnerDescription>> {
-        length_prefixed::unbuffer_string(buf).map(|b| Output(InnerDescription::new(b)))
+    fn unbuffer_ref_impl(buf: &mut Bytes) -> unbuffer::Result<InnerDescription> {
+        length_prefixed::unbuffer_string(buf).map(|b| InnerDescription::new(b))
     }
 }
 
@@ -323,8 +323,7 @@ pub fn make_sequenced_message_body_generic<T: Buffer>(
     msg: SequencedMessage<T>,
 ) -> std::result::Result<SequencedGenericMessage, buffer::Error> {
     let seq = msg.sequence_number;
-    make_message_body_generic(msg.message)
-        .map(|generic_msg| generic_msg.add_sequence_number(seq))
+    make_message_body_generic(msg.message).map(|generic_msg| generic_msg.add_sequence_number(seq))
 }
 
 #[cfg(test)]
