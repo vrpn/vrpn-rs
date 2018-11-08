@@ -20,20 +20,28 @@ impl Decoder for FramedMessageCodec {
     type Error = unbuffer::Error;
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<GenericMessage>, Self::Error> {
         let initial_len = buf.len();
-        let mut temp_buf = BytesMut::clone(buf).freeze();
-        let combined_size = u32::unbuffer_ref(&mut temp_buf)
+        let size_len = u32::constant_buffer_size();
+        if initial_len < size_len {
+            return Ok(None);
+        }
+        let combined_size = buf
+            .clone()
+            .split_to(u32::constant_buffer_size())
+            .freeze()
+            .unbuffer::<u32>()
             .map_exactly_err_to_at_least()?
             .data() as usize;
         let size = MessageSize::from_unpadded_message_size(combined_size);
-        if initial_len < size.padded_message_size() {
+        if buf.len() < size.padded_message_size() {
             return Ok(None);
         }
         println!(
             "Got {} bytes, need {} for this message",
-            initial_len,
+            buf.len(),
             size.padded_message_size()
         );
-        let mut temp_buf = buf.split_to(size.padded_message_size()).freeze();
+        let taken_buf = buf.split_to(size.padded_message_size());
+        let mut temp_buf = taken_buf.clone().freeze();
         println!("{:?}", temp_buf.as_ref().hex_dump());
         match GenericMessage::unbuffer_ref(&mut temp_buf) {
             Ok(Output(v)) => {

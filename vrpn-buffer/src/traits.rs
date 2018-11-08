@@ -286,33 +286,23 @@ pub mod unbuffer {
 
     /// Trait used to extend the methods of Result<Output<T>>
     pub trait OutputResultExtras<T> {
-        /// Transforms the completed output's data, if successful
-        #[deprecated]
-        fn and_then_map<U, F>(self, f: F) -> Result<Output<U>>
-        where
-            U: Sized,
-            F: FnOnce(T) -> U;
         /// Map the result that "exactly" n additional bytes are
         /// required to "at least" n additional bytes are required.
         ///
         /// Used when a variable-buffer-size type begins its work by
         /// unbuffering a fixed-size type, like a "length" field.
         fn map_exactly_err_to_at_least(self) -> Self;
+
         /// Map the result that additional bytes are required to a
         /// generic parse error with the byte count in the message,
         /// for instances where more bytes are logically unavailable.
         fn map_need_more_err_to_generic_parse_err(self, task: &str) -> Self;
     }
 
-    impl<T> OutputResultExtras<T> for Result<Output<T>> {
-        fn and_then_map<U, F>(self, f: F) -> Result<Output<U>>
-        where
-            U: Sized,
-            F: FnOnce(T) -> U,
-        {
-            self.map(|Output(v)| Output(f(v)))
-        }
-
+    impl<T, U> OutputResultExtras<T> for Result<U>
+    where
+        U: UnbufferOutput<T>,
+    {
         fn map_exactly_err_to_at_least(self) -> Self {
             match self {
                 Ok(v) => Ok(v),
