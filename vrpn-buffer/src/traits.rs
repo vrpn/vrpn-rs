@@ -159,107 +159,29 @@ pub mod unbuffer {
 
     pub type Result<T> = std::result::Result<T, Error>;
 
-    pub trait UnbufferOutput<T> {
-        fn data(self) -> T;
-
-        fn borrow_data<'a>(&'a self) -> &'a T;
-
-        fn borrow_data_mut<'a>(&'a mut self) -> &'a mut T;
-    }
-
-    #[derive(Debug)]
-    pub struct Output<T>(pub T);
-    impl<T> Output<T> {
-        pub fn new(data: T) -> Output<T> {
-            Output(data)
-        }
-        pub fn map<U, F>(self, f: F) -> Output<U>
-        where
-            U: Sized,
-            F: FnOnce(T) -> U,
-        {
-            Output::new(f(self.0))
-        }
-    }
-
-    impl<T> Default for Output<T>
-    where
-        T: Default,
-    {
-        fn default() -> Output<T> {
-            Output(T::default())
-        }
-    }
-
-    impl<T> UnbufferOutput<T> for Output<T> {
-        fn data(self) -> T {
-            self.0
-        }
-
-        fn borrow_data<'a>(&'a self) -> &'a T {
-            &self.0
-        }
-
-        fn borrow_data_mut<'a>(&'a mut self) -> &'a mut T {
-            &mut self.0
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct OutputWithRemaining<T, U: Source>(pub T, pub U);
-    impl<T, U: Source> OutputWithRemaining<T, U> {
-        pub fn new(data: T, buf: U) -> OutputWithRemaining<T, U> {
-            OutputWithRemaining(data, buf)
-        }
-        pub fn from_output(v: Output<T>, buf: U) -> OutputWithRemaining<T, U> {
-            let Output(data) = v;
-            OutputWithRemaining(data, buf)
-        }
-        pub fn map<V, F>(self, f: F) -> OutputWithRemaining<V, U>
-        where
-            U: Sized,
-            F: FnOnce(T) -> V,
-        {
-            OutputWithRemaining::new(f(self.0), self.1)
-        }
-    }
-
-    impl<T, U: Source> UnbufferOutput<T> for OutputWithRemaining<T, U> {
-        fn data(self) -> T {
-            self.0
-        }
-
-        fn borrow_data<'a>(&'a self) -> &'a T {
-            &self.0
-        }
-
-        fn borrow_data_mut<'a>(&'a mut self) -> &'a mut T {
-            &mut self.0
-        }
-    }
-
     /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
     pub trait Unbuffer: Sized {
-        /// Required implementation function that tries to unbuffer.
-        ///
-        /// Returns Err(Error::NeedMoreData(n)) if not enough data.
-        fn unbuffer_ref_impl(buf: &mut Bytes) -> Result<Self>;
-
-        /// Tries to unbuffer.
-        ///
-        /// Delegates to unbuffer_ref_impl().
-        fn unbuffer_ref(buf: &mut Bytes) -> Result<Output<Self>> {
-            Self::unbuffer_ref_impl(buf).map(|v| Output(v))
-        }
-
         /// Tries to unbuffer.
         ///
         /// Returns Err(Error::NeedMoreData(n)) if not enough data.
-        fn unbuffer(buf: Bytes) -> Result<OutputWithRemaining<Self, Bytes>> {
-            let mut buf = buf;
-            let v = Self::unbuffer_ref(&mut buf)?;
-            Ok(OutputWithRemaining::from_output(v, buf))
-        }
+        fn unbuffer_ref(buf: &mut Bytes) -> Result<Self>;
+    }
+
+    /// Tries to unbuffer from a mutable reference to a buffer.
+    ///
+    /// Delegates to Unbuffer::unbuffer_ref().
+    /// Returns Err(Error::NeedMoreData(n)) if not enough data.
+    pub fn unbuffer_ref<T: Unbuffer>(buf: &mut Bytes) -> Result<T> {
+        T::unbuffer_ref(buf)
+    }
+
+    /// Tries to unbuffer.
+    ///
+    /// Returns Err(Error::NeedMoreData(n)) if not enough data.
+    pub fn unbuffer_from<T: Unbuffer>(buf: Bytes) -> Result<(T, Bytes)> {
+        let mut buf = buf;
+        let v = T::unbuffer_ref(&mut buf)?;
+        Ok((v, buf))
     }
 
     /// Implementation trait for constant-buffer-size types,
@@ -271,7 +193,7 @@ pub mod unbuffer {
 
     /// Blanket impl for types ipmlementing UnbufferConstantSize.
     impl<T: UnbufferConstantSize> Unbuffer for T {
-        fn unbuffer_ref_impl(buf: &mut Bytes) -> Result<Self> {
+        fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
             let len = Self::constant_buffer_size();
             if buf.len() < len {
                 Err(Error::NeedMoreData(BytesRequired::Exactly(buf.len() - len)))
@@ -302,11 +224,11 @@ pub mod unbuffer {
         /// for instances where more bytes are logically unavailable.
         fn map_need_more_err_to_generic_parse_err(self, task: &str) -> Self;
     }
+    pub trait UnbufferOutput {}
+    impl<T> UnbufferOutput for T where T: Unbuffer {}
+    impl<T, U> UnbufferOutput for (T, U) where T: Unbuffer {}
 
-    impl<T, U> OutputResultExtras<T> for Result<U>
-    where
-        U: UnbufferOutput<T>,
-    {
+    impl<T: UnbufferOutput> OutputResultExtras<T> for Result<T> {
         fn map_exactly_err_to_at_least(self) -> Self {
             match self {
                 Ok(v) => Ok(v),
@@ -333,18 +255,18 @@ pub mod unbuffer {
     where
         Self: Source,
     {
-        fn unbuffer<T>(self) -> Result<OutputWithRemaining<T, Self>>
+        fn unbuffer<T>(self) -> Result<(T, Self)>
         where
             T: Unbuffer;
     }
     impl BytesExtras for Bytes {
-        fn unbuffer<T>(self) -> Result<OutputWithRemaining<T, Self>>
+        fn unbuffer<T>(self) -> Result<(T, Self)>
         where
             T: Unbuffer,
         {
             let mut buf = self;
             let v = T::unbuffer_ref(&mut buf)?;
-            Ok(OutputWithRemaining::from_output(v, buf))
+            Ok((v, buf))
         }
     }
 

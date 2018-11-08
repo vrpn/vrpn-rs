@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use bytes::{Bytes, BytesMut};
 use crate::{
     base::message::SequencedGenericMessage,
     buffer::{
@@ -9,7 +10,6 @@ use crate::{
     },
     prelude::*,
 };
-use bytes::{Bytes, BytesMut};
 use pretty_hex::*;
 use tokio::{
     codec::{Decoder, Encoder, Framed},
@@ -26,14 +26,13 @@ impl Decoder for FramedMessageCodec {
         if initial_len < size_len {
             return Ok(None);
         }
-        let combined_size = buf
+        let (combined_size, _) = buf
             .clone()
             .split_to(u32::constant_buffer_size())
             .freeze()
             .unbuffer::<u32>()
-            .map_exactly_err_to_at_least()?
-            .data() as usize;
-        let size = MessageSize::from_unpadded_message_size(combined_size);
+            .map_exactly_err_to_at_least()?;
+        let size = MessageSize::from_unpadded_message_size(combined_size as usize);
         if buf.len() < size.padded_message_size() {
             return Ok(None);
         }

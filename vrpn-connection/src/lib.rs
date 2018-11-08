@@ -17,5 +17,5 @@ pub mod typedispatcher;
 pub use crate::{
     connection::Connection,
     translationtable::{Result as TranslationTableResult, TranslationTable, TranslationTableError},
-    typedispatcher::{HandlerResult, MappingResult, TypeDispatcher},
+    typedispatcher::{HandlerResult, MappingResult, RegisterMapping, TypeDispatcher},
 };

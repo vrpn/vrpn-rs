@@ -23,10 +23,11 @@ pub mod time;
 pub mod traits;
 
 pub use crate::{
+    message::make_message_body_generic,
     primitives::*,
     traits::{
         buffer::{self, Buffer},
-        unbuffer::{self, Output, OutputWithRemaining, Unbuffer, UnbufferConstantSize},
+        unbuffer::{self, Unbuffer, UnbufferConstantSize},
         BufferSize, ConstantBufferSize,
     },
 };

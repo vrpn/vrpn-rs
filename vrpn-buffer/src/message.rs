@@ -5,10 +5,9 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use crate::{
     length_prefixed::{self, LengthBehavior, NullTermination},
-    prelude::*,
     traits::{
         buffer::{self, Buffer, BytesMutExtras},
-        unbuffer::{self, Output, OutputResultExtras, Source, Unbuffer},
+        unbuffer::{self, OutputResultExtras, Unbuffer},
         BufferSize, BytesRequired, ConstantBufferSize, WrappedConstantSize,
     },
 };
@@ -200,9 +199,9 @@ impl<U: Buffer> Buffer for SequencedMessage<U> {
 
 impl<U: Unbuffer> Unbuffer for SequencedMessage<U> {
     /// Deserialize from a buffer.
-    fn unbuffer_ref_impl(buf: &mut Bytes) -> unbuffer::Result<SequencedMessage<U>> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<SequencedMessage<U>> {
         let initial_remaining = buf.len();
-        let unpadded_len = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?.data();
+        let unpadded_len = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
         let size = MessageSize::from_unpadded_message_size(unpadded_len as usize);
 
         // Subtracting the length of the u32 we already unbuffered.
@@ -213,10 +212,10 @@ impl<U: Unbuffer> Unbuffer for SequencedMessage<U> {
                 expected_remaining_bytes - buf.len(),
             )));
         }
-        let time = Unbuffer::unbuffer_ref(buf)?.data();
-        let sender = Unbuffer::unbuffer_ref(buf)?.data();
-        let message_type = Unbuffer::unbuffer_ref(buf)?.data();
-        let sequence_number = Unbuffer::unbuffer_ref(buf)?.data();
+        let time = TimeVal::unbuffer_ref(buf)?;
+        let sender = SenderId::unbuffer_ref(buf)?;
+        let message_type = TypeId::unbuffer_ref(buf)?;
+        let sequence_number = SequenceNumber::unbuffer_ref(buf)?;
 
         // Assert that handling the sequence number meant we're now aligned again.
         assert_eq!((initial_remaining - buf.len()) % ALIGN, 0);
@@ -224,9 +223,7 @@ impl<U: Unbuffer> Unbuffer for SequencedMessage<U> {
         let body;
         {
             let mut body_buf = buf.split_to(size.unpadded_body_size);
-            body = Unbuffer::unbuffer_ref(&mut body_buf)
-                .map_exactly_err_to_at_least()?
-                .data();
+            body = U::unbuffer_ref(&mut body_buf).map_exactly_err_to_at_least()?;
             assert_eq!(body_buf.len(), 0);
         }
 
@@ -243,7 +240,7 @@ impl<U: Unbuffer> Unbuffer for SequencedMessage<U> {
 }
 
 impl Unbuffer for GenericBody {
-    fn unbuffer_ref_impl(buf: &mut Bytes) -> unbuffer::Result<GenericBody> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<GenericBody> {
         let my_buf = buf.clone();
         buf.advance(my_buf.len());
         Ok(GenericBody::new(my_buf))
@@ -282,7 +279,7 @@ impl Buffer for InnerDescription {
 }
 
 impl Unbuffer for InnerDescription {
-    fn unbuffer_ref_impl(buf: &mut Bytes) -> unbuffer::Result<InnerDescription> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<InnerDescription> {
         length_prefixed::unbuffer_string(buf).map(|b| InnerDescription::new(b))
     }
 }
@@ -291,9 +288,8 @@ pub fn unbuffer_typed_message_body<T: Unbuffer>(
     msg: GenericMessage,
 ) -> unbuffer::Result<Message<T>> {
     let mut buf = msg.body.inner.clone();
-    let body = Unbuffer::unbuffer_ref(&mut buf)
-        .map_need_more_err_to_generic_parse_err("parsing message body")?
-        .data();
+    let body =
+        T::unbuffer_ref(&mut buf).map_need_more_err_to_generic_parse_err("parsing message body")?;
     if buf.len() > 0 {
         return Err(unbuffer::Error::ParseError(format!(
             "message body length was indicated as {}, but {} bytes remain unconsumed",

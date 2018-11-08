@@ -212,7 +212,7 @@ mod tests {
                 .wait()
                 .unwrap();
         let mut read_buf = Bytes::from(read_buf);
-        let parsed_cookie: CookieData = Unbuffer::unbuffer_ref(&mut read_buf).unwrap().data();
+        let parsed_cookie: CookieData = Unbuffer::unbuffer_ref(&mut read_buf).unwrap();
         check_ver_nonfile_compatible(parsed_cookie.version).unwrap();
     }
 }

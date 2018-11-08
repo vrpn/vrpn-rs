@@ -23,9 +23,8 @@ fn filename_len(filename: &Option<Bytes>) -> usize {
 impl BufferSize for LogFileNames {
     fn buffer_size(&self) -> usize {
         2 + // null terminators
-        2 * u32::constant_buffer_size() +
-        filename_len(&self.in_log_file) +
-        filename_len(&self.out_log_file)
+        2 * u32::constant_buffer_size()  +
+        self.filenames_iter().fold(0 as usize, |acc, name| acc + filename_len(name))
     }
 }
 impl Buffer for LogFileNames {
@@ -33,11 +32,10 @@ impl Buffer for LogFileNames {
         if buf.remaining_mut() < self.buffer_size() {
             return Err(buffer::Error::OutOfBuffer);
         }
-        let filenames = [&self.in_log_file, &self.out_log_file];
-        for filename in filenames.iter() {
+        for filename in self.filenames_iter() {
             (filename_len(filename) as i32).buffer_ref(buf)?;
         }
-        for filename in filenames.iter() {
+        for filename in self.filenames_iter() {
             if let Some(name) = filename {
                 buf.put(name);
             }
@@ -59,15 +57,15 @@ fn unbuffer_logname(len: usize, buf: &mut Bytes) -> unbuffer::Result<Option<Byte
 }
 
 impl Unbuffer for LogFileNames {
-    fn unbuffer_ref_impl(buf: &mut Bytes) -> unbuffer::Result<LogFileNames> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<LogFileNames> {
         let min_size = 2 * u32::constant_buffer_size() + 2;
         if buf.len() < min_size {
             Err(unbuffer::Error::NeedMoreData(BytesRequired::AtLeast(
                 min_size - buf.len(),
             )))?;
         }
-        let in_len = u32::unbuffer_ref(buf)?.data();
-        let out_len = u32::unbuffer_ref(buf)?.data();
+        let in_len = u32::unbuffer_ref(buf)?;
+        let out_len = u32::unbuffer_ref(buf)?;
 
         let in_name = unbuffer_logname(in_len as usize, buf)?;
         let out_name = unbuffer_logname(out_len as usize, buf)?;

@@ -64,7 +64,7 @@ pub fn buffer_string<T: BufMut>(
 
 /// Unbuffer a string, preceded by its length and followed by a null bytes.
 pub fn unbuffer_string(buf: &mut Bytes) -> unbuffer::Result<Bytes> {
-    let buf_size = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?.data();
+    let buf_size = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
 
     let buf_size = buf_size as usize;
     if buf.len() < buf_size {

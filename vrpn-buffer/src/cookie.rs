@@ -3,17 +3,14 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{BufMut, Bytes};
-use crate::{
-    prelude::*,
-    traits::{
-        buffer::{self, Buffer},
-        unbuffer::{self, check_expected, Output, OutputResultExtras, Source, Unbuffer},
-        ConstantBufferSize,
-    },
+use crate::traits::{
+    buffer::{self, Buffer},
+    unbuffer::{self, check_expected, OutputResultExtras, Unbuffer},
+    ConstantBufferSize,
 };
 use std::{num::ParseIntError, result};
 use vrpn_base::{
-    constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
+    constants::{COOKIE_SIZE, MAGIC_PREFIX},
     cookie::{CookieData, Version},
     log::{LogFlags, LogMode},
 };
@@ -60,7 +57,7 @@ fn u8_to_log_mode(v: u8) -> LogMode {
 }
 
 impl Unbuffer for CookieData {
-    fn unbuffer_ref_impl(buf: &mut Bytes) -> unbuffer::Result<Self> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Self> {
         // remove "vrpn: ver. "
         check_expected(buf, MAGIC_PREFIX)?;
 
@@ -91,6 +88,8 @@ impl Unbuffer for CookieData {
 mod tests {
     use super::*;
     use bytes::BytesMut;
+    use vrpn_base::constants::{COOKIE_SIZE, MAGIC_DATA};
+
     #[test]
     fn magic_size() {
         // Make sure the size is right.
@@ -115,10 +114,7 @@ mod tests {
             .buffer_ref(&mut buf)
             .expect("Buffering needs to succeed");
         let mut buf = buf.freeze();
-        assert_eq!(
-            CookieData::unbuffer_ref(&mut buf).unwrap().data(),
-            magic_cookie
-        );
+        assert_eq!(CookieData::unbuffer_ref(&mut buf).unwrap(), magic_cookie);
         assert_eq!(buf.len(), 0);
     }
 
@@ -131,10 +127,7 @@ mod tests {
             .allocate_and_buffer(magic_cookie)
             .expect("Buffering needs to succeed")
             .freeze();
-        assert_eq!(
-            CookieData::unbuffer_ref(&mut buf).unwrap().data(),
-            magic_cookie
-        );
+        assert_eq!(CookieData::unbuffer_ref(&mut buf).unwrap(), magic_cookie);
         assert_eq!(buf.len(), 0);
     }
 

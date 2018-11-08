@@ -7,7 +7,7 @@ use crate::{
     prelude::*,
     traits::{
         buffer::{self, Buffer},
-        unbuffer::{Output, Result, Source, Unbuffer},
+        unbuffer::{Result as UnbufferResult, Unbuffer},
         ConstantBufferSize, WrappedConstantSize,
     },
 };
@@ -47,9 +47,9 @@ impl Buffer for TimeVal {
 }
 
 impl Unbuffer for TimeVal {
-    fn unbuffer_ref_impl(buf: &mut Bytes) -> Result<Self> {
+    fn unbuffer_ref(buf: &mut Bytes) -> UnbufferResult<Self> {
         Seconds::unbuffer_ref(buf)
-            .and_then(|Output(sec)| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
-            .and_then(|(Output(usec), sec)| Ok(TimeVal::new(sec, usec)))
+            .and_then(|sec| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
+            .and_then(|(usec, sec)| Ok(TimeVal::new(sec, usec)))
     }
 }
