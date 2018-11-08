@@ -6,7 +6,11 @@ use crate::{
     translationtable::{Result as TranslationTableResult, TranslationTable},
     typedispatcher::HandlerResult,
 };
-use vrpn_base::types::*;
+use vrpn_base::{
+    message::{GenericMessage, Message},
+    types::*,
+};
+use vrpn_buffer::{message::make_message_body_generic, Buffer};
 
 #[derive(Debug, Clone)]
 pub struct LogFileNames {
@@ -45,15 +49,20 @@ pub fn make_log_names(log_names: Option<LogFileNames>) -> LogFileNames {
 }
 
 pub trait Endpoint {
-    fn send_message(
+    fn buffer_generic_message(
         &mut self,
-        time: Time,
-        message_type: TypeId,
-        sender: SenderId,
-        buffer: bytes::Bytes,
+        msg: GenericMessage,
         class: ClassOfService,
     ) -> HandlerResult<()>;
 
+    fn buffer_message<T: Buffer>(
+        &mut self,
+        msg: Message<T>,
+        class: ClassOfService,
+    ) -> HandlerResult<()> {
+        let generic_msg = make_message_body_generic(msg)?;
+        self.buffer_generic_message(generic_msg, class)
+    }
     /// Borrow a reference to the translation table of sender IDs
     fn sender_table(&self) -> &TranslationTable<SenderId>;
 

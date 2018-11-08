@@ -17,12 +17,14 @@ use crate::{
     },
     endpoint_channel::{EndpointChannel, EndpointError},
 };
+use bytes::BytesMut;
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     io,
     net::{TcpStream, UdpFramed, UdpSocket},
     prelude::*,
 };
+use std::sync::atomic::{AtomicUsize, Ordering};
 pub type MessageFramed = codec::MessageFramed<TcpStream>;
 pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
 
@@ -31,7 +33,7 @@ pub struct EndpointIP {
     senders: TranslationTable<SenderId>,
     wr: BytesMut,
     reliable_channel: EndpointChannel<MessageFramed>,
-    // low_latency_tx: Option<MessageFramedUdp>,
+    seq: AtomicUsize, // low_latency_tx: Option<MessageFramedUdp>
 }
 
 impl EndpointIP {
@@ -44,19 +46,21 @@ impl EndpointIP {
             senders: TranslationTable::new(),
             wr: BytesMut::new(),
             reliable_channel: EndpointChannel::new(framed, TCP_BUFLEN),
+            seq: AtomicUsize::new(0)
             // low_latency_channel,
         }
     }
 }
 impl Endpoint for EndpointIP {
-    fn send_message(
+    fn buffer_generic_message(
         &mut self,
-        _time: Time,
-        _id: TypeId,
-        _sender: SenderId,
-        _buffer: bytes::Bytes,
-        _class: ClassOfService,
+        msg: GenericMessage,
+        class: ClassOfService,
     ) -> HandlerResult<()> {
+        let seq = self.seq.fetch_add(1, Ordering::SeqCst);
+
+        self.reliable_channel
+            .buffer(msg.add_sequence_number(SequenceNumber(seq as u32)))?;
         unimplemented!();
     }
 
@@ -84,10 +88,9 @@ impl Endpoint for EndpointIP {
             .ok_or(TranslationTableError::InvalidLocalId(id.get()))
             .and_then(|entry| Ok(entry.name.clone()))?;
         let desc_msg = Message::from(Description::new(id, name));
-        self.wr.reserve(desc_msg.required_buffer_size());
-        desc_msg
-            .buffer_ref(&mut self.wr)
-            .map_err(|e| TranslationTableError::BufferError(e))
+        self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
+            .map_err(|e| TranslationTableError::HandlerError(e))
+            .map(|_| ())
     }
 
     fn pack_type_description(&mut self, local_type: LocalId<TypeId>) -> TranslationTableResult<()> {
@@ -99,10 +102,9 @@ impl Endpoint for EndpointIP {
             .and_then(|entry| Ok(entry.name.clone()))?;
 
         let desc_msg = Message::from(Description::new(id, name));
-        self.wr.reserve(desc_msg.required_buffer_size());
-        desc_msg
-            .buffer_ref(&mut self.wr)
-            .map_err(|e| TranslationTableError::BufferError(e))
+        self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
+            .map_err(|e| TranslationTableError::HandlerError(e))
+            .map(|_| ())
     }
 }
 
@@ -111,7 +113,7 @@ impl Future for EndpointIP {
     type Error = EndpointError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.reliable_channel.poll_channel(|msg| {
-            println!("Received message {:?}", msg);
+            eprintln!("Received message {:?}", msg);
             // todo do something here
             Ok(())
         })

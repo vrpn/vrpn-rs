@@ -18,7 +18,10 @@ use std::{
 };
 use vrpn_base::{
     constants::ALIGN,
-    message::{GenericBody, GenericMessage, InnerDescription, Message},
+    message::{
+        GenericBody, GenericMessage, InnerDescription, Message, SequencedGenericMessage,
+        SequencedMessage,
+    },
     time::TimeVal,
     types::{IdType, SenderId, SequenceNumber, TypeId},
 };
@@ -165,34 +168,29 @@ impl<T: BufMut> DerefMut for BufMutWrapper<T> {
 //
 // body is padded out to vrpn_ALIGN
 
-impl<U: BufferSize> BufferSize for Message<U> {
+impl<U: BufferSize> BufferSize for SequencedMessage<U> {
     fn buffer_size(&self) -> usize {
-        MessageSize::from_unpadded_body_size(self.body.buffer_size()).padded_message_size()
+        MessageSize::from_unpadded_body_size(self.message.body.buffer_size()).padded_message_size()
     }
 }
 
-impl<U: Buffer> Buffer for Message<U> {
+impl<U: Buffer> Buffer for SequencedMessage<U> {
     /// Serialize to a buffer.
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
-        let size = MessageSize::from_unpadded_body_size(self.body.buffer_size());
+        let size = MessageSize::from_unpadded_body_size(self.message.body.buffer_size());
         if buf.remaining_mut() < size.padded_message_size() {
             return Err(buffer::Error::OutOfBuffer);
         }
         let unpadded_len: u32 = size.unpadded_message_size() as u32;
 
         Buffer::buffer_ref(&unpadded_len, buf)
-            .and_then(|()| self.header.time.buffer_ref(buf))
-            .and_then(|()| self.header.sender.buffer_ref(buf))
-            .and_then(|()| self.header.message_type.buffer_ref(buf))
-            .and_then(|()| {
-                self.header
-                    .sequence_number
-                    .unwrap_or(SequenceNumber(0))
-                    .buffer_ref(buf)
-            })?;
+            .and_then(|()| self.message.header.time.buffer_ref(buf))
+            .and_then(|()| self.message.header.sender.buffer_ref(buf))
+            .and_then(|()| self.message.header.message_type.buffer_ref(buf))
+            .and_then(|()| self.sequence_number.buffer_ref(buf))?;
 
         let mut buf = BufMutWrapper::new(buf);
-        Buffer::buffer_ref(&self.body, buf.borrow_buf_mut()).and_then(|()| {
+        Buffer::buffer_ref(&self.message.body, buf.borrow_buf_mut()).and_then(|()| {
             assert_eq!(buf.buffered(), size.unpadded_body_size);
             buf.pad_to_align();
             Ok(())
@@ -200,9 +198,9 @@ impl<U: Buffer> Buffer for Message<U> {
     }
 }
 
-impl<U: Unbuffer> Unbuffer for Message<U> {
+impl<U: Unbuffer> Unbuffer for SequencedMessage<U> {
     /// Deserialize from a buffer.
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<Message<U>>> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Output<SequencedMessage<U>>> {
         let initial_remaining = buf.len();
         let unpadded_len = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?.data();
         let size = MessageSize::from_unpadded_message_size(unpadded_len as usize);
@@ -210,7 +208,7 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
         // Subtracting the length of the u32 we already unbuffered.
         let expected_remaining_bytes = size.padded_message_size() - size_of::<u32>();
 
-        if buf.len() < size.padded_message_size() {
+        if buf.len() < expected_remaining_bytes {
             return Err(unbuffer::Error::NeedMoreData(BytesRequired::Exactly(
                 expected_remaining_bytes - buf.len(),
             )));
@@ -234,12 +232,12 @@ impl<U: Unbuffer> Unbuffer for Message<U> {
 
         // drop padding bytes
         buf.split_to(size.body_padding());
-        Ok(Output(Message::new(
+        Ok(Output(SequencedMessage::new(
             Some(time),
             message_type,
             sender,
             body,
-            Some(sequence_number),
+            sequence_number,
         )))
     }
 }
@@ -290,7 +288,7 @@ impl Unbuffer for InnerDescription {
 }
 
 pub fn unbuffer_typed_message_body<T: Unbuffer>(
-    msg: Message<GenericBody>,
+    msg: GenericMessage,
 ) -> unbuffer::Result<Message<T>> {
     let mut buf = msg.body.inner.clone();
     let body = Unbuffer::unbuffer_ref(&mut buf)
@@ -319,6 +317,14 @@ pub fn make_message_body_generic<T: Buffer>(
                 GenericBody::new(body.freeze()),
             ))
         })
+}
+
+pub fn make_sequenced_message_body_generic<T: Buffer>(
+    msg: SequencedMessage<T>,
+) -> std::result::Result<SequencedGenericMessage, buffer::Error> {
+    let seq = msg.sequence_number;
+    make_message_body_generic(msg.message)
+        .map(|generic_msg| generic_msg.add_sequence_number(seq))
 }
 
 #[cfg(test)]

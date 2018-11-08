@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::BytesMut;
 use crate::{
-    base::message::GenericMessage,
-    buffer::{buffer, message::MessageSize, unbuffer, Buffer, Output, Unbuffer},
+    base::message::SequencedGenericMessage,
+    buffer::{
+        buffer, message::MessageSize, unbuffer, Buffer, Output, OutputWithRemaining, Unbuffer,
+    },
     prelude::*,
 };
+use bytes::{Bytes, BytesMut};
 use pretty_hex::*;
 use tokio::{
     codec::{Decoder, Encoder, Framed},
@@ -16,9 +18,9 @@ use tokio::{
 
 pub struct FramedMessageCodec;
 impl Decoder for FramedMessageCodec {
-    type Item = GenericMessage;
+    type Item = SequencedGenericMessage;
     type Error = unbuffer::Error;
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<GenericMessage>, Self::Error> {
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let initial_len = buf.len();
         let size_len = u32::constant_buffer_size();
         if initial_len < size_len {
@@ -43,20 +45,27 @@ impl Decoder for FramedMessageCodec {
         let taken_buf = buf.split_to(size.padded_message_size());
         let mut temp_buf = taken_buf.clone().freeze();
         println!("{:?}", temp_buf.as_ref().hex_dump());
-        match GenericMessage::unbuffer_ref(&mut temp_buf) {
+        let unbuffered = SequencedGenericMessage::unbuffer_ref(&mut temp_buf);
+        eprintln!("{:?}", unbuffered);
+        match unbuffered {
             Ok(Output(v)) => {
-                buf.advance(initial_len - temp_buf.len());
+                println!("Decoder::decode has message {:?}", v);
                 Ok(Some(v))
             }
-            Err(unbuffer::Error::NeedMoreData(_)) => Ok(None),
-            Err(e) => Err(e),
+            Err(unbuffer::Error::NeedMoreData(_)) => {
+                unreachable!();
+            }
+            Err(e) => {
+                buf.unsplit(taken_buf);
+                Err(e)
+            }
         }
     }
 }
 
 impl Encoder for FramedMessageCodec {
     type Error = buffer::Error;
-    type Item = GenericMessage;
+    type Item = SequencedGenericMessage;
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.reserve(item.required_buffer_size());
         item.buffer_ref(dst)

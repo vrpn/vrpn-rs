@@ -4,8 +4,10 @@
 
 use vrpn_base::{
     constants,
+    message::GenericMessage,
     types::{self, *},
 };
+use vrpn_buffer::buffer;
 
 quick_error! {
     #[derive(Debug)]
@@ -36,6 +38,11 @@ quick_error! {
         GenericErrorReturn {
             description("handler returned an error")
         }
+        BufferError(err: buffer::Error) {
+            from()
+            cause(err)
+            display("{}", err)
+        }
     }
 }
 
@@ -55,7 +62,7 @@ pub type MappingResult<T> = Result<T, MappingError>;
 
 pub type HandlerResult<T> = Result<T, HandlerError>;
 
-type HandlerFnMut = FnMut(&HandlerParams) -> HandlerResult<()>;
+type HandlerFnMut = FnMut(&GenericMessage) -> HandlerResult<()>;
 
 /// Type storing a boxed callback function, an optional sender ID filter,
 /// and the unique-per-CallbackCollection handle that can be used to unregister a handler.
@@ -63,12 +70,12 @@ type HandlerFnMut = FnMut(&HandlerParams) -> HandlerResult<()>;
 /// Handler must live as long as the MsgCallbackEntry.
 struct MsgCallbackEntry<'a> {
     handle: HandlerHandle,
-    pub handler: Box<FnMut(&HandlerParams) -> HandlerResult<()> + 'a>,
+    pub handler: Box<FnMut(&GenericMessage) -> HandlerResult<()> + 'a>,
     pub sender: IdToHandle<SenderId>,
 }
 
 impl<'a> MsgCallbackEntry<'a> {
-    pub fn new<T: FnMut(&HandlerParams) -> HandlerResult<()> + 'a>(
+    pub fn new<T: FnMut(&GenericMessage) -> HandlerResult<()> + 'a>(
         handle: HandlerHandle,
         handler: T,
         sender: IdToHandle<SenderId>,
@@ -80,13 +87,13 @@ impl<'a> MsgCallbackEntry<'a> {
         }
     }
     /// Invokes the callback with the given params, if the sender filter (if not None) matches.
-    pub fn call<'b>(&mut self, params: &'b HandlerParams) -> HandlerResult<()> {
+    pub fn call<'b>(&mut self, msg: &'b GenericMessage) -> HandlerResult<()> {
         let should_call = match self.sender {
             AnyId => true,
-            SomeId(i) => i == params.sender,
+            SomeId(i) => i == msg.header.sender,
         };
         if should_call {
-            (self.handler)(params)
+            (self.handler)(msg)
         } else {
             Ok(())
         }
@@ -112,7 +119,7 @@ impl<'a> CallbackCollection<'a> {
     }
 
     /// Add a callback with optional sender ID filter
-    fn add<T: FnMut(&HandlerParams) -> HandlerResult<()> + 'a>(
+    fn add<T: FnMut(&GenericMessage) -> HandlerResult<()> + 'a>(
         &mut self,
         handler: T,
         sender: IdToHandle<SenderId>,
@@ -139,7 +146,7 @@ impl<'a> CallbackCollection<'a> {
     }
 
     /// Call all callbacks (subject to sender filters)
-    fn call(&mut self, params: &HandlerParams) -> HandlerResult<()> {
+    fn call(&mut self, params: &GenericMessage) -> HandlerResult<()> {
         for ref mut entry in self.callbacks.iter_mut() {
             entry.call(params)?;
         }
@@ -267,7 +274,7 @@ impl<'a> TypeDispatcher<'a> {
             .map(|i| SenderId(i as IdType))
     }
 
-    pub fn add_handler<CB: 'a + FnMut(&HandlerParams) -> HandlerResult<()>>(
+    pub fn add_handler<CB: 'a + FnMut(&GenericMessage) -> HandlerResult<()>>(
         &'a mut self,
         message_type: IdToHandle<TypeId>,
         cb: CB,
@@ -276,64 +283,38 @@ impl<'a> TypeDispatcher<'a> {
         self.get_type_callbacks_mut(message_type)?.add(cb, sender)
     }
 
-    pub fn do_callbacks_for(
-        &mut self,
-        message_type: TypeId,
-        sender: SenderId,
-        msg_time: Time,
-        buffer: bytes::Bytes,
-    ) -> HandlerResult<()> {
+    pub fn do_callbacks_for(&mut self, msg: GenericMessage) -> HandlerResult<()> {
+        let raw_message_type = msg.header.message_type.0;
         // Don't dispatch system messages here
-        if message_type.0 < 0 {
+        if raw_message_type < 0 {
             return Ok(());
         }
-        let type_index = message_type.0 as usize;
+        let type_index = raw_message_type as usize;
         if type_index >= self.types.len() {
             return Err(HandlerError::MappingErr(MappingError::InvalidId));
         }
         let ref mut mapping = &mut self.types[type_index];
 
-        let params = HandlerParams {
-            message_type,
-            sender,
-            msg_time,
-            buffer,
-        };
-
-        self.generic_callbacks.call(&params)?;
-        mapping.call(&params)
+        self.generic_callbacks.call(&msg)?;
+        mapping.call(&msg)
     }
 
-    pub fn do_system_callbacks_for(
-        &mut self,
-        message_type: TypeId,
-        sender: SenderId,
-        msg_time: Time,
-        buffer: bytes::Bytes,
-    ) -> HandlerResult<()> {
-        if message_type.0 >= 0 {
+    pub fn do_system_callbacks_for(&mut self, msg: GenericMessage) -> HandlerResult<()> {
+        if msg.header.message_type.0 >= 0 {
             return Err(HandlerError::MappingErr(MappingError::InvalidId));
         }
-        let real_index = (-message_type.0) as usize;
+        let real_index = (-msg.header.message_type.0) as usize;
         if real_index >= self.system_callbacks.len() {
             // Not an error to try to call an unhandled system message
             return Ok(());
         }
         match self.system_callbacks[real_index] {
-            Some(ref mut handler) => {
-                let params = HandlerParams {
-                    message_type,
-                    sender,
-                    msg_time,
-                    buffer,
-                };
-                (handler)(&params)
-            }
+            Some(ref mut handler) => (handler)(&msg),
             None => Ok(()),
         }
     }
 
-    pub fn set_system_handler<CB: 'static + FnMut(&HandlerParams) -> HandlerResult<()>>(
+    pub fn set_system_handler<CB: 'static + FnMut(&GenericMessage) -> HandlerResult<()>>(
         &mut self,
         message_type: TypeId,
         handler: CB,
@@ -358,18 +339,18 @@ mod tests {
         /*
         let val: Rc<i8> = Rc::new(5);
         let a = Rc::clone(&val);
-        let mut sample_callback = |params: &HandlerParams| -> HandlerResult<()> {
+        let mut sample_callback = |params: &GenericMessage| -> HandlerResult<()> {
             a = 10;
             Ok(())
         };
         let b = Rc::clone(&val);
-        let mut sample_callback2 = |params: &HandlerParams| -> HandlerResult<()> {
+        let mut sample_callback2 = |params: &GenericMessage| -> HandlerResult<()> {
             b = 15;
             Ok(())
         };
         let mut collection = CallbackCollection::new(String::from("dummy"));
         let handler = collection.add(&mut sample_callback, AnyId).unwrap();
-        let params = HandlerParams {
+        let params = GenericMessage {
             message_type: TypeId(0),
             sender: SenderId(0),
             msg_time: Time::default(),
@@ -400,7 +381,7 @@ mod tests {
         assert_eq!(val, 10);
         
         // This shouldn't trigger callback 2
-        let params = HandlerParams {
+        let params = GenericMessage {
             sender: SenderId(1),
             ..params
         };

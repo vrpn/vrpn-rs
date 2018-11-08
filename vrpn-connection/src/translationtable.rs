@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use super::typedispatcher;
 use bytes::{Bytes, BytesMut};
 use vrpn_base::{
-    message::{Description, Message},
+    message::{Description, SequencedMessage},
     types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId},
 };
 use vrpn_buffer::{buffer, Buffer};
@@ -29,6 +30,11 @@ quick_error! {
         ConsErrors(err: Box<TranslationTableError>, tail: Box<TranslationTableError>) {
             cause(err)
             display("{}, {}", err, tail)
+        }
+        HandlerError(err: typedispatcher::HandlerError) {
+            cause(err)
+            display("{}", err)
+            from(err)
         }
     }
 }
@@ -61,11 +67,12 @@ impl<T: BaseTypeSafeId> TranslationEntry<T> {
     }
 
     pub fn buffer_description_ref(&self, buf: &mut BytesMut) -> Result<()> {
-        let LocalId(id) = self.local_id.clone();
-        let msg = Message::from(Description::new(id, self.name.clone()));
-        buf.reserve(msg.required_buffer_size());
-        msg.buffer_ref(buf)
-            .map_err(|e| TranslationTableError::BufferError(e))
+        // let LocalId(id) = self.local_id.clone();
+        // let msg = SequencedMessage::from(Description::new(id, self.name.clone()));
+        // buf.reserve(msg.required_buffer_size());
+        // msg.buffer_ref(buf)
+        //     .map_err(|e| TranslationTableError::BufferError(e))
+        unimplemented!();
     }
 
     pub fn pack_description(&self) -> Result<Bytes> {
@@ -139,6 +146,13 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
             }
             None => false,
         }
+    }
+
+    pub fn handle_description_message(&mut self, desc: Description<T>) {
+        // let local_id = match self.find_by_name(desc.name) {
+        //     Some(entry) => entry.local_id,
+        //     None => entry.local_id
+        // };
     }
 
     fn find_by_predicate<F>(&self, f: F) -> Option<&TranslationEntry<T>>

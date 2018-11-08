@@ -25,7 +25,7 @@ pub use self::{
     primitives::*,
     traits::{
         buffer::{self, Buffer},
-        unbuffer::{self, Output, Unbuffer, UnbufferConstantSize},
+        unbuffer::{self, Output, OutputWithRemaining, Unbuffer, UnbufferConstantSize},
         BufferSize, ConstantBufferSize,
     },
 };

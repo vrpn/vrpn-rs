@@ -4,9 +4,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>, based in part on
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
-use bytes::BytesMut;
 use crate::{
-    base::message::{GenericMessage, Message},
+    base::message::{GenericMessage, Message, SequencedGenericMessage},
     buffer::{
         buffer,
         message::{make_message_body_generic, MessageSize},
@@ -19,6 +18,7 @@ use crate::{
     },
     prelude::*,
 };
+use bytes::BytesMut;
 use futures::{sync::mpsc, StartSend};
 
 use tokio::{
@@ -59,7 +59,7 @@ quick_error!{
     }
 }
 
-type EpSinkItem = GenericMessage;
+type EpSinkItem = SequencedGenericMessage;
 type EpSinkError = <FramedMessageCodec as Encoder>::Error;
 type EpStreamItem = EpSinkItem;
 type EpStreamError = <FramedMessageCodec as Decoder>::Error;
@@ -69,8 +69,8 @@ pub(crate) enum EndpointDisposition {
     ReadyForCleanup,
 }
 pub type ReceiveFuture = Box<dyn Future<Item = (), Error = EndpointError>>;
-type Tx = mpsc::UnboundedSender<GenericMessage>;
-type Rx = mpsc::UnboundedReceiver<GenericMessage>;
+type Tx = mpsc::UnboundedSender<SequencedGenericMessage>;
+type Rx = mpsc::UnboundedReceiver<SequencedGenericMessage>;
 pub(crate) struct EndpointChannel<T> {
     tx: stream::SplitSink<T>,
     rx: stream::SplitStream<T>,
@@ -113,8 +113,10 @@ where
     ///
     /// This serializes a message to an internal buffer. Calls to `poll_flush` will
     /// attempt to flush this buffer to the socket.
-    fn buffer<U: Buffer>(&mut self, message: Message<U>) -> StartSend<GenericMessage, EpSinkError> {
-        let message = make_message_body_generic(message)?;
+    pub(crate) fn buffer(
+        &mut self,
+        message: SequencedGenericMessage,
+    ) -> StartSend<SequencedGenericMessage, EpSinkError> {
         self.tx.start_send(message)?;
         Ok(AsyncSink::Ready)
     }
@@ -149,34 +151,38 @@ where
         self.tx.poll_complete()
     }
 
-    fn receive(&mut self) -> Poll<(), EndpointError> {
-        loop {
-            let poll = self.rx.poll()?;
-            match poll {
-                Async::Ready(msg) => {
-                    println!("receive got message {:?}", msg);
-                    match msg {
-                        Some(msg) => self.in_tx.unbounded_send(msg).unwrap(),
-                        None => return Ok(Async::Ready(())),
-                    }
-                }
-                Async::NotReady => return Ok(Async::NotReady),
-            }
-            // if let Some(msg) = try_ready!(self.rx.poll()) {
-            //     self.in_tx.unbounded_send(msg).unwrap();
-            // } else {
-            //     break;
-            // }
-        }
-        // Other end has disconnected
-        return Ok(Async::Ready(()));
-    }
+    // fn receive(&mut self) -> Poll<(), EndpointError> {
+    //     loop {
+    //         let poll = self.rx.poll()?;
+    //         match poll {
+    //             Async::Ready(msg) => {
+    //                 println!("receive got message {:?}", msg);
+    //                 match msg {
+    //                     Some(msg) => self.in_tx.unbounded_send(msg).unwrap(),
+    //                     None => return Ok(Async::Ready(())),
+    //                 }
+    //             }
+    //             Async::NotReady => return Ok(Async::NotReady),
+    //         }
+    //         // if let Some(msg) = try_ready!(self.rx.poll()) {
+    //         //     self.in_tx.unbounded_send(msg).unwrap();
+    //         // } else {
+    //         //     break;
+    //         // }
+    //     }
+    //     // Other end has disconnected
+    //     return Ok(Async::Ready(()));
+    // }
 
     /// Method for polling the MPSC channel that decoded generic messages are placed in.
     fn poll_receive(&mut self) -> Poll<Option<GenericMessage>, EndpointError> {
         // treat errors like a closed connection
-        let poll = self.in_rx.poll();
-        poll.or(Ok(Async::Ready(None)))
+        // let poll = self.in_rx.poll();
+        // poll.or(Ok(Async::Ready(None)))
+        self.rx
+            .poll()
+            .map(|a| a.map(|o| o.map(|msg| Message::from(msg))))
+            .map_err(|e| EndpointError::from(e))
     }
 
     /// Async::Ready(()) means the channel was closed.
@@ -188,16 +194,16 @@ where
         let mut message_handler = message_handler;
         let _ = self.poll_flush()?;
 
-        let _ = self.receive()?;
+        // let _ = self.receive()?;
         const MAX_PER_TICK: usize = 10;
         for i in 0..MAX_PER_TICK {
             match try_ready!(self.poll_receive()) {
                 Some(msg) => {
-                    println!("poll_channel: received message {:?}", msg);
+                    eprintln!("poll_channel: received message {:?}", msg);
                     message_handler(msg)?;
                 }
                 None => {
-                    println!("poll_channel: received None");
+                    eprintln!("poll_channel: received None");
                     return Ok(Async::Ready(()));
                 }
             }

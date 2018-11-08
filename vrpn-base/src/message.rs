@@ -14,26 +14,19 @@ pub struct MessageHeader {
     pub time: TimeVal,
     pub message_type: TypeId,
     pub sender: SenderId,
-    pub sequence_number: Option<SequenceNumber>,
 }
 
 impl MessageHeader {
-    pub fn new(
-        time: Option<TimeVal>,
-        message_type: TypeId,
-        sender: SenderId,
-        sequence_number: Option<SequenceNumber>,
-    ) -> MessageHeader {
+    pub fn new(time: Option<TimeVal>, message_type: TypeId, sender: SenderId) -> MessageHeader {
         MessageHeader {
             time: time.unwrap_or_else(|| TimeVal::get_time_of_day()),
             message_type,
             sender,
-            sequence_number,
         }
     }
 }
 
-/// A message with header information, ready to be buffered to the wire.
+/// A message with header information, almost ready to be buffered to the wire.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Message<T> {
     pub header: MessageHeader,
@@ -48,16 +41,52 @@ impl<T> Message<T> {
         message_type: TypeId,
         sender: SenderId,
         body: T,
-        sequence_number: Option<SequenceNumber>,
     ) -> Message<T> {
         Message {
-            header: MessageHeader::new(time, message_type, sender, sequence_number),
+            header: MessageHeader::new(time, message_type, sender),
             body,
         }
     }
 
     pub fn from_header_and_body(header: MessageHeader, body: T) -> Message<T> {
         Message { header, body }
+    }
+
+    pub fn add_sequence_number(self, sequence_number: SequenceNumber) -> SequencedMessage<T> {
+        SequencedMessage {
+            message: self,
+            sequence_number,
+        }
+    }
+}
+
+/// A message with header information and sequence number, ready to be buffered to the wire.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct SequencedMessage<T> {
+    pub message: Message<T>,
+    pub sequence_number: SequenceNumber,
+}
+
+pub type SequencedGenericMessage = SequencedMessage<GenericBody>;
+
+impl<T> SequencedMessage<T> {
+    pub fn new(
+        time: Option<TimeVal>,
+        message_type: TypeId,
+        sender: SenderId,
+        body: T,
+        sequence_number: SequenceNumber,
+    ) -> SequencedMessage<T> {
+        SequencedMessage {
+            message: Message::new(time, message_type, sender, body),
+            sequence_number,
+        }
+    }
+}
+
+impl<T> From<SequencedMessage<T>> for Message<T> {
+    fn from(v: SequencedMessage<T>) -> Message<T> {
+        v.message
     }
 }
 
@@ -85,6 +114,12 @@ impl InnerDescription {
     }
 }
 
+impl Message<InnerDescription> {
+    pub fn into_typed_description<T: BaseTypeSafeId>(self) -> Description<T> {
+        use super::types::TypeSafeId;
+        Description::new(T::new(self.header.sender.get()), self.body.name)
+    }
+}
 /// Typed description of a sender or type.
 ///
 /// Converted to a Message<InnerDescription> before being sent.
@@ -109,7 +144,6 @@ impl<T: BaseTypeSafeId> From<Description<T>> for Message<InnerDescription> {
             T::description_type(),
             SenderId(v.which.get()),
             InnerDescription { name: v.name },
-            None,
         )
     }
 }
