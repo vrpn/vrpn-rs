@@ -14,9 +14,8 @@ pub mod endpoint;
 pub mod translationtable;
 pub mod typedispatcher;
 
-pub use self::{
+pub use crate::{
     connection::Connection,
-    endpoint::{make_log_names, make_none_log_names, Endpoint, LogFileNames},
     translationtable::{Result as TranslationTableResult, TranslationTable, TranslationTableError},
     typedispatcher::{HandlerResult, MappingResult, TypeDispatcher},
 };

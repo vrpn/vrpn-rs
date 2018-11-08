@@ -4,7 +4,7 @@
 
 use crate::{
     constants::{self, MAGIC_PREFIX},
-    types::{LogFlags, LogMode},
+    log::{LogFlags, LogMode},
 };
 use std::{
     fmt::{self, Display, Formatter},

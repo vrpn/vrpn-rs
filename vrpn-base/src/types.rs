@@ -119,14 +119,6 @@ bitmask! {
     }
 }
 
-bitmask!{
-    pub mask LogMode: u8 where flags LogFlags {
-        NONE = 0,
-        INCOMING = (1 << 0),
-        OUTGOING = (1 << 1),
-        INCOMING_OUTGOING = (1 << 0)|(1 << 1)
-    }
-}
 
 /// @todo temporary
 pub type Time = u32;
@@ -163,10 +155,3 @@ impl TypedName for TypeName {}
 /// Sequence number - not used on receive side, only used for sniffers (?)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SequenceNumber(pub u32);
-
-pub struct LogDescription {
-    /// incoming log file name
-    in_name: Bytes,
-    /// outgoing log file name
-    out_name: Bytes,
-}

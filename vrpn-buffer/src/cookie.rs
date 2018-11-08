@@ -15,7 +15,7 @@ use std::{num::ParseIntError, result};
 use vrpn_base::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
     cookie::{CookieData, Version},
-    types::{LogFlags, LogMode},
+    log::{LogFlags, LogMode},
 };
 
 const COOKIE_PADDING: &[u8] = b"\0\0\0\0\0";

@@ -12,42 +12,6 @@ use vrpn_base::{
 };
 use vrpn_buffer::{message::make_message_body_generic, Buffer};
 
-#[derive(Debug, Clone)]
-pub struct LogFileNames {
-    pub in_log_file: Option<String>,
-    pub out_log_file: Option<String>,
-}
-
-pub fn make_none_log_names() -> LogFileNames {
-    LogFileNames {
-        out_log_file: None,
-        in_log_file: None,
-    }
-}
-
-fn make_log_name(name: Option<String>) -> Option<String> {
-    match name {
-        None => None,
-        Some(name_str) => {
-            if name_str.len() > 0 {
-                Some(name_str)
-            } else {
-                None
-            }
-        }
-    }
-}
-
-pub fn make_log_names(log_names: Option<LogFileNames>) -> LogFileNames {
-    match log_names {
-        None => make_none_log_names(),
-        Some(names) => LogFileNames {
-            in_log_file: make_log_name(names.in_log_file),
-            out_log_file: make_log_name(names.out_log_file),
-        },
-    }
-}
-
 pub trait Endpoint {
     fn buffer_generic_message(
         &mut self,
@@ -106,18 +70,4 @@ pub trait Endpoint {
     ) -> TranslationTableResult<()>;
 
     fn pack_type_description(&mut self, local_type: LocalId<TypeId>) -> TranslationTableResult<()>;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn log_names() {
-        assert_eq!(make_log_name(None), None);
-        assert_eq!(make_log_name(Some(String::from(""))), None);
-        assert_eq!(
-            make_log_name(Some(String::from("asdf"))),
-            Some(String::from("asdf"))
-        );
-    }
 }

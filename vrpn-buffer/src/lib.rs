@@ -15,13 +15,14 @@ extern crate vrpn_base;
 
 pub mod cookie;
 pub mod length_prefixed;
+pub mod log;
 pub mod message;
 pub mod prelude;
 pub mod primitives;
 pub mod time;
 pub mod traits;
 
-pub use self::{
+pub use crate::{
     primitives::*,
     traits::{
         buffer::{self, Buffer},
