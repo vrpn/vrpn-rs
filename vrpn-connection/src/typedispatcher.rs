@@ -103,7 +103,7 @@ impl<'a> MsgCallbackEntry<'a> {
 /// Stores a collection of callbacks with a name, associated with either a message type,
 /// or as a "global" handler mapping called for all message types.
 struct CallbackCollection<'a> {
-    name: TypeName,
+    name: TypeName<'a>,
     callbacks: Vec<MsgCallbackEntry<'a>>,
     next_handle: HandlerInnerType,
 }

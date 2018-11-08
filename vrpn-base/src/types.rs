@@ -18,11 +18,16 @@ pub trait TypeSafeId: Clone + Eq + PartialEq + Ord + PartialOrd {
 pub trait BaseTypeSafeId
 where
     Self: TypeSafeId,
+{
+    fn description_type() -> TypeId;
+}
+
+pub trait BaseTypeSafeIdName<'a>
+where
+    Self: BaseTypeSafeId,
     Self::Name: TypedName,
 {
     type Name;
-    fn name_to_bytes(name: Self::Name) -> Bytes;
-    fn description_type() -> TypeId;
 }
 
 /// Local-side ID in the translation table
@@ -69,13 +74,12 @@ impl TypeSafeId for TypeId {
 }
 
 impl BaseTypeSafeId for TypeId {
-    type Name = TypeName;
-    fn name_to_bytes(name: Self::Name) -> Bytes {
-        Bytes::from_static(name.0)
-    }
     fn description_type() -> TypeId {
         constants::TYPE_DESCRIPTION
     }
+}
+impl<'a> BaseTypeSafeIdName<'a> for TypeId {
+    type Name = TypeName<'a>;
 }
 
 impl TypeSafeId for SenderId {
@@ -88,13 +92,13 @@ impl TypeSafeId for SenderId {
 }
 
 impl BaseTypeSafeId for SenderId {
-    type Name = SenderName;
-    fn name_to_bytes(name: Self::Name) -> Bytes {
-        Bytes::from_static(name.0)
-    }
     fn description_type() -> TypeId {
         constants::SENDER_DESCRIPTION
     }
+}
+
+impl<'a> BaseTypeSafeIdName<'a> for SenderId {
+    type Name = SenderName<'a>;
 }
 
 /// Wrapper for an id associated with a handler.
@@ -119,26 +123,33 @@ bitmask! {
     }
 }
 
-pub trait TypedName {}
-
-#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct SenderName(pub &'static [u8]);
-impl From<SenderName> for Bytes {
-    fn from(val: SenderName) -> Bytes {
-        Bytes::from_static(val.0)
-    }
-}
-impl TypedName for SenderName {}
-
-#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct TypeName(pub &'static [u8]);
-impl From<TypeName> for Bytes {
-    fn from(val: TypeName) -> Bytes {
-        Bytes::from_static(val.0)
-    }
+pub trait TypedName {
+    type Id;
 }
 
-impl TypedName for TypeName {}
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+pub struct SenderName<'a>(pub &'a [u8]);
+
+impl<'a> From<SenderName<'a>> for Bytes {
+    fn from(val: SenderName<'a>) -> Bytes {
+        Bytes::from(val.0)
+    }
+}
+impl<'a> TypedName for SenderName<'a> {
+    type Id = SenderId;
+}
+
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+pub struct TypeName<'a>(pub &'a [u8]);
+impl<'a> From<TypeName<'a>> for Bytes {
+    fn from(val: TypeName<'a>) -> Bytes {
+        Bytes::from(val.0)
+    }
+}
+
+impl<'a> TypedName for TypeName<'a> {
+    type Id = TypeId;
+}
 
 /// Sequence number - not used on receive side, only used for sniffers (?)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]

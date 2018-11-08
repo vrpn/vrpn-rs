@@ -4,27 +4,23 @@
 
 use bytes::BytesMut;
 use crate::{
-    base::{
-        constants::TCP_BUFLEN,
-        message::{Description, GenericMessage, Message},
-        types::*,
-    },
-    buffer::{buffer, unbuffer, Buffer},
+    base::types::*,
+    base::{constants::TCP_BUFLEN, Description, GenericMessage, Message},
+    buffer::{buffer, make_message_body_generic, unbuffer, Buffer},
     codec::{self, FramedMessageCodec},
     connection::{
-        typedispatcher::HandlerResult, Endpoint, TranslationTable, TranslationTableError,
+        typedispatcher::HandlerResult, TranslationTable, TranslationTableError,
         TranslationTableResult,
     },
     endpoint_channel::{EndpointChannel, EndpointError},
 };
-use bytes::BytesMut;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     io,
     net::{TcpStream, UdpFramed, UdpSocket},
     prelude::*,
 };
-use std::sync::atomic::{AtomicUsize, Ordering};
 pub type MessageFramed = codec::MessageFramed<TcpStream>;
 pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
 
@@ -37,7 +33,7 @@ pub struct EndpointIP {
 }
 
 impl EndpointIP {
-    pub fn new(
+    pub(crate) fn new(
         reliable_stream: TcpStream //low_latency_channel: Option<MessageFramedUdp>
     ) -> EndpointIP {
         let framed = codec::apply_message_framing(reliable_stream);
@@ -50,8 +46,6 @@ impl EndpointIP {
             // low_latency_channel,
         }
     }
-}
-impl Endpoint for EndpointIP {
     fn buffer_generic_message(
         &mut self,
         msg: GenericMessage,
@@ -64,20 +58,32 @@ impl Endpoint for EndpointIP {
         unimplemented!();
     }
 
-    fn sender_table(&self) -> &TranslationTable<SenderId> {
+    pub(crate) fn buffer_message<T: Buffer>(
+        &mut self,
+        msg: Message<T>,
+        class: ClassOfService,
+    ) -> HandlerResult<()> {
+        let generic_msg = make_message_body_generic(msg)?;
+        self.buffer_generic_message(generic_msg, class)
+    }
+
+    pub(crate) fn sender_table(&self) -> &TranslationTable<SenderId> {
         &self.senders
     }
-    fn sender_table_mut(&mut self) -> &mut TranslationTable<SenderId> {
+
+    pub(crate) fn sender_table_mut(&mut self) -> &mut TranslationTable<SenderId> {
         &mut self.senders
     }
-    fn type_table(&self) -> &TranslationTable<TypeId> {
+
+    pub(crate) fn type_table(&self) -> &TranslationTable<TypeId> {
         &self.types
     }
-    fn type_table_mut(&mut self) -> &mut TranslationTable<TypeId> {
+
+    pub(crate) fn type_table_mut(&mut self) -> &mut TranslationTable<TypeId> {
         &mut self.types
     }
 
-    fn pack_sender_description(
+    pub(crate) fn pack_sender_description(
         &mut self,
         local_sender: LocalId<SenderId>,
     ) -> TranslationTableResult<()> {
@@ -93,7 +99,10 @@ impl Endpoint for EndpointIP {
             .map(|_| ())
     }
 
-    fn pack_type_description(&mut self, local_type: LocalId<TypeId>) -> TranslationTableResult<()> {
+    pub(crate) fn pack_type_description(
+        &mut self,
+        local_type: LocalId<TypeId>,
+    ) -> TranslationTableResult<()> {
         let LocalId(id) = local_type;
         let name = self
             .types
@@ -105,6 +114,38 @@ impl Endpoint for EndpointIP {
         self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
             .map_err(|e| TranslationTableError::HandlerError(e))
             .map(|_| ())
+    }
+
+    /// Convert remote type ID to local type ID
+    pub(crate) fn local_type_id(&self, remote_type: RemoteId<TypeId>) -> Option<LocalId<TypeId>> {
+        match self.type_table().map_to_local_id(remote_type) {
+            Ok(val) => val,
+            Err(_) => None,
+        }
+    }
+
+    /// Convert remote sender ID to local sender ID
+    pub(crate) fn local_sender_id(
+        &self,
+        remote_sender: RemoteId<SenderId>,
+    ) -> Option<LocalId<SenderId>> {
+        match self.sender_table().map_to_local_id(remote_sender) {
+            Ok(val) => val,
+            Err(_) => None,
+        }
+    }
+
+    pub(crate) fn new_local_sender(
+        &mut self,
+        name: SenderName,
+        local_sender: LocalId<SenderId>,
+    ) -> bool {
+        self.sender_table_mut()
+            .add_local_id(name.into(), local_sender)
+    }
+
+    pub(crate) fn new_local_type(&mut self, name: TypeName, local_type: LocalId<TypeId>) -> bool {
+        self.type_table_mut().add_local_id(name.into(), local_type)
     }
 }
 

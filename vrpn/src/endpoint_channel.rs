@@ -4,21 +4,17 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>, based in part on
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
+use bytes::BytesMut;
 use crate::{
     base::message::{GenericMessage, Message, SequencedGenericMessage},
-    buffer::{
-        buffer,
-        message::{make_message_body_generic, MessageSize},
-        unbuffer, Buffer, Output, Unbuffer,
-    },
+    buffer::{buffer, make_message_body_generic, unbuffer, Buffer, MessageSize, Unbuffer},
     codec::{self, FramedMessageCodec},
     connection::{
-        typedispatcher::HandlerResult, Endpoint, TranslationTable, TranslationTableError,
+        typedispatcher::HandlerResult, TranslationTable, TranslationTableError,
         TranslationTableResult,
     },
     prelude::*,
 };
-use bytes::BytesMut;
 use futures::{sync::mpsc, StartSend};
 
 use tokio::{

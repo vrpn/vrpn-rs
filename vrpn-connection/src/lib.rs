@@ -9,13 +9,10 @@ extern crate vrpn_buffer;
 #[macro_use]
 extern crate quick_error;
 
-pub mod connection;
-pub mod endpoint;
 pub mod translationtable;
 pub mod typedispatcher;
 
 pub use crate::{
-    connection::Connection,
     translationtable::{Result as TranslationTableResult, TranslationTable, TranslationTableError},
     typedispatcher::{HandlerResult, MappingResult, RegisterMapping, TypeDispatcher},
 };

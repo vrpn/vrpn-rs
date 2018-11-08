@@ -4,16 +4,17 @@
 
 use crate::{
     base::{
-        constants,
-        message::{Description, GenericMessage},
-        types::{SenderId, SenderName, TypeId, TypeName},
+        constants, Description, GenericMessage, InnerDescription, LocalId, LogFileNames, SenderId,
+        SenderName, TypeId, TypeName,
     },
     buffer::message::unbuffer_typed_message_body,
     connect::ConnectError,
-    connection::typedispatcher::RegisterMapping,
     connection::{
-        make_log_names, make_none_log_names, Connection, HandlerResult, LogFileNames,
-        MappingResult, TypeDispatcher,
+        translationtable::{
+            Result as TranslationTableResult, TranslationTable, TranslationTableError,
+        },
+        typedispatcher::RegisterMapping,
+        HandlerResult, MappingResult, TypeDispatcher,
     },
     endpoint_ip::{EndpointIP, MessageFramed, MessageFramedUdp},
     prelude::*,
@@ -24,6 +25,16 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio::net::{TcpListener, TcpStream};
+
+fn append_error(
+    old: TranslationTableResult<()>,
+    new_err: TranslationTableError,
+) -> TranslationTableResult<()> {
+    match old {
+        Err(old_e) => Err(old_e.append(new_err)),
+        Ok(()) => Err(new_err),
+    }
+}
 
 pub struct ConnectionIP {
     type_dispatcher: Arc<TypeDispatcher<'static>>,
@@ -41,13 +52,13 @@ fn init(conn: &mut Arc<ConnectionIP>) -> HandlerResult<()> {
     self.type_dispatcher
         .set_system_handler(constants::UDP_DESCRIPTION, handle_udp_message)
         */
-
+    use crate::connection::RegisterMapping::*;
     conn.type_dispatcher
         .set_system_handler(constants::SENDER_DESCRIPTION, move |&msg| {
             let desc = unbuffer_typed_message_body::<InnerDescription>(msg)?
                 .into_typed_description::<SenderId>();
 
-            let local_id = match conn.register_sender(desc.name.clone()) {
+            let local_id = match conn.register_sender(SenderName(desc.name.as_ref()))? {
                 Found(v) => v,
                 NewMapping(v) => v,
             };
@@ -113,24 +124,18 @@ impl ConnectionIP {
         let disp = TypeDispatcher::new()?;
         Ok(ConnectionIP {
             type_dispatcher: Arc::new(disp),
-            remote_log_names: make_log_names(remote_log_names),
-            local_log_names: make_log_names(local_log_names),
+            remote_log_names: LogFileNames::from(remote_log_names),
+            local_log_names: LogFileNames::from(local_log_names),
             endpoints: Arc::new(Mutex::new(Vec::new())),
             server_tcp: None,
         })
     }
-}
 
-impl<'a> Connection<'a> for ConnectionIP {
-    type EndpointItem = EndpointIP;
-    type EndpointIteratorMut = std::slice::IterMut<'a, Option<EndpointIP>>;
-    type EndpointIterator = std::slice::Iter<'a, Option<EndpointIP>>;
-
-    // fn endpoints_iter_mut(&'a mut self) -> Self::EndpointIteratorMut {
+    // fn endpoints_iter_mut(&mut self) -> Self::EndpointIteratorMut {
     //     self.endpoints.iter_mut()
     // }
 
-    // fn endpoints_iter(&'a self) -> Self::EndpointIterator {
+    // fn endpoints_iter(&self) -> Self::EndpointIterator {
     //     self.endpoints.iter()
     // }
 
@@ -138,9 +143,47 @@ impl<'a> Connection<'a> for ConnectionIP {
     //     &self.type_dispatcher
     // }
 
-    // fn dispatcher_mut(&'a mut self) -> &'a mut TypeDispatcher {
+    // fn dispatcher_mut(&mut self) -> &mut TypeDispatcher {
     //     &mut self.type_dispatcher
     // }
+
+    fn pack_sender_description(
+        &mut self,
+        name: SenderName,
+        sender: SenderId,
+    ) -> TranslationTableResult<()> {
+        let sender = LocalId(sender);
+        let mut my_result = Ok(());
+        for endpoint in self.endpoints.lock().unwrap().iter_mut().flatten() {
+            match endpoint.pack_sender_description(sender) {
+                Ok(()) => (),
+                Err(e) => {
+                    my_result = append_error(my_result, e);
+                }
+            }
+            endpoint.new_local_sender(name.clone(), sender);
+        }
+        my_result
+    }
+
+    fn pack_type_description(
+        &mut self,
+        name: TypeName,
+        message_type: TypeId,
+    ) -> TranslationTableResult<()> {
+        let message_type = LocalId(message_type);
+        let mut my_result = Ok(());
+        for endpoint in self.endpoints.lock().unwrap().iter_mut().flatten() {
+            match endpoint.pack_type_description(message_type) {
+                Ok(()) => (),
+                Err(e) => {
+                    my_result = append_error(my_result, e);
+                }
+            }
+            endpoint.new_local_type(name.clone(), message_type);
+        }
+        my_result
+    }
 
     fn add_type(&mut self, name: TypeName) -> MappingResult<TypeId> {
         self.type_dispatcher.add_type(name)
@@ -157,10 +200,10 @@ impl<'a> Connection<'a> for ConnectionIP {
     fn get_sender_id(&self, name: &SenderName) -> Option<SenderId> {
         self.type_dispatcher.get_sender_id(name)
     }
-    fn register_sender(&'a mut self, name: SenderName) -> MappingResult<RegisterMapping<SenderId>> {
+    fn register_sender(&mut self, name: SenderName) -> MappingResult<RegisterMapping<SenderId>> {
         self.type_dispatcher.register_sender(name)
     }
-    fn register_type(&'a mut self, name: TypeName) -> MappingResult<RegisterMapping<TypeId>> {
+    fn register_type(&mut self, name: TypeName) -> MappingResult<RegisterMapping<TypeId>> {
         self.type_dispatcher.register_type(name)
     }
 }
