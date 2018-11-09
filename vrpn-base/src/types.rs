@@ -17,18 +17,17 @@ pub trait TypeSafeId: Clone + Eq + PartialEq + Ord + PartialOrd {
 
 pub trait BaseTypeSafeId
 where
-    Self: TypeSafeId + Clone + Copy + std::fmt::Debug + Eq,
+    Self: TypeSafeId + Clone + Copy + std::fmt::Debug + PartialEq + Eq + BaseTypeSafeIdName,
 {
     fn description_type() -> TypeId;
 }
 
-// pub trait BaseTypeSafeIdName<'a>
-// where
-//     Self: BaseTypeSafeId,
-//     Self::Name: TypedName,
-// {
-//     type Name;
-// }
+pub trait BaseTypeSafeIdName
+where
+    Self::Name: Into<Bytes>,
+{
+    type Name;
+}
 
 /// Local-side ID in the translation table
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -88,9 +87,9 @@ impl TypeId {
     }
 }
 
-// impl<'a> BaseTypeSafeIdName<'a> for TypeId {
-//     type Name = StaticTypeName<'a>;
-// }
+impl BaseTypeSafeIdName for TypeId {
+    type Name = TypeName;
+}
 
 impl TypeSafeId for SenderId {
     fn get(&self) -> IdType {
@@ -107,9 +106,9 @@ impl BaseTypeSafeId for SenderId {
     }
 }
 
-// impl<'a> BaseTypeSafeIdName<'a> for SenderId {
-//     type Name = StaticSenderName<'a>;
-// }
+impl BaseTypeSafeIdName for SenderId {
+    type Name = SenderName;
+}
 
 /// Wrapper for an id associated with a handler.
 ///

@@ -10,18 +10,13 @@ extern crate bytes;
 #[macro_use]
 extern crate downcast_rs;
 
-#[macro_use]
-extern crate quick_error;
-
 pub mod endpoint;
-pub mod error;
 pub mod translation;
 pub mod translationtable;
 pub mod typedispatcher;
 
 pub use crate::{
     endpoint::*,
-    error::{append_error, Error, Result},
     translationtable::{MatchingTable, Table as TranslationTable, Tables as TranslationTables},
     typedispatcher::{Handler, RegisterMapping, SystemHandler, TypeDispatcher},
 };

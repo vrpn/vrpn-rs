@@ -8,20 +8,21 @@ use crate::traits::{
     unbuffer::{self, Source, UnbufferConstantSize},
     ConstantBufferSize,
 };
+use vrpn_base::{EmptyResult, Result};
 
 macro_rules! buffer_primitive {
     ($t:ty, $put:ident, $get:ident) => {
         impl ConstantBufferSize for $t {}
 
         impl Buffer for $t {
-            fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+            fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
                 buf.$put(*self);
                 Ok(())
             }
         }
 
         impl UnbufferConstantSize for $t {
-            fn unbuffer_constant_size<T: Source>(buf: T) -> unbuffer::Result<Self> {
+            fn unbuffer_constant_size<T: Source>(buf: T) -> Result<Self> {
                 Ok(buf.into_buf().$get())
             }
         }

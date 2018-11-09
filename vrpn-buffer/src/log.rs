@@ -8,10 +8,10 @@ use crate::{
     traits::{
         buffer::{self, Buffer},
         unbuffer::{self, check_expected, Source, Unbuffer},
-        BufferSize, BytesRequired, ConstantBufferSize,
+        BufferSize, ConstantBufferSize,
     },
 };
-use vrpn_base::log::LogFileNames;
+use vrpn_base::{BytesRequired, EmptyResult, Error, LogFileNames, Result};
 
 fn filename_len(filename: &Option<Bytes>) -> usize {
     match filename {
@@ -28,9 +28,9 @@ impl BufferSize for LogFileNames {
     }
 }
 impl Buffer for LogFileNames {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         if buf.remaining_mut() < self.buffer_size() {
-            return Err(buffer::Error::OutOfBuffer);
+            return Err(Error::OutOfBuffer);
         }
         for filename in self.filenames_iter() {
             (filename_len(filename) as i32).buffer_ref(buf)?;
@@ -45,7 +45,7 @@ impl Buffer for LogFileNames {
     }
 }
 
-fn unbuffer_logname(len: usize, buf: &mut Bytes) -> unbuffer::Result<Option<Bytes>> {
+fn unbuffer_logname(len: usize, buf: &mut Bytes) -> Result<Option<Bytes>> {
     let name = if len > 0 {
         Some(buf.split_to(len))
     } else {
@@ -57,10 +57,10 @@ fn unbuffer_logname(len: usize, buf: &mut Bytes) -> unbuffer::Result<Option<Byte
 }
 
 impl Unbuffer for LogFileNames {
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<LogFileNames> {
+    fn unbuffer_ref(buf: &mut Bytes) -> Result<LogFileNames> {
         let min_size = 2 * u32::constant_buffer_size() + 2;
         if buf.len() < min_size {
-            Err(unbuffer::Error::NeedMoreData(BytesRequired::AtLeast(
+            Err(Error::NeedMoreData(BytesRequired::AtLeast(
                 min_size - buf.len(),
             )))?;
         }

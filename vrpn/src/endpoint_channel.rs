@@ -6,10 +6,9 @@
 
 use bytes::BytesMut;
 use crate::{
-    base::{GenericMessage, Message, SequenceNumber, SequencedGenericMessage},
+    base::{Error, GenericMessage, Message, SequenceNumber, SequencedGenericMessage},
     buffer::{buffer, unbuffer},
     codec::FramedMessageCodec,
-    error::Error,
     prelude::*,
 };
 use futures::{sync::mpsc, StartSend};

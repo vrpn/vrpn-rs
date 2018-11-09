@@ -3,11 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Bytes, BytesMut};
-use crate::{typedispatcher, Error, Result};
-use vrpn_base::{
-    message::{Description, SequencedMessage},
-    types::{BaseTypeSafeId, IdType, LocalId, RemoteId, SenderId, TypeId, TypeSafeId},
-};
+use vrpn_base::{BaseTypeSafeId, Error, LocalId, RemoteId, Result, SenderId, TypeId, TypeSafeId};
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Entry<T: BaseTypeSafeId> {
@@ -28,14 +24,14 @@ impl<T: BaseTypeSafeId> Entry<T> {
         self.local_id = local_id;
     }
 
-    fn buffer_description_ref(&self, buf: &mut BytesMut) -> Result<()> {
-        // let LocalId(id) = self.local_id.clone();
-        // let msg = SequencedMessage::from(Description::new(id, self.name.clone()));
-        // buf.reserve(msg.required_buffer_size());
-        // msg.buffer_ref(buf)
-        //     .map_err(|e| Error::BufferError(e))
-        unimplemented!();
-    }
+    // fn buffer_description_ref(&self, buf: &mut BytesMut) -> Result<()> {
+    //     // let LocalId(id) = self.local_id.clone();
+    //     // let msg = SequencedMessage::from(Description::new(id, self.name.clone()));
+    //     // buf.reserve(msg.required_buffer_size());
+    //     // msg.buffer_ref(buf)
+    //     //     .map_err(|e| Error::BufferError(e))
+    //     unimplemented!();
+    // }
 
     pub fn name(&self) -> &Bytes {
         &self.name
@@ -47,11 +43,11 @@ impl<T: BaseTypeSafeId> Entry<T> {
         self.remote_id
     }
 
-    fn pack_description(&self) -> Result<Bytes> {
-        let mut buf = BytesMut::new();
-        self.buffer_description_ref(&mut buf)?;
-        Ok(buf.freeze())
-    }
+    // fn pack_description(&self) -> Result<Bytes> {
+    //     let mut buf = BytesMut::new();
+    //     self.buffer_description_ref(&mut buf)?;
+    //     Ok(buf.freeze())
+    // }
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -79,7 +75,7 @@ impl<T: BaseTypeSafeId> Table<T> {
             return Ok(None);
         }
         if index >= self.entries.len() as i32 {
-            return Err(Error::InvalidRemoteId(index));
+            return Err(Error::InvalidId(index));
         }
         if let Some(ref entry) = self.entries[index as usize] {
             Ok(Some(entry.local_id))
@@ -96,7 +92,7 @@ impl<T: BaseTypeSafeId> Table<T> {
     ) -> Result<RemoteId<T>> {
         let real_index = remote_id.get();
         if real_index < 0 {
-            return Err(Error::InvalidRemoteId(real_index));
+            return Err(Error::InvalidId(real_index));
         }
         while real_index as usize >= self.entries.len() {
             self.entries.push(None);
@@ -125,12 +121,12 @@ impl<T: BaseTypeSafeId> Table<T> {
         }
     }
 
-    pub fn handle_description_message(&mut self, desc: Description<T>) {
-        // let local_id = match self.find_by_name(desc.name) {
-        //     Some(entry) => entry.local_id,
-        //     None => entry.local_id
-        // };
-    }
+    // pub fn handle_description_message(&mut self, desc: Description<T>) {
+    //     // let local_id = match self.find_by_name(desc.name) {
+    //     //     Some(entry) => entry.local_id,
+    //     //     None => entry.local_id
+    //     // };
+    // }
 
     pub(crate) fn find_by_predicate<F>(&self, f: F) -> Option<&Entry<T>>
     where
@@ -149,29 +145,29 @@ impl<T: BaseTypeSafeId> Table<T> {
         }
     }
 
-    pub fn find_by_name(&self, name: Bytes) -> Option<&Entry<T>> {
-        self.find_by_predicate(|entry| entry.name == name)
-    }
+    // pub fn find_by_name(&self, name: Bytes) -> Option<&Entry<T>> {
+    //     self.find_by_predicate(|entry| entry.name == name)
+    // }
 
-    pub fn find_by_local_id(&self, local_id: LocalId<T>) -> Option<&Entry<T>> {
-        self.find_by_predicate(|entry| entry.local_id == local_id)
-    }
+    // pub fn find_by_local_id(&self, local_id: LocalId<T>) -> Option<&Entry<T>> {
+    //     self.find_by_predicate(|entry| entry.local_id == local_id)
+    // }
 
     pub fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
         self.entries.iter().flatten()
     }
 
-    pub fn buffer_descriptions_ref(&self, buf: &mut BytesMut) -> Result<()> {
-        for entry in self.entries.iter().flatten() {
-            entry.buffer_description_ref(buf)?;
-        }
-        Ok(())
-    }
-    pub fn buffer_descriptions(&self) -> Result<Bytes> {
-        let mut buf = BytesMut::new();
-        self.buffer_descriptions_ref(&mut buf)?;
-        Ok(buf.freeze())
-    }
+    // pub fn buffer_descriptions_ref(&self, buf: &mut BytesMut) -> Result<()> {
+    //     for entry in self.entries.iter().flatten() {
+    //         entry.buffer_description_ref(buf)?;
+    //     }
+    //     Ok(())
+    // }
+    // pub fn buffer_descriptions(&self) -> Result<Bytes> {
+    //     let mut buf = BytesMut::new();
+    //     self.buffer_descriptions_ref(&mut buf)?;
+    //     Ok(buf.freeze())
+    // }
 
     pub fn clear(&mut self) {
         self.entries.clear()
@@ -212,6 +208,31 @@ pub trait MatchingTable<T: BaseTypeSafeId> {
     fn table(&self) -> &Table<T>;
     /// Mutably borrow the correctly-typed translation table
     fn table_mut(&mut self) -> &mut Table<T>;
+
+    /// Convert a remote ID to a local ID, if found.
+    fn map_to_local_id(&self, id: RemoteId<T>) -> Result<Option<LocalId<T>>> {
+        self.table().map_to_local_id(id)
+    }
+
+    /// Record a remote and local ID with the corresponding name.
+    fn add_remote_entry(
+        &mut self,
+        name: Bytes,
+        remote_id: RemoteId<T>,
+        local_id: LocalId<T>,
+    ) -> Result<RemoteId<T>> {
+        self.table_mut().add_remote_entry(name, remote_id, local_id)
+    }
+
+    /// Gets a shared borrow of an entry, given its local ID.
+    fn find_by_local_id(&self, local_id: LocalId<T>) -> Option<&Entry<T>> {
+        self.table()
+            .find_by_predicate(|entry| entry.local_id() == local_id)
+    }
+
+    fn add_local_id(&mut self, name: Bytes, local_id: LocalId<T>) -> bool {
+        self.table_mut().add_local_id(name, local_id)
+    }
 }
 
 impl MatchingTable<SenderId> for Tables {

@@ -3,12 +3,12 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
-use crate::{Endpoint, Error, Result};
+use crate::Endpoint;
 use std::fmt;
 use vrpn_base::{
     constants,
-    message::GenericMessage,
     types::{self, *},
+    Error, GenericMessage, Result,
 };
 use vrpn_buffer::{buffer, unbuffer};
 
@@ -153,7 +153,7 @@ impl CallbackCollection {
 fn system_message_type_into_index(message_type: TypeId) -> Result<usize> {
     let raw_message_type = message_type.get();
     if raw_message_type >= 0 {
-        Err(Error::InvalidTypeId(raw_message_type))?;
+        Err(Error::InvalidId(raw_message_type))?;
     }
     Ok((-raw_message_type) as usize)
 }
@@ -161,11 +161,11 @@ fn system_message_type_into_index(message_type: TypeId) -> Result<usize> {
 fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
     let raw_message_type = message_type.get();
     if raw_message_type < 0 {
-        Err(Error::InvalidTypeId(raw_message_type))?;
+        Err(Error::InvalidId(raw_message_type))?;
     }
     let index = raw_message_type as usize;
     if index >= len {
-        Err(Error::InvalidTypeId(raw_message_type))?;
+        Err(Error::InvalidId(raw_message_type))?;
     }
 
     Ok(index)

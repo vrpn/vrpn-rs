@@ -4,7 +4,7 @@
 
 use bytes::{Bytes, BytesMut};
 use crate::{
-    base::message::SequencedGenericMessage,
+    base::{Error, Result, SequencedGenericMessage},
     buffer::{buffer, message::MessageSize, unbuffer, Buffer, Unbuffer},
     prelude::*,
 };
@@ -13,12 +13,13 @@ use tokio::{
     codec::{Decoder, Encoder, Framed},
     prelude::*,
 };
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FramedMessageCodec;
 impl Decoder for FramedMessageCodec {
     type Item = SequencedGenericMessage;
-    type Error = unbuffer::Error;
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+    type Error = Error;
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>> {
         let initial_len = buf.len();
         let size_len = u32::constant_buffer_size();
         if initial_len < size_len {
@@ -49,7 +50,7 @@ impl Decoder for FramedMessageCodec {
                 println!("Decoder::decode has message {:?}", v);
                 Ok(Some(v))
             }
-            Err(unbuffer::Error::NeedMoreData(_)) => {
+            Err(Error::NeedMoreData(_)) => {
                 unreachable!();
             }
             Err(e) => {
@@ -61,9 +62,9 @@ impl Decoder for FramedMessageCodec {
 }
 
 impl Encoder for FramedMessageCodec {
-    type Error = buffer::Error;
+    type Error = Error;
     type Item = SequencedGenericMessage;
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<()> {
         dst.reserve(item.required_buffer_size());
         item.buffer_ref(dst)
     }

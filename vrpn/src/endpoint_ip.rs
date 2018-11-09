@@ -7,16 +7,15 @@ use crate::{
     base::types::*,
     base::{
         constants::{self, TCP_BUFLEN},
-        Description, GenericMessage, InnerDescription, Message, TypedMessageBody,
+        Description, Error, GenericMessage, InnerDescription, Message, Result, TypedMessageBody,
     },
     buffer::{buffer, make_message_body_generic, unbuffer, unbuffer_typed_message_body, Buffer},
     codec::{self, FramedMessageCodec},
     connection::{
-        endpoint::*, translation, Error as ConnectionError, MatchingTable,
-        Result as ConnectionResult, TranslationTable, TranslationTables, TypeDispatcher,
+        endpoint::*, translation, MatchingTable, TranslationTable, TranslationTables,
+        TypeDispatcher,
     },
     endpoint_channel::{EndpointChannel, EpSinkError, EpSinkItem, EpStreamError, EpStreamItem},
-    error::Error,
     inner_lock, ArcConnectionIpInner,
 };
 use futures::sync::mpsc;
@@ -158,7 +157,7 @@ impl EndpointIp {
     //     &self.types
     // }
 
-    pub(crate) fn pack_description<T>(&mut self, local_id: LocalId<T>) -> ConnectionResult<()>
+    pub(crate) fn pack_description<T>(&mut self, local_id: LocalId<T>) -> Result<()>
     where
         T: BaseTypeSafeId,
         InnerDescription<T>: TypedMessageBody,
@@ -166,7 +165,7 @@ impl EndpointIp {
     {
         let LocalId(id) = local_id;
         let name = translation::find_by_local_id(&mut self.translation, local_id)
-            .ok_or_else(|| ConnectionError::InvalidLocalId(id.get()))
+            .ok_or_else(|| Error::InvalidId(id.get()))
             .and_then(|entry| Ok(entry.name().clone()))?;
         let desc_msg = Message::from(Description::new(id, name));
         self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
@@ -177,22 +176,19 @@ impl EndpointIp {
         self.translation.clear();
     }
 
-    pub(crate) fn pack_type_description(
-        &mut self,
-        local_type: LocalId<TypeId>,
-    ) -> ConnectionResult<()> {
-        let LocalId(id) = local_type;
-        let name = self
-            .translation
-            .types
-            .find_by_local_id(local_type)
-            .ok_or_else(|| ConnectionError::InvalidLocalId(id.get()))
-            .and_then(|entry| Ok(entry.name().clone()))?;
+    // pub(crate) fn pack_type_description(&mut self, local_type: LocalId<TypeId>) -> Result<()> {
+    //     let LocalId(id) = local_type;
+    //     let name = self
+    //         .translation
+    //         .types
+    //         .find_by_local_id(local_type)
+    //         .ok_or_else(|| Error::InvalidId(id.get()))
+    //         .and_then(|entry| Ok(entry.name().clone()))?;
 
-        let desc_msg = Message::from(Description::new(id, name));
-        self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
-            .map(|_| ())
-    }
+    //     let desc_msg = Message::from(Description::new(id, name));
+    //     self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
+    //         .map(|_| ())
+    // }
 
     /// Convert remote sender/type ID to local sender/type ID
     pub(crate) fn map_to_local_id<T>(&self, remote_id: RemoteId<T>) -> Option<LocalId<T>>
@@ -204,6 +200,17 @@ impl EndpointIp {
             Ok(val) => val,
             Err(_) => None,
         }
+    }
+    pub(crate) fn new_local_id<T, U>(&mut self, name: U, local_id: LocalId<T>) -> bool
+    where
+        T: BaseTypeSafeIdName + BaseTypeSafeId,
+        InnerDescription<T>: TypedMessageBody,
+        TranslationTables: MatchingTable<T>,
+        U: Into<<T as BaseTypeSafeIdName>::Name>,
+    {
+        let name: <T as BaseTypeSafeIdName>::Name = name.into();
+        let name: Bytes = name.into();
+        self.translation.add_local_id(name, local_id)
     }
 
     pub(crate) fn new_local_sender(
@@ -245,30 +252,26 @@ impl EndpointIp {
 }
 
 impl Endpoint for EndpointIp {
-    fn send_system_change(&self, message: SystemMessage) -> ConnectionResult<()> {
+    fn send_system_change(&self, message: SystemMessage) -> Result<()> {
         println!("send_system_change {:?}", message);
         let mut tx = mpsc::UnboundedSender::clone(&self.system_tx);
         tx.unbounded_send(message)
-            .map_err(|e| ConnectionError::OtherMessage(e.to_string()))?;
+            .map_err(|e| Error::OtherMessage(e.to_string()))?;
         Ok(())
     }
 
-    fn buffer_generic_message(
-        &mut self,
-        msg: GenericMessage,
-        class: ClassOfService,
-    ) -> ConnectionResult<()> {
+    fn buffer_generic_message(&mut self, msg: GenericMessage, class: ClassOfService) -> Result<()> {
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
         let mut channel = self
             .reliable_channel
             .lock()
-            .map_err(|e| ConnectionError::OtherMessage(e.to_string()))?;
+            .map_err(|e| Error::OtherMessage(e.to_string()))?;
         match channel
             .start_send(msg)
-            .map_err(|e| ConnectionError::OtherMessage(e.to_string()))?
+            .map_err(|e| Error::OtherMessage(e.to_string()))?
         {
             AsyncSink::Ready => Ok(()),
-            AsyncSink::NotReady(_) => Err(ConnectionError::OtherMessage(String::from(
+            AsyncSink::NotReady(_) => Err(Error::OtherMessage(String::from(
                 "Didn't have room in send buffer",
             ))),
         }

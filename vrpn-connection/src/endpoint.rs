@@ -3,11 +3,12 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
-use crate::{Error, Result, TranslationTable};
+use crate::TranslationTable;
 use downcast_rs::Downcast;
 use vrpn_base::{
-    constants, ClassOfService, Description, GenericMessage, InnerDescription, LogFileNames,
-    Message, SenderId, TypeId, TypeSafeId, TypedMessageBody, UdpDescription, UdpInnerDescription,
+    constants, ClassOfService, Description, Error, GenericMessage, InnerDescription, LogFileNames,
+    Message, Result, SenderId, TypeId, TypeSafeId, TypedMessageBody, UdpDescription,
+    UdpInnerDescription,
 };
 use vrpn_buffer::{make_message_body_generic, unbuffer_typed_message_body, Buffer};
 

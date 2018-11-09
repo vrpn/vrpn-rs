@@ -7,11 +7,15 @@ use crate::{
     prelude::*,
     traits::{
         buffer::{self, Buffer},
-        unbuffer::{Result as UnbufferResult, Unbuffer},
+        unbuffer::Unbuffer,
         ConstantBufferSize, WrappedConstantSize,
     },
 };
-use vrpn_base::time::{Microseconds, Seconds, TimeVal};
+use vrpn_base::{
+    error::*,
+    time::{Microseconds, Seconds},
+    TimeVal,
+};
 
 impl WrappedConstantSize for Seconds {
     type WrappedType = i32;
@@ -40,14 +44,14 @@ impl ConstantBufferSize for TimeVal {
 }
 
 impl Buffer for TimeVal {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         buf.buffer(self.seconds())
             .and_then(|buf| self.microseconds().buffer_ref(buf))
     }
 }
 
 impl Unbuffer for TimeVal {
-    fn unbuffer_ref(buf: &mut Bytes) -> UnbufferResult<Self> {
+    fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
         Seconds::unbuffer_ref(buf)
             .and_then(|sec| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
             .and_then(|(usec, sec)| Ok(TimeVal::new(sec, usec)))

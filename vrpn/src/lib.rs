@@ -16,9 +16,6 @@ extern crate tokio;
 
 extern crate pretty_hex;
 
-#[macro_use]
-extern crate quick_error;
-
 extern crate vrpn_base;
 
 extern crate vrpn_buffer;
@@ -30,7 +27,6 @@ pub mod connect;
 pub mod connection_ip;
 pub(crate) mod endpoint_channel;
 pub mod endpoint_ip;
-pub mod error;
 
 pub(crate) use crate::connection_ip::{
     inner_lock, inner_lock_mut, inner_lock_option, ArcConnectionIpInner,

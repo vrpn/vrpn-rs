@@ -4,17 +4,16 @@
 
 use crate::{
     base::{
-        constants, BaseTypeSafeId, Description, GenericMessage, InnerDescription, LocalId,
-        LogFileNames, Message, RemoteId, SenderId, SenderName, TypeId, TypeName, TypedMessageBody,
+        append_error, constants, BaseTypeSafeId, Description, Error, GenericMessage,
+        InnerDescription, LocalId, LogFileNames, Message, RemoteId, Result, SenderId, SenderName,
+        TypeId, TypeName, TypedMessageBody,
     },
     buffer::message::unbuffer_typed_message_body,
     connection::{
-        append_error, typedispatcher::RegisterMapping, Endpoint, Error as ConnectionError,
-        MatchingTable, Result as ConnectionResult, SystemHandler, TranslationTables,
+        typedispatcher::RegisterMapping, Endpoint, MatchingTable, SystemHandler, TranslationTables,
         TypeDispatcher,
     },
     endpoint_ip::{EndpointIp, MessageFramed, MessageFramedUdp},
-    error::Error,
     prelude::*,
 };
 use std::{
@@ -38,7 +37,7 @@ impl ConnectionIpInner {
     //     &mut self,
     //     name: T,
     //     sender: SenderId,
-    // ) -> ConnectionResult<()>
+    // ) -> Result<()>
     // where
     //     T: BaseTypeSafeId,
     //     InnerDescription<U>: TypedMessageBody,
@@ -63,7 +62,7 @@ impl ConnectionIpInner {
     //     &mut self,
     //     name: T,
     //     message_type: TypeId,
-    // ) -> ConnectionResult<()> {
+    // ) -> Result<()> {
     //     let name: TypeName = name.into();
     //     let message_type = LocalId(message_type);
     //     let mut my_result = Ok(());
@@ -119,7 +118,7 @@ impl ConnectionIp {
     pub fn new_server(
         local_log_names: Option<LogFileNames>,
         addr: Option<SocketAddr>,
-    ) -> Result<ConnectionIp, Error> {
+    ) -> Result<ConnectionIp> {
         let addr =
             addr.unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
         let listener = TcpListener::bind(&addr)?;
@@ -137,10 +136,10 @@ impl ConnectionIp {
         remote_log_names: Option<LogFileNames>,
         reliable_channel: TcpStream,
         // low_latency_channel: Option<MessageFramedUdp>,
-    ) -> ConnectionResult<ConnectionIp> {
+    ) -> Result<ConnectionIp> {
         let mut inner = Self::new_inner(remote_log_names, local_log_names)?;
         {
-            let mut inner = inner_lock_mut::<ConnectionError>(&mut inner)?;
+            let mut inner = inner_lock_mut::<Error>(&mut inner)?;
             inner
                 .endpoints
                 .push(Some(EndpointIp::new(reliable_channel)));
@@ -151,7 +150,7 @@ impl ConnectionIp {
     fn new_inner(
         local_log_names: Option<LogFileNames>,
         remote_log_names: Option<LogFileNames>,
-    ) -> ConnectionResult<ArcConnectionIpInner> {
+    ) -> Result<ArcConnectionIpInner> {
         Ok(Arc::new(Mutex::new(ConnectionIpInner {
             type_dispatcher: TypeDispatcher::new(),
             remote_log_names: LogFileNames::from(remote_log_names),
@@ -161,12 +160,12 @@ impl ConnectionIp {
         })))
     }
     /// Common new implementation
-    fn new_impl(inner: ArcConnectionIpInner) -> ConnectionResult<ConnectionIp> {
+    fn new_impl(inner: ArcConnectionIpInner) -> Result<ConnectionIp> {
         {
             let conn = Arc::clone(&inner);
             // {
             //     let mut inner = Arc::clone(&inner);
-            //     let mut inner = inner_lock_mut::<ConnectionError>(&mut inner)?;
+            //     let mut inner = inner_lock_mut::<Error>(&mut inner)?;
             //     /*
             //     self.type_dispatcher
             //         .set_system_handler(constants::UDP_DESCRIPTION, handle_udp_message)
@@ -188,7 +187,7 @@ impl ConnectionIp {
     //     &mut self,
     //     name: impl Into<SenderName>,
     //     sender: SenderId,
-    // ) -> ConnectionResult<()> {
+    // ) -> Result<()> {
     //     self.inner_lock_mut()?.pack_sender_description(name, sender)
     // }
 
@@ -196,16 +195,16 @@ impl ConnectionIp {
     //     &mut self,
     //     name: impl Into<TypeName>,
     //     message_type: TypeId,
-    // ) -> ConnectionResult<()> {
+    // ) -> Result<()> {
     //     self.inner_lock_mut()?
     //         .pack_type_description(name, message_type)
     // }
 
-    fn add_type(&mut self, name: impl Into<TypeName>) -> ConnectionResult<TypeId> {
+    fn add_type(&mut self, name: impl Into<TypeName>) -> Result<TypeId> {
         self.inner_lock_mut()?.type_dispatcher.add_type(name)
     }
 
-    fn add_sender(&mut self, name: impl Into<SenderName>) -> ConnectionResult<SenderId> {
+    fn add_sender(&mut self, name: impl Into<SenderName>) -> Result<SenderId> {
         self.inner_lock_mut()?.type_dispatcher.add_sender(name)
     }
     /// Returns the ID for the type name, if found.
@@ -219,21 +218,18 @@ impl ConnectionIp {
             .get_sender_id(name)
     }
 
-    fn register_type(
-        &mut self,
-        name: impl Into<TypeName>,
-    ) -> ConnectionResult<RegisterMapping<TypeId>> {
+    fn register_type(&mut self, name: impl Into<TypeName>) -> Result<RegisterMapping<TypeId>> {
         self.inner_lock_mut()?.type_dispatcher.register_type(name)
     }
 
     fn register_sender(
         &mut self,
         name: impl Into<SenderName>,
-    ) -> ConnectionResult<RegisterMapping<SenderId>> {
+    ) -> Result<RegisterMapping<SenderId>> {
         self.inner_lock_mut()?.type_dispatcher.register_sender(name)
     }
 
-    fn inner_lock_mut(&mut self) -> ConnectionResult<MutexGuard<ConnectionIpInner>> {
+    fn inner_lock_mut(&mut self) -> Result<MutexGuard<ConnectionIpInner>> {
         inner_lock_mut(&mut self.inner)
     }
 
@@ -268,9 +264,9 @@ impl ConnectionIp {
 //         &mut self,
 //         msg: &GenericMessage,
 //         endpoint: &mut dyn Endpoint,
-//     ) -> ConnectionResult<()> {
+//     ) -> Result<()> {
 //         let msg = msg.clone();
-//         let mut conn = inner_lock_mut::<ConnectionError>(&mut self.conn)?;
+//         let mut conn = inner_lock_mut::<Error>(&mut self.conn)?;
 //         let desc = unbuffer_typed_message_body::<InnerDescription>(msg)?
 //             .into_typed_description::<SenderId>();
 //         let name = desc.name;
@@ -310,9 +306,9 @@ impl ConnectionIp {
 //         &mut self,
 //         msg: &GenericMessage,
 //         endpoint: &mut dyn Endpoint,
-//     ) -> ConnectionResult<()> {
+//     ) -> Result<()> {
 //         let msg = msg.clone();
-//         let mut conn = inner_lock_mut::<ConnectionError>(&mut self.conn)?;
+//         let mut conn = inner_lock_mut::<Error>(&mut self.conn)?;
 //         let desc = unbuffer_typed_message_body::<InnerDescription>(msg)?
 //             .into_typed_description::<TypeId>();
 //         let name = desc.name;
@@ -352,9 +348,9 @@ impl ConnectionIp {
 //         &mut self,
 //         msg: &GenericMessage,
 //         endpoint: &mut dyn Endpoint,
-//     ) -> ConnectionResult<()> {
+//     ) -> Result<()> {
 //         let msg = msg.clone();
-//         let mut conn = inner_lock_mut::<ConnectionError>(&mut self.conn)?;
+//         let mut conn = inner_lock_mut::<Error>(&mut self.conn)?;
 //         let ip: Vec<u8> = msg
 //             .body
 //             .inner

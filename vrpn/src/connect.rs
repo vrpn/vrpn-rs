@@ -4,10 +4,8 @@
 
 use bytes::{Bytes, BytesMut};
 use crate::{
-    base::cookie::{self, check_ver_nonfile_compatible, CookieData},
+    base::{cookie::check_ver_nonfile_compatible, CookieData, Error, Result},
     buffer::{buffer, unbuffer, ConstantBufferSize, Unbuffer},
-    connection::Error as ConnectionError,
-    error::Error,
     prelude::*,
     *,
 };
@@ -51,7 +49,6 @@ where
 {
     BytesMut::new()
         .allocate_and_buffer(cookie)
-        .map_err(|e| Error::BufferError(e))
         .into_future()
         .and_then(|buf| {
             io::write_all(stream, buf.freeze())
@@ -72,9 +69,7 @@ where
 }
 
 fn verify_version_nonfile(msg: CookieData) -> impl Future<Item = (), Error = Error> {
-    check_ver_nonfile_compatible(msg.version)
-        .into_future()
-        .from_err()
+    check_ver_nonfile_compatible(msg.version).into_future()
 }
 
 /// Accepts a buffer, and tries to unbuffer and verify compatibility of a magic cookie therein.
@@ -83,7 +78,6 @@ fn verify_version_nonfile(msg: CookieData) -> impl Future<Item = (), Error = Err
 fn unbuffer_and_verify_version_nonfile(buf: &[u8]) -> impl Future<Item = (), Error = Error> {
     let mut buf = Bytes::from(buf);
     CookieData::unbuffer_ref(&mut buf)
-        .map_err(|e| Error::UnbufferError(e))
         .into_future()
         .and_then(verify_version_nonfile)
 }
@@ -114,12 +108,12 @@ fn outgoing_tcp_connect(
     addr: std::net::SocketAddr,
 ) -> impl Future<Item = tokio::net::TcpStream, Error = Error> {
     make_tcp_socket(addr)
-        .map_err(|e| Error::IoError(e))
+        .map_err(|e| Error::from(e))
         .into_future()
         .and_then(move |sock| {
             let addr = addr.clone();
             TcpStream::connect_std(sock, &addr, &tokio::reactor::Handle::default())
-                .map_err(|e| Error::IoError(e))
+                .map_err(|e| Error::from(e))
         })
 }
 

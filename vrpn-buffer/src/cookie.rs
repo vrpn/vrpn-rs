@@ -11,8 +11,7 @@ use crate::traits::{
 use std::{num::ParseIntError, result};
 use vrpn_base::{
     constants::{COOKIE_SIZE, MAGIC_PREFIX},
-    cookie::{CookieData, Version},
-    log::{LogFlags, LogMode},
+    CookieData, EmptyResult, Error, LogFlags, LogMode, Result, Version,
 };
 
 const COOKIE_PADDING: &[u8] = b"\0\0\0\0\0";
@@ -25,9 +24,9 @@ impl ConstantBufferSize for CookieData {
 }
 
 impl Buffer for CookieData {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         if buf.remaining_mut() < Self::constant_buffer_size() {
-            return Err(buffer::Error::OutOfBuffer);
+            return Err(Error::OutOfBuffer);
         }
         buf.put(self.to_string());
         buf.put(COOKIE_PADDING);
@@ -36,12 +35,13 @@ impl Buffer for CookieData {
 }
 
 #[inline]
-fn from_dec(input: &[u8]) -> result::Result<u8, ParseIntError> {
-    u8::from_str_radix(&String::from_utf8_lossy(input), 10)
+fn from_dec(input: &[u8]) -> Result<u8> {
+    u8::from_str_radix(&String::from_utf8_lossy(input), 10).map_err(|e| Error::from(e))
+    //.map_err(|e| Box::new::<dyn std::error::Error>(e).into())
 }
 
 #[inline]
-fn dec_digits(buf: &mut Bytes, n: usize) -> result::Result<u8, ParseIntError> {
+fn dec_digits(buf: &mut Bytes, n: usize) -> Result<u8> {
     from_dec(&buf.split_to(n))
 }
 
@@ -57,7 +57,7 @@ fn u8_to_log_mode(v: u8) -> LogMode {
 }
 
 impl Unbuffer for CookieData {
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<Self> {
+    fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
         // remove "vrpn: ver. "
         check_expected(buf, MAGIC_PREFIX)?;
 
@@ -133,19 +133,19 @@ mod tests {
 
     #[test]
     fn basics() {
-        assert_eq!(from_dec(b"1"), Ok(1_u8));
-        assert_eq!(from_dec(b"12"), Ok(12_u8));
+        assert_eq!(from_dec(b"1").unwrap(), 1_u8);
+        assert_eq!(from_dec(b"12").unwrap(), 12_u8);
     }
     #[test]
     fn dec_digits_fn() {
         {
             let mut buf = Bytes::from_static(b"1");
-            assert_eq!(dec_digits(&mut buf, 1), Ok(1_u8));
+            assert_eq!(dec_digits(&mut buf, 1).unwrap(), 1_u8);
             assert_eq!(buf.len(), 0);
         }
         {
             let mut buf = Bytes::from_static(b"12");
-            assert_eq!(dec_digits(&mut buf, 2), Ok(12_u8));
+            assert_eq!(dec_digits(&mut buf, 2).unwrap(), 12_u8);
             assert_eq!(buf.len(), 0);
         }
     }

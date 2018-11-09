@@ -4,12 +4,9 @@
 
 use crate::{
     constants::{self, MAGIC_PREFIX},
-    log::{LogFlags, LogMode},
+    EmptyResult, Error, LogFlags, LogMode,
 };
-use std::{
-    fmt::{self, Display, Formatter},
-    result,
-};
+use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Version {
@@ -96,32 +93,19 @@ impl Display for CookieData {
     }
 }
 
-quick_error!{
-#[derive(Debug)]
-pub enum VersionError {
-    VersionMismatch(actual: Version, expected: Version) {
-        display(
-                "version mismatch: expected something compatible with {}, got {}",
-                expected, actual)
-    }
-}
-}
-pub fn check_ver_nonfile_compatible(ver: Version) -> result::Result<(), VersionError> {
+pub fn check_ver_nonfile_compatible(ver: Version) -> EmptyResult {
     if ver.major == constants::MAGIC_DATA.major {
         Ok(())
     } else {
-        Err(VersionError::VersionMismatch(ver, constants::MAGIC_DATA))
+        Err(Error::VersionMismatch(ver, constants::MAGIC_DATA))
     }
 }
 
-pub fn check_ver_file_compatible(ver: Version) -> result::Result<(), VersionError> {
+pub fn check_ver_file_compatible(ver: Version) -> EmptyResult {
     if ver.major == constants::FILE_MAGIC_DATA.major {
         Ok(())
     } else {
-        Err(VersionError::VersionMismatch(
-            ver,
-            constants::FILE_MAGIC_DATA,
-        ))
+        Err(Error::VersionMismatch(ver, constants::FILE_MAGIC_DATA))
     }
 }
 

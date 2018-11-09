@@ -2,48 +2,25 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use std::{
-    fmt::{self, Display},
-    ops::Add,
-};
+use vrpn_base::{BytesRequired, EmptyResult, Error, Result};
 
 pub mod buffer {
-    use super::{BufferSize, WrappedConstantSize};
+    use super::*;
     use bytes::{BufMut, BytesMut};
-    use std::io;
-
-    quick_error! {
-        #[derive(Debug)]
-        pub enum Error {
-            OutOfBuffer {
-                description("ran out of buffer space")
-            }
-            IoError(err: io::Error) {
-                display("{}", err)
-                description(err.description())
-                from()
-                cause(err)
-            }
-        }
-    }
-
-    pub type Result = std::result::Result<(), Error>;
-
-    pub type ResultWithBuf<T> = std::result::Result<T, Error>;
 
     pub trait BufMutExtras
     where
         Self: Sized,
     {
         /// Serialize the value to the buffer, without changing the allocated size.
-        fn buffer<T: Buffer>(self, v: T) -> ResultWithBuf<Self>;
+        fn buffer<T: Buffer>(self, v: T) -> Result<Self>;
     }
 
     impl<U> BufMutExtras for U
     where
         U: BufMut + Sized,
     {
-        fn buffer<T: Buffer>(self, v: T) -> ResultWithBuf<Self> {
+        fn buffer<T: Buffer>(self, v: T) -> Result<Self> {
             let mut buf = self;
             v.buffer_ref(&mut buf)?;
             Ok(buf)
@@ -55,11 +32,11 @@ pub mod buffer {
         Self: Sized,
     {
         /// Allocate enough space in the buffer for the given value, then serialize the value to the buffer.
-        fn allocate_and_buffer<T: Buffer>(self, v: T) -> ResultWithBuf<Self>;
+        fn allocate_and_buffer<T: Buffer>(self, v: T) -> Result<Self>;
     }
 
     impl BytesMutExtras for BytesMut {
-        fn allocate_and_buffer<T: Buffer>(mut self, v: T) -> ResultWithBuf<Self> {
+        fn allocate_and_buffer<T: Buffer>(mut self, v: T) -> Result<Self> {
             self.reserve(v.buffer_size());
             self.buffer(v)
         }
@@ -68,7 +45,7 @@ pub mod buffer {
     /// Trait for types that can be "buffered" (serialized to a byte buffer)
     pub trait Buffer: BufferSize {
         /// Serialize to a buffer (taken as a mutable reference)
-        fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> Result;
+        fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult;
 
         /// Get the number of bytes required to serialize this to a buffer.
         fn required_buffer_size(&self) -> usize {
@@ -77,7 +54,7 @@ pub mod buffer {
     }
 
     impl<T: WrappedConstantSize> Buffer for T {
-        fn buffer_ref<U: BufMut>(&self, buf: &mut U) -> Result {
+        fn buffer_ref<U: BufMut>(&self, buf: &mut U) -> EmptyResult {
             self.get().buffer_ref(buf)
         }
     }
@@ -85,10 +62,8 @@ pub mod buffer {
 }
 
 pub mod unbuffer {
-    use super::{BytesRequired, ConstantBufferSize, WrappedConstantSize};
-    use bytes::{buf::FromBuf, Buf, Bytes, BytesMut, IntoBuf};
-    use itertools;
-    use std::{io, num::ParseIntError};
+    use super::*;
+    use bytes::{Buf, Bytes, BytesMut, IntoBuf};
 
     /// Unifying trait over things we can unbuffer from (Bytes and BytesMut)
     pub trait Source:
@@ -97,7 +72,6 @@ pub mod unbuffer {
         fn split_to(&mut self, n: usize) -> Self;
         fn len(&self) -> usize;
         fn advance(&mut self, n: usize);
-        // fn collect<B: FromBuf>(self) -> B;
     }
     impl Source for Bytes {
         fn split_to(&mut self, n: usize) -> Self {
@@ -109,9 +83,6 @@ pub mod unbuffer {
         fn advance(&mut self, n: usize) {
             Bytes::advance(self, n)
         }
-        // fn collect<B: FromBuf>(self) -> B {
-        //     Buf::collect(self)
-        // }
     }
     impl Source for BytesMut {
         fn split_to(&mut self, n: usize) -> Self {
@@ -123,41 +94,7 @@ pub mod unbuffer {
         fn advance(&mut self, n: usize) {
             BytesMut::advance(self, n)
         }
-        // fn collect<B: FromBuf>(self) -> B {
-        //     Buf::collect(self)
-        // }
     }
-    quick_error! {
-        #[derive(Debug)]
-        pub enum Error {
-            NeedMoreData(needed: BytesRequired) {
-                display("ran out of buffered bytes: need {} additional bytes", needed)
-            }
-            InvalidDecimalDigit(chars: Vec<char>) {
-                display(self_) -> ("got the following non-decimal-digit(s) {}", itertools::join(chars.iter().map(|x : &char| x.to_string()), ","))
-            }
-            UnexpectedAsciiData(actual: Bytes, expected: Bytes) {
-                display("unexpected data: expected '{:?}', got '{:?}'", &expected[..], &actual[..])
-            }
-            ParseInt(err: ParseIntError) {
-                cause(err)
-                description(err.description())
-                display("{}", err)
-                from()
-            }
-            ParseError(msg: String) {
-                description(msg)
-            }
-            IoError(err: io::Error) {
-                display("{}", err)
-                description(err.description())
-                from()
-                cause(err)
-            }
-        }
-    }
-
-    pub type Result<T> = std::result::Result<T, Error>;
 
     /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
     pub trait Unbuffer: Sized {
@@ -242,7 +179,7 @@ pub mod unbuffer {
         fn map_need_more_err_to_generic_parse_err(self, task: &str) -> Self {
             match self {
                 Ok(v) => Ok(v),
-                Err(Error::NeedMoreData(n)) => Err(Error::ParseError(format!(
+                Err(Error::NeedMoreData(n)) => Err(Error::OtherMessage(format!(
                     "when {}, ran out of data - needed {} additional bytes",
                     task, n
                 ))),
@@ -348,47 +285,5 @@ pub trait ConstantBufferSize {
         Self: Sized,
     {
         std::mem::size_of::<Self>()
-    }
-}
-
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BytesRequired {
-    Exactly(usize),
-    AtLeast(usize),
-    Unknown,
-}
-
-impl BytesRequired {
-    pub fn satisfied_by(&self, buf_size: usize) -> Option<bool> {
-        match *self {
-            BytesRequired::Exactly(c) => Some(c <= buf_size),
-            BytesRequired::AtLeast(c) => Some(c <= buf_size),
-            BytesRequired::Unknown => None,
-        }
-    }
-}
-
-impl Add for BytesRequired {
-    type Output = BytesRequired;
-    fn add(self, other: BytesRequired) -> Self::Output {
-        use self::BytesRequired::*;
-        match (self, other) {
-            (Exactly(a), Exactly(b)) => Exactly(a + b),
-            (AtLeast(a), Exactly(b)) => AtLeast(a + b),
-            (Exactly(a), AtLeast(b)) => AtLeast(a + b),
-            (AtLeast(a), AtLeast(b)) => AtLeast(a + b),
-            // Anything else has Unknown as one term.
-            _ => Unknown,
-        }
-    }
-}
-
-impl Display for BytesRequired {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            BytesRequired::Exactly(n) => write!(f, "exactly {}", n),
-            BytesRequired::AtLeast(n) => write!(f, "at least {}", n),
-            BytesRequired::Unknown => write!(f, "unknown"),
-        }
     }
 }

@@ -3,10 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Bytes, BytesMut};
-use crate::{prelude::*, translationtable::Entry, typedispatcher, Error, Result};
+use crate::{prelude::*, translationtable::Entry, typedispatcher};
 use vrpn_base::{
-    message::{Description, SequencedMessage},
-    types::{BaseTypeSafeId, IdType, LocalId, RemoteId, SenderId, TypeId, TypeSafeId},
+    BaseTypeSafeId, Description, Error, IdType, LocalId, RemoteId, Result, SenderId,
+    SequencedMessage, TypeId, TypeSafeId,
 };
 
 /// Convert a remote ID to a local ID, if found.

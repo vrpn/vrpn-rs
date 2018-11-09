@@ -8,7 +8,7 @@ use crate::{
     traits::{
         buffer::{self, Buffer, BytesMutExtras},
         unbuffer::{self, OutputResultExtras, Unbuffer},
-        BufferSize, BytesRequired, WrappedConstantSize,
+        BufferSize, WrappedConstantSize,
     },
 };
 use std::{
@@ -17,10 +17,10 @@ use std::{
     ops::{Deref, DerefMut},
 };
 use vrpn_base::{
-    constants::ALIGN, BaseTypeSafeId, GenericBody, GenericMessage, IdType, InnerDescription,
-    LocalId, Message, MessageBody, RemoteId, SenderId, SequenceNumber, SequencedGenericMessage,
-    SequencedMessage, TimeVal, TypeId, TypeSafeId, TypedMessageBody, UdpDescription,
-    UdpInnerDescription,
+    constants::ALIGN, BaseTypeSafeId, BytesRequired, EmptyResult, Error, GenericBody,
+    GenericMessage, IdType, InnerDescription, LocalId, Message, MessageBody, RemoteId, Result,
+    SenderId, SequenceNumber, SequencedGenericMessage, SequencedMessage, TimeVal, TypeId,
+    TypeSafeId, TypedMessageBody, UdpDescription, UdpInnerDescription,
 };
 
 impl WrappedConstantSize for SequenceNumber {
@@ -203,10 +203,10 @@ impl BufferSize for SequencedMessage<GenericBody> {
 
 impl Buffer for SequencedMessage<GenericBody> {
     /// Serialize to a buffer.
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         let size = generic_message_size(self);
         if buf.remaining_mut() < size.padded_message_size() {
-            return Err(buffer::Error::OutOfBuffer);
+            return Err(Error::OutOfBuffer);
         }
         let length_field = size.length_field() as u32;
 
@@ -226,7 +226,7 @@ impl Buffer for SequencedMessage<GenericBody> {
 
 impl Unbuffer for SequencedMessage<GenericBody> {
     /// Deserialize from a buffer.
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<SequencedMessage<GenericBody>> {
+    fn unbuffer_ref(buf: &mut Bytes) -> Result<SequencedMessage<GenericBody>> {
         let initial_remaining = buf.len();
         let length_field = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
         let size = MessageSize::from_length_field(length_field);
@@ -235,7 +235,7 @@ impl Unbuffer for SequencedMessage<GenericBody> {
         let expected_remaining_bytes = size.padded_message_size() - size_of::<u32>();
 
         if buf.len() < expected_remaining_bytes {
-            return Err(unbuffer::Error::NeedMoreData(BytesRequired::Exactly(
+            return Err(Error::NeedMoreData(BytesRequired::Exactly(
                 expected_remaining_bytes - buf.len(),
             )));
         }
@@ -267,7 +267,7 @@ impl Unbuffer for SequencedMessage<GenericBody> {
 }
 
 impl Unbuffer for GenericBody {
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<GenericBody> {
+    fn unbuffer_ref(buf: &mut Bytes) -> Result<GenericBody> {
         let my_buf = buf.clone();
         buf.advance(my_buf.len());
         Ok(GenericBody::new(my_buf))
@@ -280,9 +280,9 @@ impl BufferSize for GenericBody {
     }
 }
 impl Buffer for GenericBody {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         if buf.remaining_mut() < self.inner.len() {
-            return Err(buffer::Error::OutOfBuffer);
+            return Err(Error::OutOfBuffer);
         }
         buf.put(self.inner.clone());
         Ok(())
@@ -296,7 +296,7 @@ impl<T: BaseTypeSafeId> BufferSize for InnerDescription<T> {
 }
 
 impl<U: BaseTypeSafeId> Buffer for InnerDescription<U> {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         length_prefixed::buffer_string(
             self.name().as_ref(),
             buf,
@@ -307,18 +307,18 @@ impl<U: BaseTypeSafeId> Buffer for InnerDescription<U> {
 }
 
 impl<T: BaseTypeSafeId> Unbuffer for InnerDescription<T> {
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<InnerDescription<T>> {
+    fn unbuffer_ref(buf: &mut Bytes) -> Result<InnerDescription<T>> {
         length_prefixed::unbuffer_string(buf).map(InnerDescription::new)
     }
 }
 
 impl Unbuffer for UdpInnerDescription {
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<UdpInnerDescription> {
+    fn unbuffer_ref(buf: &mut Bytes) -> Result<UdpInnerDescription> {
         let ip_buf: Vec<u8> = buf.iter().take_while(|b| **b != 0).cloned().collect();
         let ip_str = String::from_utf8_lossy(&ip_buf);
         let addr: IpAddr = ip_str
             .parse()
-            .map_err(|e| unbuffer::Error::ParseError(format!("ip address parse error: {}", e)))?;
+            .map_err(|e| Error::OtherMessage(format!("ip address parse error: {}", e)))?;
         buf.advance(ip_buf.len());
 
         Ok(UdpInnerDescription::new(addr))
@@ -331,10 +331,10 @@ impl BufferSize for UdpInnerDescription {
     }
 }
 impl Buffer for UdpInnerDescription {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         let addr_str = self.address.to_string();
         if buf.remaining_mut() < (addr_str.len() + 1) {
-            return Err(buffer::Error::OutOfBuffer);
+            return Err(Error::OutOfBuffer);
         }
         buf.put(addr_str);
         buf.put_u8(0);
@@ -344,12 +344,12 @@ impl Buffer for UdpInnerDescription {
 
 pub fn unbuffer_typed_message_body<T: Unbuffer + TypedMessageBody>(
     msg: GenericMessage,
-) -> unbuffer::Result<Message<T>> {
+) -> Result<Message<T>> {
     let mut buf = msg.body.inner.clone();
     let body =
         T::unbuffer_ref(&mut buf).map_need_more_err_to_generic_parse_err("parsing message body")?;
     if buf.len() > 0 {
-        return Err(unbuffer::Error::ParseError(format!(
+        return Err(Error::OtherMessage(format!(
             "message body length was indicated as {}, but {} bytes remain unconsumed",
             msg.body.inner.len(),
             buf.len()
@@ -360,7 +360,7 @@ pub fn unbuffer_typed_message_body<T: Unbuffer + TypedMessageBody>(
 
 pub fn make_message_body_generic<T: Buffer + TypedMessageBody>(
     msg: Message<T>,
-) -> std::result::Result<GenericMessage, buffer::Error> {
+) -> std::result::Result<GenericMessage, Error> {
     let old_body = msg.body;
     let header = msg.header;
     BytesMut::new()
@@ -375,7 +375,7 @@ pub fn make_message_body_generic<T: Buffer + TypedMessageBody>(
 
 pub fn make_sequenced_message_body_generic<T: Buffer + TypedMessageBody>(
     msg: SequencedMessage<T>,
-) -> std::result::Result<SequencedGenericMessage, buffer::Error> {
+) -> std::result::Result<SequencedGenericMessage, Error> {
     let seq = msg.sequence_number;
     make_message_body_generic(msg.message)
         .map(|generic_msg| generic_msg.into_sequenced_message(seq))

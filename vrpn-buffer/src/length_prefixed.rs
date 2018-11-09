@@ -8,10 +8,10 @@ use crate::{
     traits::{
         buffer::{self, Buffer},
         unbuffer::{self, check_expected, OutputResultExtras, Source, Unbuffer},
-        BytesRequired,
     },
 };
 use std::mem::size_of;
+use vrpn_base::{BytesRequired, EmptyResult, Error, Result};
 
 /// Does the "length prefix" value include a trailing null character (strlen() + 1)?
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -44,10 +44,10 @@ pub fn buffer_string<T: BufMut>(
     buf: &mut T,
     termination: NullTermination,
     null_in_len: LengthBehavior,
-) -> buffer::Result {
+) -> EmptyResult {
     let mut buf_size = buffer_size(s, termination);
     if buf.remaining_mut() < buf_size {
-        return Err(buffer::Error::OutOfBuffer);
+        return Err(Error::OutOfBuffer);
     }
     if termination == NullTermination::AddTrailingNull && null_in_len == LengthBehavior::ExcludeNull
     {
@@ -63,12 +63,12 @@ pub fn buffer_string<T: BufMut>(
 }
 
 /// Unbuffer a string, preceded by its length and followed by a null bytes.
-pub fn unbuffer_string(buf: &mut Bytes) -> unbuffer::Result<Bytes> {
+pub fn unbuffer_string(buf: &mut Bytes) -> Result<Bytes> {
     let buf_size = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
 
     let buf_size = buf_size as usize;
     if buf.len() < buf_size {
-        return Err(unbuffer::Error::NeedMoreData(BytesRequired::Exactly(
+        return Err(Error::NeedMoreData(BytesRequired::Exactly(
             buf_size - buf.len(),
         )));
     }

@@ -8,9 +8,6 @@ extern crate itertools;
 
 extern crate libc;
 
-#[macro_use]
-extern crate quick_error;
-
 extern crate vrpn_base;
 
 pub mod cookie;

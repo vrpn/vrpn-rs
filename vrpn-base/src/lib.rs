@@ -14,12 +14,15 @@ extern crate quick_error;
 
 pub mod constants;
 pub mod cookie;
+pub mod error;
 pub mod log;
 pub mod message;
 pub mod time;
 pub mod types;
 
 pub use crate::{
+    cookie::{CookieData, Version},
+    error::*,
     log::{LogFileNames, LogFlags, LogMode},
     message::{
         Description, GenericBody, GenericMessage, InnerDescription, Message, MessageBody,
