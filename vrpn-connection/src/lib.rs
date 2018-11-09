@@ -19,8 +19,16 @@ pub mod translationtable;
 pub mod typedispatcher;
 
 pub use crate::{
-    endpoint::Endpoint,
+    endpoint::*,
     error::{append_error, Error, Result},
-    translationtable::TranslationTable,
+    translationtable::{MatchingTable, Table as TranslationTable, Tables as TranslationTables},
     typedispatcher::{Handler, RegisterMapping, SystemHandler, TypeDispatcher},
 };
+
+pub mod translation {
+    pub use crate::translationtable::{add_remote_entry, map_to_local_id};
+}
+
+pub mod prelude {
+    pub use crate::translationtable::MatchingTable;
+}

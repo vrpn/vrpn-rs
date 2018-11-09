@@ -5,19 +5,24 @@
 use bytes::{Bytes, BytesMut};
 use crate::{
     base::types::*,
-    base::{constants::TCP_BUFLEN, Description, GenericMessage, Message},
-    buffer::{buffer, make_message_body_generic, unbuffer, Buffer},
+    base::{
+        constants::{self, TCP_BUFLEN},
+        Description, GenericMessage, InnerDescription, Message, TypedMessageBody,
+    },
+    buffer::{buffer, make_message_body_generic, unbuffer, unbuffer_typed_message_body, Buffer},
     codec::{self, FramedMessageCodec},
     connection::{
-        Endpoint, Error as ConnectionError, Result as ConnectionResult, TranslationTable,
+        endpoint::*, translation, Error as ConnectionError, MatchingTable,
+        Result as ConnectionResult, TranslationTable, TranslationTables, TypeDispatcher,
     },
     endpoint_channel::{EndpointChannel, EpSinkError, EpSinkItem, EpStreamError, EpStreamItem},
     error::Error,
     inner_lock, ArcConnectionIpInner,
 };
+use futures::sync::mpsc;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 use tokio::{
     codec::{Decoder, Encoder, Framed},
@@ -25,60 +30,88 @@ use tokio::{
     net::{TcpStream, UdpFramed, UdpSocket},
     prelude::*,
 };
+
 pub type MessageFramed = codec::MessageFramed<TcpStream>;
 pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
 
-#[derive(Debug)]
-pub struct EndpointIp {
-    pub(crate) types: TranslationTable<TypeId>,
-    pub(crate) senders: TranslationTable<SenderId>,
-    wr: BytesMut,
-    reliable_channel: EndpointChannel<MessageFramed>,
-    seq: AtomicUsize, // low_latency_tx: Option<MessageFramedUdp>
+fn poll_and_dispatch_channel<T>(
+    endpoint: &mut EndpointIp,
+    channel: &mut EndpointChannel<T>,
+    dispatcher: &mut TypeDispatcher,
+) -> Poll<(), Error>
+where
+    T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>
+        + Stream<Item = EpStreamItem, Error = EpStreamError>,
+{
+    let mut closed = channel.poll_flush()?.is_ready();
+
+    const MAX_PER_TICK: usize = 10;
+    for i in 0..MAX_PER_TICK {
+        match channel.poll_receive()? {
+            Async::Ready(Some(msg)) => {
+                eprintln!("Received message {:?}", msg);
+                if msg.is_system_message() {
+                    endpoint.handle_system_message(msg)?;
+                } else {
+                    dispatcher.do_callbacks_for(&msg)?;
+                }
+            }
+            Async::Ready(None) => {
+                // connection closed
+                closed = true;
+            }
+            Async::NotReady => {
+                break;
+            }
+        }
+        // If this is the last iteration, the loop will break even
+        // though there could still be messages to read. Because we did
+        // not reach `Async::NotReady`, we have to notify ourselves
+        // in order to tell the executor to schedule the task again.
+        if i + 1 == MAX_PER_TICK {
+            task::current().notify();
+        }
+    }
+    if closed {
+        Ok(Async::Ready(()))
+    } else {
+        Ok(Async::NotReady)
+    }
 }
 
+#[derive(Debug)]
+pub struct EndpointIp {
+    translation: TranslationTables,
+    wr: BytesMut,
+    reliable_channel: Arc<Mutex<EndpointChannel<MessageFramed>>>,
+    seq: AtomicUsize,
+    system_rx: mpsc::UnboundedReceiver<SystemMessage>,
+    system_tx: mpsc::UnboundedSender<SystemMessage>, // low_latency_tx: Option<MessageFramedUdp>
+}
 impl EndpointIp {
     pub(crate) fn new(
         reliable_stream: TcpStream //low_latency_channel: Option<MessageFramedUdp>
     ) -> EndpointIp {
         let framed = codec::apply_message_framing(reliable_stream);
+        let (system_tx, system_rx) = mpsc::unbounded();
         EndpointIp {
-            types: TranslationTable::new(),
-            senders: TranslationTable::new(),
+            translation: TranslationTables::new(),
             wr: BytesMut::new(),
             reliable_channel: EndpointChannel::new(framed),
-            seq: AtomicUsize::new(0)
+            seq: AtomicUsize::new(0),
+            system_tx,
+            system_rx
             // low_latency_channel,
         }
     }
-    fn buffer_generic_message(
-        &mut self,
-        msg: GenericMessage,
-        class: ClassOfService,
-    ) -> ConnectionResult<()> {
-        let seq = self.seq.fetch_add(1, Ordering::SeqCst);
 
-        self.reliable_channel
-            .buffer(msg.add_sequence_number(SequenceNumber(seq as u32)))?;
-        unimplemented!();
-    }
+    // pub(crate) fn sender_table(&self) -> &TranslationTable<SenderId> {
+    //     &self.senders
+    // }
 
-    pub(crate) fn buffer_message<T: Buffer>(
-        &mut self,
-        msg: Message<T>,
-        class: ClassOfService,
-    ) -> ConnectionResult<()> {
-        let generic_msg = make_message_body_generic(msg)?;
-        self.buffer_generic_message(generic_msg, class)
-    }
-
-    pub(crate) fn sender_table(&self) -> &TranslationTable<SenderId> {
-        &self.senders
-    }
-
-    pub(crate) fn type_table(&self) -> &TranslationTable<TypeId> {
-        &self.types
-    }
+    // pub(crate) fn type_table(&self) -> &TranslationTable<TypeId> {
+    //     &self.types
+    // }
 
     pub(crate) fn pack_sender_description(
         &mut self,
@@ -86,18 +119,18 @@ impl EndpointIp {
     ) -> ConnectionResult<()> {
         let LocalId(id) = local_sender;
         let name = self
+            .translation
             .senders
             .find_by_local_id(local_sender)
-            .ok_or(ConnectionError::InvalidLocalId(id.get()))
-            .and_then(|entry| Ok(entry.name.clone()))?;
+            .ok_or_else(|| ConnectionError::InvalidLocalId(id.get()))
+            .and_then(|entry| Ok(entry.name().clone()))?;
         let desc_msg = Message::from(Description::new(id, name));
         self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
             .map(|_| ())
     }
 
     pub(crate) fn clear_other_senders_and_types(&mut self) {
-        self.senders.clear();
-        self.types.clear();
+        self.translation.clear();
     }
 
     pub(crate) fn pack_type_description(
@@ -106,30 +139,24 @@ impl EndpointIp {
     ) -> ConnectionResult<()> {
         let LocalId(id) = local_type;
         let name = self
+            .translation
             .types
             .find_by_local_id(local_type)
-            .ok_or(ConnectionError::InvalidLocalId(id.get()))
-            .and_then(|entry| Ok(entry.name.clone()))?;
+            .ok_or_else(|| ConnectionError::InvalidLocalId(id.get()))
+            .and_then(|entry| Ok(entry.name().clone()))?;
 
         let desc_msg = Message::from(Description::new(id, name));
         self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
             .map(|_| ())
     }
 
-    /// Convert remote type ID to local type ID
-    pub(crate) fn local_type_id(&self, remote_type: RemoteId<TypeId>) -> Option<LocalId<TypeId>> {
-        match self.type_table().map_to_local_id(remote_type) {
-            Ok(val) => val,
-            Err(_) => None,
-        }
-    }
-
-    /// Convert remote sender ID to local sender ID
-    pub(crate) fn local_sender_id(
-        &self,
-        remote_sender: RemoteId<SenderId>,
-    ) -> Option<LocalId<SenderId>> {
-        match self.sender_table().map_to_local_id(remote_sender) {
+    /// Convert remote sender/type ID to local sender/type ID
+    pub(crate) fn map_to_local_id<T>(&self, remote_id: RemoteId<T>) -> Option<LocalId<T>>
+    where
+        T: BaseTypeSafeId,
+        TranslationTables: MatchingTable<T>,
+    {
+        match translation::map_to_local_id(&self.translation, remote_id) {
             Ok(val) => val,
             Err(_) => None,
         }
@@ -141,7 +168,8 @@ impl EndpointIp {
         local_sender: LocalId<SenderId>,
     ) -> bool {
         let name: SenderName = name.into();
-        self.sender_table_mut()
+        self.translation
+            .senders
             .add_local_id(name.into(), local_sender)
     }
 
@@ -151,25 +179,15 @@ impl EndpointIp {
         local_type: LocalId<TypeId>,
     ) -> bool {
         let name: TypeName = name.into();
-        self.type_table_mut().add_local_id(name.into(), local_type)
+        self.translation.types.add_local_id(name.into(), local_type)
     }
 
-    pub(crate) fn poll_endpoint(&mut self, conn: ArcConnectionIpInner) -> Poll<(), Error> {
-        let channel = &mut self.reliable_channel;
-        let closed = channel
-            .process_send_receive(|msg| -> Result<(), Error> {
-                eprintln!("Received message {:?}", msg);
-                if msg.header.message_type.is_system_message() {
-                    let mut conn = inner_lock::<Error>(&conn)?;
-                    conn.type_dispatcher.do_system_callbacks_for(&msg, self)?;
-                } else {
-                    let mut conn = inner_lock::<Error>(&conn)?;
-                    conn.type_dispatcher.do_callbacks_for(&msg)?;
-                }
-                // todo do something here
-                Ok(())
-            })?
-            .is_ready();
+    pub(crate) fn poll_endpoint(&mut self, dispatcher: &mut TypeDispatcher) -> Poll<(), Error> {
+        let channel_arc = Arc::clone(&self.reliable_channel);
+        let mut channel = channel_arc
+            .lock()
+            .map_err(|e| Error::OtherMessage(e.to_string()))?;
+        let closed = poll_and_dispatch_channel(self, &mut channel, dispatcher)?.is_ready();
 
         // todo UDP here.
 
@@ -182,29 +200,36 @@ impl EndpointIp {
 }
 
 impl Endpoint for EndpointIp {
-    fn connect_to_udp(&mut self, addr: Bytes, port: usize) -> ConnectionResult<()> {
-        eprintln!("Told to connect over UDP to {:?}:{}", addr, port);
+    fn send_system_change(&self, message: SystemMessage) -> ConnectionResult<()> {
+        println!("send_system_change {:?}", message);
+        let mut tx = mpsc::UnboundedSender::clone(&self.system_tx);
+        tx.unbounded_send(message)
+            .map_err(|e| ConnectionError::OtherMessage(e.to_string()))?;
         Ok(())
     }
-    fn sender_table_mut(&mut self) -> &mut TranslationTable<SenderId> {
-        &mut self.senders
-    }
-    fn type_table_mut(&mut self) -> &mut TranslationTable<TypeId> {
-        &mut self.types
+
+    fn buffer_generic_message(
+        &mut self,
+        msg: GenericMessage,
+        class: ClassOfService,
+    ) -> ConnectionResult<()> {
+        let seq = self.seq.fetch_add(1, Ordering::SeqCst);
+        let mut channel = self
+            .reliable_channel
+            .lock()
+            .map_err(|e| ConnectionError::OtherMessage(e.to_string()))?;
+        channel.buffer(msg.into_sequenced_message(SequenceNumber(seq as u32)))?;
+        Ok(())
     }
 }
 
-impl Future for EndpointIp {
-    type Item = ();
-    type Error = Error;
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.reliable_channel.process_send_receive(|msg| {
-            eprintln!("Received message {:?}", msg);
-            // todo do something here
-            Ok(())
-        })
-    }
-}
+// impl Future for EndpointIp {
+//     type Item = ();
+//     type Error = Error;
+//     fn poll(&mut self, dispatcher: &TypeDispatcher) -> Poll<Self::Item, Self::Error> {
+//         self.poll_endpoint(dispatcher)
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -222,13 +247,29 @@ mod tests {
                 //     panic!()
                 // })
                 for _i in 0..4 {
-                    let _ = ep
-                        .reliable_channel
+                    let mut channel = ep.reliable_channel.lock().unwrap();
+                    let _ = channel
                         .process_send_receive(|msg| {
                             eprintln!("Received message {:?}", msg);
                             Ok(())
                         })
                         .unwrap();
+                }
+                Ok(())
+            })
+            .wait()
+            .unwrap();
+    }
+    #[test]
+    fn run_endpoint() {
+        use crate::connect::connect_tcp;
+        let addr = "127.0.0.1:3883".parse().unwrap();
+        let _ = connect_tcp(addr)
+            .and_then(|stream| {
+                let mut ep = EndpointIp::new(stream);
+                let mut disp = TypeDispatcher::new();
+                for _i in 0..4 {
+                    let _ = ep.poll_endpoint(&mut disp).unwrap();
                 }
                 Ok(())
             })

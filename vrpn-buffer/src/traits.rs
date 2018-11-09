@@ -328,7 +328,7 @@ impl<T: ConstantBufferSize> BufferSize for T {
 
 pub trait WrappedConstantSize {
     type WrappedType: buffer::Buffer + unbuffer::UnbufferConstantSize + ConstantBufferSize;
-    fn get<'a>(&'a self) -> &'a Self::WrappedType;
+    fn get(&self) -> Self::WrappedType;
     fn new(v: Self::WrappedType) -> Self;
 }
 

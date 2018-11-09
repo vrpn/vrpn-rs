@@ -87,7 +87,7 @@ impl MsgCallbackEntry {
 
     /// Invokes the callback with the given params, if the sender filter (if not None) matches.
     pub fn call<'a>(&mut self, msg: &'a GenericMessage) -> Result<()> {
-        if self.sender.matches(&msg.header.sender) {
+        if self.sender.matches(&msg.header.sender()) {
             self.handler.handle(msg)
         } else {
             Ok(())
@@ -307,7 +307,7 @@ impl TypeDispatcher {
     }
 
     pub fn do_callbacks_for(&mut self, msg: &GenericMessage) -> Result<()> {
-        let index = message_type_into_index(msg.header.message_type, self.types.len())?;
+        let index = message_type_into_index(msg.header.message_type(), self.types.len())?;
         let mapping = &mut self.types[index];
 
         self.generic_callbacks.call(&msg)?;
@@ -319,7 +319,7 @@ impl TypeDispatcher {
         msg: &GenericMessage,
         endpoint: &mut dyn Endpoint,
     ) -> Result<()> {
-        let index = system_message_type_into_index(msg.header.message_type)?;
+        let index = system_message_type_into_index(msg.header.message_type())?;
         if index >= self.system_callbacks.len() {
             // Not an error to try to call an unhandled system message
             return Ok(());

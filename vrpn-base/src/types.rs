@@ -87,6 +87,7 @@ impl TypeId {
         self.0 < 0
     }
 }
+
 // impl<'a> BaseTypeSafeIdName<'a> for TypeId {
 //     type Name = StaticTypeName<'a>;
 // }

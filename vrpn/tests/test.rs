@@ -9,7 +9,7 @@ use tokio::prelude::*;
 use vrpn::{
     base::types::{LocalId, RemoteId, SenderId},
     connect::connect_tcp,
-    connection::translationtable::TranslationTable,
+    connection::TranslationTable,
     ConnectionIp,
 };
 

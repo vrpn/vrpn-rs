@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use vrpn_base::types::{IdType, TypeSafeId};
+use vrpn_base::types::IdType;
 use vrpn_buffer::{buffer, unbuffer};
 
 quick_error! {
@@ -41,6 +41,12 @@ quick_error! {
         }
         TooManyMappings {
             description("too many mappings")
+        }
+        NotSystemMessage {
+            description("a non-system message was forwarded to Endpoint::handle_system_message()")
+        }
+        UnrecognizedSystemMessage(id: IdType) {
+            display("un-recognized system message id {}", id)
         }
         Other(err: Box<std::error::Error>) {
             cause(&**err)

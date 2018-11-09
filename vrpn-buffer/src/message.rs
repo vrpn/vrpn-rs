@@ -8,27 +8,25 @@ use crate::{
     traits::{
         buffer::{self, Buffer, BytesMutExtras},
         unbuffer::{self, OutputResultExtras, Unbuffer},
-        BufferSize, BytesRequired, ConstantBufferSize, WrappedConstantSize,
+        BufferSize, BytesRequired, WrappedConstantSize,
     },
 };
 use std::{
     mem::size_of,
+    net::{IpAddr, SocketAddr},
     ops::{Deref, DerefMut},
 };
 use vrpn_base::{
-    constants::ALIGN,
-    message::{
-        GenericBody, GenericMessage, InnerDescription, Message, SequencedGenericMessage,
-        SequencedMessage,
-    },
-    time::TimeVal,
-    types::{IdType, SenderId, SequenceNumber, TypeId},
+    constants::ALIGN, BaseTypeSafeId, GenericBody, GenericMessage, IdType, InnerDescription,
+    LocalId, Message, MessageBody, RemoteId, SenderId, SequenceNumber, SequencedGenericMessage,
+    SequencedMessage, TimeVal, TypeId, TypeSafeId, TypedMessageBody, UdpDescription,
+    UdpInnerDescription,
 };
 
 impl WrappedConstantSize for SequenceNumber {
     type WrappedType = u32;
-    fn get<'a>(&'a self) -> &'a Self::WrappedType {
-        &self.0
+    fn get(&self) -> Self::WrappedType {
+        self.0
     }
     fn new(v: Self::WrappedType) -> Self {
         SequenceNumber(v)
@@ -37,8 +35,8 @@ impl WrappedConstantSize for SequenceNumber {
 
 impl WrappedConstantSize for SenderId {
     type WrappedType = IdType;
-    fn get<'a>(&'a self) -> &'a Self::WrappedType {
-        &self.0
+    fn get(&self) -> Self::WrappedType {
+        TypeSafeId::get(self)
     }
     fn new(v: Self::WrappedType) -> Self {
         SenderId(v)
@@ -47,13 +45,23 @@ impl WrappedConstantSize for SenderId {
 
 impl WrappedConstantSize for TypeId {
     type WrappedType = IdType;
-    fn get<'a>(&'a self) -> &'a Self::WrappedType {
-        &self.0
+    fn get(&self) -> Self::WrappedType {
+        TypeSafeId::get(self)
     }
     fn new(v: Self::WrappedType) -> Self {
         TypeId(v)
     }
 }
+// impl<T: BaseTypeSafeId> WrappedConstantSize for RemoteId<T> {
+//     type WrappedType = IdType;
+//     fn get(&self) -> Self::WrappedType {
+//         TypeSafeId::get(self)
+//     }
+//     fn new(v: Self::WrappedType) -> Self {
+//         RemoteId(T::new(v))
+//     }
+// }
+
 #[inline]
 fn compute_padding(len: usize) -> usize {
     ALIGN - (len % ALIGN)
@@ -70,6 +78,7 @@ pub struct MessageSize {
     // The unpadded size of a message body only
     pub unpadded_body_size: usize,
 }
+
 impl MessageSize {
     const UNPADDED_HEADER_SIZE: usize = 5 * 4;
 
@@ -118,43 +127,44 @@ impl MessageSize {
 
 /// Wraps a type implementing BufMut to also track the initial remaining length,
 /// to allow for automatic padding of fields.
-struct BufMutWrapper<T: BufMut>(T, usize);
-impl<T: BufMut> BufMutWrapper<T> {
-    fn new(buf: T) -> BufMutWrapper<T> {
-        let remaining = buf.remaining_mut();
-        BufMutWrapper(buf, remaining)
-    }
-    fn buffered(&self) -> usize {
-        self.1 - self.0.remaining_mut()
-    }
-    fn pad_to_align(&mut self) {
-        for _ in 0..compute_padding(self.buffered()) {
-            self.0.put_u8(0)
-        }
-    }
-    #[inline]
-    fn borrow_buf(&self) -> &T {
-        &self.0
-    }
-    #[inline]
-    fn borrow_buf_mut(&mut self) -> &mut T {
-        &mut self.0
-    }
-}
+// struct BufMutWrapper<T: BufMut>(T, usize);
+// impl<T: BufMut> BufMutWrapper<T> {
+//     fn new(buf: T) -> BufMutWrapper<T> {
+//         let remaining = buf.remaining_mut();
+//         BufMutWrapper(buf, remaining)
+//     }
+//     fn buffered(&self) -> usize {
+//         self.1 - self.0.remaining_mut()
+//     }
+//     fn pad_to_align(&mut self) {
+//         for _ in 0..compute_padding(self.buffered()) {
+//             self.0.put_u8(0)
+//         }
+//     }
+//     #[inline]
+//     fn borrow_buf(&self) -> &T {
+//         &self.0
+//     }
+//     #[inline]
+//     fn borrow_buf_mut(&mut self) -> &mut T {
+//         &mut self.0
+//     }
+// }
 
-impl<T: BufMut> Deref for BufMutWrapper<T> {
-    type Target = T;
-    #[inline]
-    fn deref(&self) -> &T {
-        self.borrow_buf()
-    }
-}
-impl<T: BufMut> DerefMut for BufMutWrapper<T> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut T {
-        self.borrow_buf_mut()
-    }
-}
+// impl<T: BufMut> Deref for BufMutWrapper<T> {
+//     type Target = T;
+//     #[inline]
+//     fn deref(&self) -> &T {
+//         self.borrow_buf()
+//     }
+// }
+
+// impl<T: BufMut> DerefMut for BufMutWrapper<T> {
+//     #[inline]
+//     fn deref_mut(&mut self) -> &mut T {
+//         self.borrow_buf_mut()
+//     }
+// }
 
 // Header is 5 i32s (padded to vrpn_ALIGN):
 // - unpadded header size + unpadded body size
@@ -167,39 +177,41 @@ impl<T: BufMut> DerefMut for BufMutWrapper<T> {
 //
 // body is padded out to vrpn_ALIGN
 
-impl<U: BufferSize> BufferSize for SequencedMessage<U> {
+fn generic_message_size(msg: &SequencedGenericMessage) -> MessageSize {
+    MessageSize::from_unpadded_body_size(msg.message.body.inner.len())
+}
+impl BufferSize for SequencedMessage<GenericBody> {
     fn buffer_size(&self) -> usize {
-        MessageSize::from_unpadded_body_size(self.message.body.buffer_size()).padded_message_size()
+        generic_message_size(self).padded_message_size()
     }
 }
 
-impl<U: Buffer> Buffer for SequencedMessage<U> {
+impl Buffer for SequencedMessage<GenericBody> {
     /// Serialize to a buffer.
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
-        let size = MessageSize::from_unpadded_body_size(self.message.body.buffer_size());
+        let size = generic_message_size(self);
         if buf.remaining_mut() < size.padded_message_size() {
             return Err(buffer::Error::OutOfBuffer);
         }
         let unpadded_len: u32 = size.unpadded_message_size() as u32;
 
         Buffer::buffer_ref(&unpadded_len, buf)
-            .and_then(|()| self.message.header.time.buffer_ref(buf))
-            .and_then(|()| self.message.header.sender.buffer_ref(buf))
-            .and_then(|()| self.message.header.message_type.buffer_ref(buf))
+            .and_then(|()| self.message.header.time().buffer_ref(buf))
+            .and_then(|()| self.message.header.sender().buffer_ref(buf))
+            .and_then(|()| self.message.header.message_type().buffer_ref(buf))
             .and_then(|()| self.sequence_number.buffer_ref(buf))?;
 
-        let mut buf = BufMutWrapper::new(buf);
-        Buffer::buffer_ref(&self.message.body, buf.borrow_buf_mut()).and_then(|()| {
-            assert_eq!(buf.buffered(), size.unpadded_body_size);
-            buf.pad_to_align();
-            Ok(())
-        })
+        buf.put(&self.message.body.inner);
+        for _ in 0..size.body_padding() {
+            buf.put_u8(0);
+        }
+        Ok(())
     }
 }
 
-impl<U: Unbuffer> Unbuffer for SequencedMessage<U> {
+impl Unbuffer for SequencedMessage<GenericBody> {
     /// Deserialize from a buffer.
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<SequencedMessage<U>> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<SequencedMessage<GenericBody>> {
         let initial_remaining = buf.len();
         let unpadded_len = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
         let size = MessageSize::from_unpadded_message_size(unpadded_len as usize);
@@ -223,7 +235,7 @@ impl<U: Unbuffer> Unbuffer for SequencedMessage<U> {
         let body;
         {
             let mut body_buf = buf.split_to(size.unpadded_body_size);
-            body = U::unbuffer_ref(&mut body_buf).map_exactly_err_to_at_least()?;
+            body = GenericBody::unbuffer_ref(&mut body_buf).map_exactly_err_to_at_least()?;
             assert_eq!(body_buf.len(), 0);
         }
 
@@ -261,16 +273,17 @@ impl Buffer for GenericBody {
         Ok(())
     }
 }
-impl BufferSize for InnerDescription {
+
+impl<T: BaseTypeSafeId> BufferSize for InnerDescription<T> {
     fn buffer_size(&self) -> usize {
-        length_prefixed::buffer_size(self.name.as_ref(), NullTermination::AddTrailingNull)
+        length_prefixed::buffer_size(self.name().as_ref(), NullTermination::AddTrailingNull)
     }
 }
 
-impl Buffer for InnerDescription {
+impl<U: BaseTypeSafeId> Buffer for InnerDescription<U> {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
         length_prefixed::buffer_string(
-            self.name.as_ref(),
+            self.name().as_ref(),
             buf,
             NullTermination::AddTrailingNull,
             LengthBehavior::IncludeNull,
@@ -278,13 +291,43 @@ impl Buffer for InnerDescription {
     }
 }
 
-impl Unbuffer for InnerDescription {
-    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<InnerDescription> {
+impl<T: BaseTypeSafeId> Unbuffer for InnerDescription<T> {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<InnerDescription<T>> {
         length_prefixed::unbuffer_string(buf).map(|b| InnerDescription::new(b))
     }
 }
 
-pub fn unbuffer_typed_message_body<T: Unbuffer>(
+impl Unbuffer for UdpInnerDescription {
+    fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<UdpInnerDescription> {
+        let ip_buf: Vec<u8> = buf.iter().take_while(|b| **b != 0).cloned().collect();
+        let ip_str = String::from_utf8_lossy(&ip_buf);
+        let addr: IpAddr = ip_str
+            .parse()
+            .map_err(|e| unbuffer::Error::ParseError(format!("ip address parse error: {}", e)))?;
+        buf.advance(ip_buf.len());
+
+        Ok(UdpInnerDescription::new(addr))
+    }
+}
+
+impl BufferSize for UdpInnerDescription {
+    fn buffer_size(&self) -> usize {
+        self.address.to_string().len() + 1
+    }
+}
+impl Buffer for UdpInnerDescription {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::Result {
+        let addr_str = self.address.to_string();
+        if buf.remaining_mut() < (addr_str.len() + 1) {
+            return Err(buffer::Error::OutOfBuffer);
+        }
+        buf.put(addr_str);
+        buf.put_u8(0);
+        Ok(())
+    }
+}
+
+pub fn unbuffer_typed_message_body<T: Unbuffer + TypedMessageBody>(
     msg: GenericMessage,
 ) -> unbuffer::Result<Message<T>> {
     let mut buf = msg.body.inner.clone();
@@ -300,7 +343,7 @@ pub fn unbuffer_typed_message_body<T: Unbuffer>(
     Ok(Message::from_header_and_body(msg.header, body))
 }
 
-pub fn make_message_body_generic<T: Buffer>(
+pub fn make_message_body_generic<T: Buffer + TypedMessageBody>(
     msg: Message<T>,
 ) -> std::result::Result<GenericMessage, buffer::Error> {
     let old_body = msg.body;
@@ -315,16 +358,18 @@ pub fn make_message_body_generic<T: Buffer>(
         })
 }
 
-pub fn make_sequenced_message_body_generic<T: Buffer>(
+pub fn make_sequenced_message_body_generic<T: Buffer + TypedMessageBody>(
     msg: SequencedMessage<T>,
 ) -> std::result::Result<SequencedGenericMessage, buffer::Error> {
     let seq = msg.sequence_number;
-    make_message_body_generic(msg.message).map(|generic_msg| generic_msg.add_sequence_number(seq))
+    make_message_body_generic(msg.message)
+        .map(|generic_msg| generic_msg.into_sequenced_message(seq))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::traits::ConstantBufferSize;
     #[test]
     fn constant() {
         // The size field is a u32.

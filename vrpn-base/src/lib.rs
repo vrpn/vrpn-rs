@@ -21,6 +21,11 @@ pub mod types;
 
 pub use crate::{
     log::{LogFileNames, LogFlags, LogMode},
-    message::{Description, GenericMessage, InnerDescription, Message, SequencedGenericMessage},
+    message::{
+        Description, GenericBody, GenericMessage, InnerDescription, Message, MessageBody,
+        MessageTypeIdentifier, MessageTypeIdentifier::UserMessageName, SequencedGenericMessage,
+        SequencedMessage, TypedMessageBody, UdpDescription, UdpInnerDescription,
+    },
+    time::TimeVal,
     types::*,
 };

@@ -6,19 +6,19 @@ use bytes::{Bytes, BytesMut};
 use crate::{typedispatcher, Error, Result};
 use vrpn_base::{
     message::{Description, SequencedMessage},
-    types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId},
+    types::{BaseTypeSafeId, IdType, LocalId, RemoteId, SenderId, TypeId, TypeSafeId},
 };
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct TranslationEntry<T: BaseTypeSafeId> {
-    pub  name: Bytes,
+pub struct Entry<T: BaseTypeSafeId> {
+    name: Bytes,
     local_id: LocalId<T>,
     remote_id: RemoteId<T>,
 }
 
-impl<T: BaseTypeSafeId> TranslationEntry<T> {
-    fn new(name: Bytes, local_id: LocalId<T>, remote_id: RemoteId<T>) -> TranslationEntry<T> {
-        TranslationEntry {
+impl<T: BaseTypeSafeId> Entry<T> {
+    fn new(name: Bytes, local_id: LocalId<T>, remote_id: RemoteId<T>) -> Entry<T> {
+        Entry {
             name,
             local_id,
             remote_id,
@@ -37,6 +37,10 @@ impl<T: BaseTypeSafeId> TranslationEntry<T> {
         unimplemented!();
     }
 
+    pub fn name(&self) -> &Bytes {
+        &self.name
+    }
+
     fn pack_description(&self) -> Result<Bytes> {
         let mut buf = BytesMut::new();
         self.buffer_description_ref(&mut buf)?;
@@ -45,19 +49,19 @@ impl<T: BaseTypeSafeId> TranslationEntry<T> {
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct TranslationTable<T: BaseTypeSafeId> {
-    entries: Vec<Option<TranslationEntry<T>>>,
+pub struct Table<T: BaseTypeSafeId> {
+    entries: Vec<Option<Entry<T>>>,
 }
 
-impl<T: BaseTypeSafeId> Default for TranslationTable<T> {
-    fn default() -> TranslationTable<T> {
-        TranslationTable::new()
+impl<T: BaseTypeSafeId> Default for Table<T> {
+    fn default() -> Table<T> {
+        Table::new()
     }
 }
 
-impl<T: BaseTypeSafeId> TranslationTable<T> {
-    pub fn new() -> TranslationTable<T> {
-        TranslationTable {
+impl<T: BaseTypeSafeId> Table<T> {
+    pub fn new() -> Table<T> {
+        Table {
             entries: Vec::new(),
         }
     }
@@ -91,7 +95,7 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
         while real_index as usize >= self.entries.len() {
             self.entries.push(None);
         }
-        self.entries[real_index as usize] = Some(TranslationEntry {
+        self.entries[real_index as usize] = Some(Entry {
             name,
             local_id,
             remote_id,
@@ -122,9 +126,9 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
         // };
     }
 
-    fn find_by_predicate<F>(&self, f: F) -> Option<&TranslationEntry<T>>
+    fn find_by_predicate<F>(&self, f: F) -> Option<&Entry<T>>
     where
-        F: Fn(&TranslationEntry<T>) -> bool,
+        F: Fn(&Entry<T>) -> bool,
     {
         let result = self.entries.iter().position(|ref x| match x {
             Some(entry) => f(entry),
@@ -139,15 +143,15 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
         }
     }
 
-    pub fn find_by_name(&self, name: Bytes) -> Option<&TranslationEntry<T>> {
+    pub fn find_by_name(&self, name: Bytes) -> Option<&Entry<T>> {
         self.find_by_predicate(|entry| entry.name == name)
     }
 
-    pub fn find_by_local_id(&self, local_id: LocalId<T>) -> Option<&TranslationEntry<T>> {
+    pub fn find_by_local_id(&self, local_id: LocalId<T>) -> Option<&Entry<T>> {
         self.find_by_predicate(|entry| entry.local_id == local_id)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &TranslationEntry<T>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
         self.entries.iter().flatten()
     }
 
@@ -168,13 +172,101 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
     }
 }
 
+#[derive(Debug)]
+pub struct Tables {
+    pub types: Table<TypeId>,
+    pub senders: Table<SenderId>,
+}
+
+impl Tables {
+    pub fn new() -> Tables {
+        Tables {
+            types: Table::new(),
+            senders: Table::new(),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.types.clear();
+        self.senders.clear();
+    }
+}
+
+impl Default for Tables {
+    fn default() -> Tables {
+        Tables::new()
+    }
+}
+
+/// Trait for type-based dispatching/access of the two translation tables.
+///
+/// Uniform interface for treating Tables just like the appropriate Table<T>
+pub trait MatchingTable<T: BaseTypeSafeId> {
+    /// Borrow the correctly-typed translation table
+    fn table(&self) -> &Table<T>;
+    /// Mutably borrow the correctly-typed translation table
+    fn table_mut(&mut self) -> &mut Table<T>;
+}
+
+impl MatchingTable<SenderId> for Tables {
+    fn table(&self) -> &Table<SenderId> {
+        &self.senders
+    }
+    fn table_mut(&mut self) -> &mut Table<SenderId> {
+        &mut self.senders
+    }
+}
+
+impl MatchingTable<TypeId> for Tables {
+    fn table(&self) -> &Table<TypeId> {
+        &self.types
+    }
+    fn table_mut(&mut self) -> &mut Table<TypeId> {
+        &mut self.types
+    }
+}
+
+impl<T: BaseTypeSafeId> MatchingTable<T> for Table<T> {
+    fn table(&self) -> &Table<T> {
+        self
+    }
+    fn table_mut(&mut self) -> &mut Table<T> {
+        self
+    }
+}
+
+/// Convert a remote ID to a local ID, if found.
+pub fn map_to_local_id<T, U>(translation: &U, id: RemoteId<T>) -> Result<Option<LocalId<T>>>
+where
+    T: BaseTypeSafeId,
+    U: MatchingTable<T>,
+{
+    translation.table().map_to_local_id(id)
+}
+
+/// Record a remote and local ID with the corresponding name.
+pub fn add_remote_entry<T, U>(
+    translation: &mut U,
+    name: Bytes,
+    remote_id: RemoteId<T>,
+    local_id: LocalId<T>,
+) -> Result<RemoteId<T>>
+where
+    T: BaseTypeSafeId,
+    U: MatchingTable<T>,
+{
+    translation
+        .table_mut()
+        .add_remote_entry(name, remote_id, local_id)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
     fn simple() {
         use super::*;
         use vrpn_base::types::{RemoteId, SenderId};
-        let mut table: TranslationTable<SenderId> = TranslationTable::new();
+        let mut table: Table<SenderId> = Table::new();
         table
             .add_remote_entry(
                 Bytes::from_static(b"asdf"),

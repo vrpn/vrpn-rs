@@ -15,8 +15,8 @@ use vrpn_base::time::{Microseconds, Seconds, TimeVal};
 
 impl WrappedConstantSize for Seconds {
     type WrappedType = i32;
-    fn get<'a>(&'a self) -> &'a Self::WrappedType {
-        &self.0
+    fn get(&self) -> Self::WrappedType {
+        self.0
     }
     fn new(v: Self::WrappedType) -> Self {
         Seconds(v)
@@ -25,8 +25,8 @@ impl WrappedConstantSize for Seconds {
 
 impl WrappedConstantSize for Microseconds {
     type WrappedType = i32;
-    fn get<'a>(&'a self) -> &'a Self::WrappedType {
-        &self.0
+    fn get(&self) -> Self::WrappedType {
+        self.0
     }
     fn new(v: Self::WrappedType) -> Self {
         Microseconds(v)

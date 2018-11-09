@@ -13,7 +13,7 @@ use crate::{
     prelude::*,
 };
 use futures::{sync::mpsc, StartSend};
-
+use std::sync::{Arc, Mutex};
 use tokio::{
     codec::{Decoder, Encoder},
     io,
@@ -44,16 +44,16 @@ where
     T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>
         + Stream<Item = EpStreamItem, Error = EpStreamError>,
 {
-    pub(crate) fn new(framed_stream: T) -> EndpointChannel<T> {
+    pub(crate) fn new(framed_stream: T) -> Arc<Mutex<EndpointChannel<T>>> {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
         let (tx, rx) = framed_stream.split();
         let (in_tx, in_rx) = mpsc::unbounded();
-        EndpointChannel {
+        Arc::new(Mutex::new(EndpointChannel {
             tx,
             rx,
             in_tx,
             in_rx,
-        }
+        }))
     }
     /// Buffer a message.
     ///
@@ -68,15 +68,16 @@ where
     }
 
     /// Flush the write buffer to the socket
-    fn poll_flush(&mut self) -> Poll<(), EpSinkError> {
+    pub(crate) fn poll_flush(&mut self) -> Poll<(), EpSinkError> {
         self.tx.poll_complete()
     }
 
     /// Method for polling the MPSC channel that decoded generic messages are placed in.
-    fn poll_receive(&mut self) -> Poll<Option<GenericMessage>, Error> {
+    pub(crate) fn poll_receive(&mut self) -> Poll<Option<GenericMessage>, Error> {
         // treat errors like a closed connection
         self.rx
             .poll()
+            // these nested maps are to get all the way inside the Ok(Async::Ready(Some(msg)))
             .map(|a| a.map(|o| o.map(|msg| Message::from(msg))))
             .map_err(|e| Error::from(e))
     }
@@ -96,7 +97,7 @@ where
             match try_ready!(self.poll_receive()) {
                 Some(msg) => {
                     eprintln!("poll_channel: received message {:?}", msg);
-                    message_handler(GenericMessage::from(msg))?;
+                    message_handler(msg)?;
                 }
                 None => {
                     eprintln!("poll_channel: received None");
@@ -136,6 +137,8 @@ mod tests {
                 // })
                 for _i in 0..4 {
                     let _ = chan
+                        .lock()
+                        .unwrap()
                         .process_send_receive(|msg| {
                             eprintln!("Received message {:?}", msg);
                             Ok(())

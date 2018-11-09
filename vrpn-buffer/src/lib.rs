@@ -23,7 +23,7 @@ pub mod time;
 pub mod traits;
 
 pub use crate::{
-    message::{make_message_body_generic, MessageSize},
+    message::{make_message_body_generic, unbuffer_typed_message_body, MessageSize},
     primitives::*,
     traits::{
         buffer::{self, Buffer},
