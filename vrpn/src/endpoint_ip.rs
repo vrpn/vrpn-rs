@@ -109,6 +109,51 @@ impl EndpointIp {
 
         // todo UDP here.
 
+        // Now, process the messages we sent ourself.
+        while let Async::Ready(Some(msg)) = self.system_rx.poll().map_err(|()| {
+            Error::OtherMessage(String::from(
+                "error when polling system change message channel",
+            ))
+        })? {
+            match msg {
+                SystemMessage::SenderDescription(desc) => {
+                    let local_id = dispatcher
+                        .register_sender(SenderName(desc.name.clone()))?
+                        .get();
+                    eprintln!(
+                        "Registering sender {:?}: local {:?} = remote {:?}",
+                        desc.name, local_id, desc.which
+                    );
+                    let _ = self.translation.add_remote_entry(
+                        desc.name,
+                        RemoteId(desc.which),
+                        LocalId(local_id),
+                    )?;
+                }
+                SystemMessage::TypeDescription(desc) => {
+                    let local_id = dispatcher.register_type(TypeName(desc.name.clone()))?.get();
+                    eprintln!(
+                        "Registering type {:?}: local {:?} = remote {:?}",
+                        desc.name, local_id, desc.which
+                    );
+                    let _ = self.translation.add_remote_entry(
+                        desc.name,
+                        RemoteId(desc.which),
+                        LocalId(local_id),
+                    )?;
+                }
+                SystemMessage::UdpDescription(desc) => {
+                    eprintln!("UdpDescription: {:?}", desc);
+                }
+                SystemMessage::LogDescription(desc) => {
+                    eprintln!("LogDescription: {:?}", desc);
+                }
+                SystemMessage::DisconnectMessage => {
+                    eprintln!("DesconnectMessage");
+                }
+            }
+        }
+
         if closed {
             Ok(Async::Ready(()))
         } else {
