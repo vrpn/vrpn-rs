@@ -78,6 +78,15 @@ impl BaseTypeSafeId for TypeId {
         constants::TYPE_DESCRIPTION
     }
 }
+
+impl TypeId {
+    /// Identifies if this is a system message.
+    ///
+    /// If false, it's a normal (user) message.
+    pub fn is_system_message(&self) -> bool {
+        self.0 < 0
+    }
+}
 // impl<'a> BaseTypeSafeIdName<'a> for TypeId {
 //     type Name = StaticTypeName<'a>;
 // }

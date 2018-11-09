@@ -182,7 +182,7 @@ where
 
     /// Async::Ready(()) means the channel was closed.
     /// Async::NotReady is returned otherwise.
-    pub(crate) fn poll_channel<F>(&mut self, message_handler: F) -> Poll<(), EndpointError>
+    pub(crate) fn process_send_receive<F>(&mut self, message_handler: F) -> Poll<(), EndpointError>
     where
         F: FnMut(GenericMessage) -> Result<(), EndpointError>,
     {

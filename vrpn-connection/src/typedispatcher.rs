@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
-use crate::error::{Error, Result};
+use crate::{Endpoint, Error, Result};
 use std::fmt;
 use vrpn_base::{
     constants,
@@ -44,7 +44,7 @@ pub trait Handler: fmt::Debug {
 pub trait SystemHandler: fmt::Debug {
     // TODO replace with an associated const once we can do that and still box it.
     fn message_type(&self) -> TypeId;
-    fn handle(&mut self, msg: &GenericMessage) -> Result<()>;
+    fn handle(&mut self, msg: &GenericMessage, endpoint: &mut dyn Endpoint) -> Result<()>;
 }
 
 // pub struct HandlerFnMut(HandlerFnMutInner);
@@ -187,7 +187,7 @@ pub struct TypeDispatcher {
 // }
 
 impl TypeDispatcher {
-    pub fn new() -> Result<TypeDispatcher> {
+    pub fn new() -> TypeDispatcher {
         let mut disp = TypeDispatcher {
             types: Vec::new(),
             generic_callbacks: CallbackCollection::new(Bytes::from_static(constants::GENERIC)),
@@ -195,12 +195,17 @@ impl TypeDispatcher {
             system_callbacks: Vec::new(),
         };
 
-        disp.register_sender(constants::CONTROL)?;
-        disp.register_type(constants::GOT_FIRST_CONNECTION)?;
-        disp.register_type(constants::GOT_CONNECTION)?;
-        disp.register_type(constants::DROPPED_CONNECTION)?;
-        disp.register_type(constants::DROPPED_LAST_CONNECTION)?;
-        Ok(disp)
+        disp.register_sender(constants::CONTROL)
+            .expect("couldn't register CONTROL sender");
+        disp.register_type(constants::GOT_FIRST_CONNECTION)
+            .expect("couldn't register GOT_FIRST_CONNECTION type");
+        disp.register_type(constants::GOT_CONNECTION)
+            .expect("couldn't register GOT_FIRST_CONNECTION type");
+        disp.register_type(constants::DROPPED_CONNECTION)
+            .expect("couldn't register DROPPED_CONNECTION type");
+        disp.register_type(constants::DROPPED_LAST_CONNECTION)
+            .expect("couldn't register DROPPED_LAST_CONNECTION type");
+        disp
     }
 
     /// Get a mutable borrow of the CallbackCollection associated with the supplied TypeId
@@ -312,14 +317,18 @@ impl TypeDispatcher {
         mapping.call(&msg)
     }
 
-    pub fn do_system_callbacks_for(&mut self, msg: GenericMessage) -> Result<()> {
+    pub fn do_system_callbacks_for(
+        &mut self,
+        msg: GenericMessage,
+        endpoint: &mut dyn Endpoint,
+    ) -> Result<()> {
         let index = system_message_type_into_index(msg.header.message_type)?;
         if index >= self.system_callbacks.len() {
             // Not an error to try to call an unhandled system message
             return Ok(());
         }
         match self.system_callbacks[index] {
-            Some(ref mut handler) => handler.handle(&msg),
+            Some(ref mut handler) => handler.handle(&msg, endpoint),
             None => Ok(()),
         }
     }

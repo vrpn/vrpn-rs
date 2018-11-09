@@ -6,6 +6,7 @@ license = "BSL-1.0"
 
 [dependencies]
 bytes = "0.4.10"
+downcast-rs = "1.0.3"
 mio = "0.6.16"
 tokio = "0.1.11"
 socket2 = "0.3.8"

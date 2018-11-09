@@ -2,16 +2,22 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use crate::{
     base::types::*,
     base::{constants::TCP_BUFLEN, Description, GenericMessage, Message},
     buffer::{buffer, make_message_body_generic, unbuffer, Buffer},
     codec::{self, FramedMessageCodec},
-    connection::{Error as ConnectionError, Result as ConnectionResult, TranslationTable},
+    connection::{
+        Endpoint, Error as ConnectionError, Result as ConnectionResult, TranslationTable,
+    },
     endpoint_channel::{EndpointChannel, EndpointError},
+    inner_lock, ArcConnectionIpInner,
 };
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     io,
@@ -69,16 +75,8 @@ impl EndpointIp {
         &self.senders
     }
 
-    pub(crate) fn sender_table_mut(&mut self) -> &mut TranslationTable<SenderId> {
-        &mut self.senders
-    }
-
     pub(crate) fn type_table(&self) -> &TranslationTable<TypeId> {
         &self.types
-    }
-
-    pub(crate) fn type_table_mut(&mut self) -> &mut TranslationTable<TypeId> {
-        &mut self.types
     }
 
     pub(crate) fn pack_sender_description(
@@ -94,6 +92,11 @@ impl EndpointIp {
         let desc_msg = Message::from(Description::new(id, name));
         self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
             .map(|_| ())
+    }
+
+    pub(crate) fn clear_other_senders_and_types(&mut self) {
+        self.senders.clear();
+        self.types.clear();
     }
 
     pub(crate) fn pack_type_description(
@@ -149,13 +152,61 @@ impl EndpointIp {
         let name: TypeName = name.into();
         self.type_table_mut().add_local_id(name.into(), local_type)
     }
+    fn poll_channel<T>(
+        &mut self,
+        ep_channel: &mut EndpointChannel<T>,
+        conn: ArcConnectionIpInner,
+    ) -> Poll<(), EndpointError>
+    where
+        T: Sink + Stream,
+    {
+        ep_channel.process_send_receive(move |msg| {
+            eprintln!("Received message {:?}", msg);
+            if msg.header.message_type.is_system_msg() {
+                let conn = inner_lock(&conn)?;
+                conn.type_dispatcher.do_system_callbacks_for(msg, self)?;
+            } else {
+                let conn = inner_lock(&conn)?;
+                conn.type_dispatcher.do_callbacks_for(msg)?;
+            }
+            // todo do something here
+            Ok(())
+        })
+    }
+
+    pub(crate) fn poll_endpoint(&mut self, conn: ArcConnectionIpInner) -> Poll<(), EndpointError> {
+        let closed = self
+            .poll_channel(&mut self.reliable_channel, Arc::clone(&conn))?
+            .is_ready();
+
+        // todo UDP here.
+
+        if closed {
+            Ok(Async::Ready(()))
+        } else {
+            Ok(Async::NotReady)
+        }
+    }
+}
+
+impl Endpoint for EndpointIp {
+    fn connect_to_udp(&mut self, addr: Bytes, port: usize) -> ConnectionResult<()> {
+        eprintln!("Told to connect over UDP to {:?}:{}", addr, port);
+        Ok(())
+    }
+    fn sender_table_mut(&mut self) -> &mut TranslationTable<SenderId> {
+        &mut self.senders
+    }
+    fn type_table_mut(&mut self) -> &mut TranslationTable<TypeId> {
+        &mut self.types
+    }
 }
 
 impl Future for EndpointIp {
     type Item = ();
     type Error = EndpointError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.reliable_channel.poll_channel(|msg| {
+        self.reliable_channel.process_send_receive(|msg| {
             eprintln!("Received message {:?}", msg);
             // todo do something here
             Ok(())
@@ -178,9 +229,12 @@ mod tests {
                 //     eprintln!("{}", e);
                 //     panic!()
                 // })
-                let _ = ep.poll().unwrap();
-                let _ = ep.poll().unwrap();
-                let _ = ep.poll().unwrap();
+                for _i in 0..4 {
+                    let _ = ep.reliable_channel.process_send_receive(|msg| {
+                        eprintln!("Received message {:?}", msg);
+                        Ok(())
+                    }).unwrap();
+                }
                 Ok(())
             })
             .wait()

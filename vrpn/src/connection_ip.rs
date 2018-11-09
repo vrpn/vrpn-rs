@@ -10,7 +10,7 @@ use crate::{
     buffer::message::unbuffer_typed_message_body,
     connect::ConnectError,
     connection::{
-        append_error, typedispatcher::RegisterMapping, Error as ConnectionError,
+        append_error, typedispatcher::RegisterMapping, Endpoint, Error as ConnectionError,
         Result as ConnectionResult, SystemHandler, TypeDispatcher,
     },
     endpoint_ip::{EndpointIp, MessageFramed, MessageFramedUdp},
@@ -25,7 +25,7 @@ use tokio::net::{TcpListener, TcpStream};
 
 #[derive(Debug)]
 pub(crate) struct ConnectionIpInner {
-    type_dispatcher: TypeDispatcher,
+    pub(crate) type_dispatcher: TypeDispatcher,
     remote_log_names: LogFileNames,
     local_log_names: LogFileNames,
     endpoints: Vec<Option<EndpointIp>>,
@@ -145,17 +145,17 @@ impl ConnectionIp {
     fn new_inner(
         local_log_names: Option<LogFileNames>,
         remote_log_names: Option<LogFileNames>,
-    ) -> ConnectionResult<Arc<Mutex<ConnectionIpInner>>> {
+    ) -> ConnectionResult<ArcConnectionIpInner> {
         Ok(Arc::new(Mutex::new(ConnectionIpInner {
-            type_dispatcher: TypeDispatcher::new()?,
+            type_dispatcher: TypeDispatcher::new(),
             remote_log_names: LogFileNames::from(remote_log_names),
             local_log_names: LogFileNames::from(local_log_names),
             endpoints: Vec::new(),
             server_tcp: None,
         })))
     }
-    /// Common new_implialization
-    fn new_impl(inner: Arc<Mutex<ConnectionIpInner>>) -> ConnectionResult<ConnectionIp> {
+    /// Common new implementation
+    fn new_impl(inner: ArcConnectionIpInner) -> ConnectionResult<ConnectionIp> {
         {
             let conn = Arc::clone(&inner);
             {
@@ -167,11 +167,10 @@ impl ConnectionIp {
                     */
                 inner
                     .type_dispatcher
-                    .set_system_handler(Box::new(SenderDescriptionHandler {
-                        conn: Arc::clone(&conn),
-                    }));
-                // conn.type_dispatcher
-                //     .set_system_handler(constants::TYPE_DESCRIPTION, handle_type_message);
+                    .set_system_handler(SenderDescriptionHandler::new(&conn))?;
+                inner
+                    .type_dispatcher
+                    .set_system_handler(TypeDescriptionHandler::new(&conn))?;
                 // conn.type_dispatcher
                 //     .set_system_handler(constants::DISCONNECT_MESSAGE, handle_disconnect_message);
             }
@@ -264,11 +263,22 @@ struct SenderDescriptionHandler {
     conn: ArcConnectionIpInner,
 }
 
+impl SenderDescriptionHandler {
+    fn new(conn: &ArcConnectionIpInner) -> Box<dyn SystemHandler> {
+        Box::new(SenderDescriptionHandler {
+            conn: Arc::clone(conn),
+        })
+    }
+}
 impl SystemHandler for SenderDescriptionHandler {
     fn message_type(&self) -> TypeId {
         constants::SENDER_DESCRIPTION
     }
-    fn handle(&mut self, msg: &GenericMessage) -> ConnectionResult<()> {
+    fn handle(
+        &mut self,
+        msg: &GenericMessage,
+        endpoint: &mut dyn Endpoint,
+    ) -> ConnectionResult<()> {
         let msg = msg.clone();
         let mut conn = inner_lock_mut::<ConnectionError>(&mut self.conn)?;
         let desc = unbuffer_typed_message_body::<InnerDescription>(msg)?
@@ -278,26 +288,39 @@ impl SystemHandler for SenderDescriptionHandler {
             .type_dispatcher
             .register_sender(SenderName(name.clone()))?
             .get();
-        for ep in conn.endpoints.iter_mut().flatten() {
-            let _ = ep.sender_table_mut().add_remote_entry(
-                name.clone(),
-                RemoteId(desc.which),
-                LocalId(local_id),
-            )?;
-        }
+        // for ep in conn.endpoints.iter_mut().flatten() {
+        //     let _ = ep.sender_table_mut().add_remote_entry(
+        //         name.clone(),
+        //         RemoteId(desc.which),
+        //         LocalId(local_id),
+        //     )?;
+        // }
         Ok(())
     }
 }
+
 #[derive(Debug)]
 struct TypeDescriptionHandler {
     conn: ArcConnectionIpInner,
+}
+
+impl TypeDescriptionHandler {
+    fn new(conn: &ArcConnectionIpInner) -> Box<dyn SystemHandler> {
+        Box::new(TypeDescriptionHandler {
+            conn: Arc::clone(conn),
+        })
+    }
 }
 
 impl SystemHandler for TypeDescriptionHandler {
     fn message_type(&self) -> TypeId {
         constants::TYPE_DESCRIPTION
     }
-    fn handle(&mut self, msg: &GenericMessage) -> ConnectionResult<()> {
+    fn handle(
+        &mut self,
+        msg: &GenericMessage,
+        endpoint: &mut dyn Endpoint,
+    ) -> ConnectionResult<()> {
         let msg = msg.clone();
         let mut conn = inner_lock_mut::<ConnectionError>(&mut self.conn)?;
         let desc = unbuffer_typed_message_body::<InnerDescription>(msg)?
@@ -308,9 +331,62 @@ impl SystemHandler for TypeDescriptionHandler {
             .register_type(TypeName(name.clone()))?
             .get();
         for ep in conn.endpoints.iter_mut().flatten() {
-            let _ =
-                ep.types
-                    .add_remote_entry(name.clone(), RemoteId(desc.which), LocalId(local_id))?;
+            let _ = ep.type_table_mut().add_remote_entry(
+                name.clone(),
+                RemoteId(desc.which),
+                LocalId(local_id),
+            )?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct UdpDescriptionHandler {
+    conn: ArcConnectionIpInner,
+}
+
+impl UdpDescriptionHandler {
+    fn new(conn: &ArcConnectionIpInner) -> Box<dyn SystemHandler> {
+        Box::new(UdpDescriptionHandler {
+            conn: Arc::clone(conn),
+        })
+    }
+}
+
+impl SystemHandler for UdpDescriptionHandler {
+    fn message_type(&self) -> TypeId {
+        constants::UDP_DESCRIPTION
+    }
+    fn handle(
+        &mut self,
+        msg: &GenericMessage,
+        endpoint: &mut dyn Endpoint,
+    ) -> ConnectionResult<()> {
+        let msg = msg.clone();
+        let mut conn = inner_lock_mut::<ConnectionError>(&mut self.conn)?;
+        let ip: Vec<u8> = msg
+            .body
+            .inner
+            .iter()
+            .take_while(|b| **b != 0)
+            .cloned()
+            .collect();
+        let port = msg.header.sender.get();
+
+        let desc = unbuffer_typed_message_body::<InnerDescription>(msg)?
+            .into_typed_description::<TypeId>();
+        let name = desc.name;
+        let local_id = conn
+            .type_dispatcher
+            .register_type(TypeName(name.clone()))?
+            .get();
+        for ep in conn.endpoints.iter_mut().flatten() {
+            let _ = ep.type_table_mut().add_remote_entry(
+                name.clone(),
+                RemoteId(desc.which),
+                LocalId(local_id),
+            )?;
         }
         Ok(())
     }

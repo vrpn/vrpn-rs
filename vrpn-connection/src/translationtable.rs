@@ -158,6 +158,10 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
         self.buffer_descriptions_ref(&mut buf)?;
         Ok(buf.freeze())
     }
+
+    pub fn clear(&mut self) {
+        self.entries.clear()
+    }
 }
 
 #[cfg(test)]
