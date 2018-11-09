@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use crate::{
     base::types::*,
     base::{
@@ -15,10 +15,7 @@ use crate::{
 use futures::sync::mpsc;
 use std::{
     ops::DerefMut,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc, Mutex,
-    },
+    sync::{Arc, Mutex},
 };
 use tokio::{
     net::{TcpStream, UdpFramed},
@@ -31,10 +28,8 @@ pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
 #[derive(Debug)]
 pub struct EndpointIp {
     translation: TranslationTables,
-    wr: BytesMut,
     reliable_channel: Arc<Mutex<EndpointChannel<MessageFramed>>>,
     low_latency_channel: Option<()>,
-    seq: AtomicUsize,
     system_rx: mpsc::UnboundedReceiver<SystemMessage>,
     system_tx: mpsc::UnboundedSender<SystemMessage>,
 }
@@ -46,10 +41,8 @@ impl EndpointIp {
         let (system_tx, system_rx) = mpsc::unbounded();
         EndpointIp {
             translation: TranslationTables::new(),
-            wr: BytesMut::new(),
             reliable_channel: EndpointChannel::new(framed),
             low_latency_channel: None,
-            seq: AtomicUsize::new(0),
             system_tx,
             system_rx,
         }

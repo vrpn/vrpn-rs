@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{BufMut, Bytes};
-use crate::{prelude::*, unbuffer::check_expected, Buffer, ConstantBufferSize, Unbuffer};
+use crate::{check_expected, prelude::*, Buffer, ConstantBufferSize, Unbuffer};
 use vrpn_base::{
     constants::{COOKIE_SIZE, MAGIC_PREFIX},
     CookieData, EmptyResult, Error, LogFlags, LogMode, Result, Version,

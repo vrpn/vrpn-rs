@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use crate::{
     base::{Error, Result, SequencedGenericMessage},
-    buffer::{buffer, message::MessageSize, unbuffer, Buffer, Unbuffer},
+    buffer::{Buffer, MessageSize, Unbuffer},
     prelude::*,
 };
 use pretty_hex::*;

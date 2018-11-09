@@ -4,10 +4,6 @@
 
 extern crate bytes;
 
-extern crate itertools;
-
-extern crate libc;
-
 extern crate vrpn_base;
 
 pub mod cookie;

@@ -3,7 +3,6 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
-use crate::Endpoint;
 use std::fmt;
 use vrpn_base::{
     constants,

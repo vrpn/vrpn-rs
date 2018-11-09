@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Buf, BufMut};
-use crate::{unbuffer, Buffer, ConstantBufferSize, Source, UnbufferConstantSize};
+use crate::{Buffer, ConstantBufferSize, Source, UnbufferConstantSize};
 use vrpn_base::{EmptyResult, Result};
 
 macro_rules! buffer_primitive {
