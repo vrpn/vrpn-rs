@@ -145,10 +145,6 @@ bitmask! {
     }
 }
 
-// pub trait TypedName {
-//     type Id;
-// }
-
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct StaticSenderName(pub &'static [u8]);
 
@@ -185,10 +181,6 @@ impl std::cmp::PartialEq<StaticSenderName> for SenderName {
     }
 }
 
-// impl TypedName for StaticSenderName {
-//     type Id = SenderId;
-// }
-
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct StaticTypeName(pub &'static [u8]);
 
@@ -224,10 +216,6 @@ impl std::cmp::PartialEq<StaticTypeName> for TypeName {
         self.0 == Bytes::from_static(other.0)
     }
 }
-
-// impl TypedName for StaticTypeName {
-//     type Id = TypeId;
-// }
 
 /// Sequence number - not used on receive side, only used for sniffers (?)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
