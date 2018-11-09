@@ -7,61 +7,23 @@
 use bytes::BytesMut;
 use crate::{
     base::message::{GenericMessage, Message, SequencedGenericMessage},
-    buffer::{buffer, make_message_body_generic, unbuffer, Buffer, MessageSize, Unbuffer},
-    codec::{self, FramedMessageCodec},
-    connection::{Error as ConnectionError, Result as ConnectionResult, TranslationTable},
+    buffer::{buffer, unbuffer},
+    codec::FramedMessageCodec,
+    error::Error,
     prelude::*,
 };
 use futures::{sync::mpsc, StartSend};
 
 use tokio::{
-    codec::{Decoder, Encoder, Framed},
+    codec::{Decoder, Encoder},
     io,
-    net::{TcpStream, UdpFramed, UdpSocket},
     prelude::*,
 };
 
-quick_error!{
-    #[derive(Debug)]
-    pub enum EndpointError {
-        IoError(err: io::Error) {
-            from()
-            cause(err)
-            display("IO error: {}", err)
-        }
-        BufferError(err: buffer::Error) {
-            from()
-            cause(err)
-            display("buffer error: {}", err)
-        }
-        UnbufferError(err: unbuffer::Error) {
-            from()
-            cause(err)
-            display("unbuffer error: {}", err)
-        }
-        MpscSendError(err: mpsc::SendError<GenericMessage>) {
-            from()
-            cause(err)
-            display("mpsc send error: {}", err)
-        }
-        // NoneError(err: std::option::NoneError) {
-        //     from()
-        //     cause(err)
-        //     display("none error: {}", err)
-        // }
-    }
-}
-
-type EpSinkItem = SequencedGenericMessage;
-type EpSinkError = <FramedMessageCodec as Encoder>::Error;
-type EpStreamItem = EpSinkItem;
-type EpStreamError = <FramedMessageCodec as Decoder>::Error;
-
-pub(crate) enum EndpointDisposition {
-    StillActive,
-    ReadyForCleanup,
-}
-pub type ReceiveFuture = Box<dyn Future<Item = (), Error = EndpointError>>;
+pub(crate) type EpSinkItem = SequencedGenericMessage;
+pub(crate) type EpSinkError = <FramedMessageCodec as Encoder>::Error;
+pub(crate) type EpStreamItem = EpSinkItem;
+pub(crate) type EpStreamError = <FramedMessageCodec as Decoder>::Error;
 type Tx = mpsc::UnboundedSender<SequencedGenericMessage>;
 type Rx = mpsc::UnboundedReceiver<SequencedGenericMessage>;
 
@@ -70,13 +32,6 @@ pub(crate) struct EndpointChannel<T> {
     tx: stream::SplitSink<T>,
     rx: stream::SplitStream<T>,
 
-    buf_size: usize,
-
-    // /// The "internal" end of the mpsc channel for sending messages out the endpoint.
-    // out_rx: Rx,
-
-    // /// The "external" end of the mpsc channel for sending messages out the endpoint.
-    // out_tx: Option<Tx>,
     /// The "internal" end of the mpsc channel for returning received messages from the endpoint.
     in_tx: Tx,
 
@@ -89,17 +44,13 @@ where
     T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>
         + Stream<Item = EpStreamItem, Error = EpStreamError>,
 {
-    pub(crate) fn new(framed_stream: T, buf_size: usize) -> EndpointChannel<T> {
+    pub(crate) fn new(framed_stream: T) -> EndpointChannel<T> {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
         let (tx, rx) = framed_stream.split();
-        // let (out_tx, out_rx) = mpsc::unbounded();
         let (in_tx, in_rx) = mpsc::unbounded();
         EndpointChannel {
             tx,
-            buf_size,
             rx,
-            // out_rx,
-            // out_tx: Some(out_tx),
             in_tx,
             in_rx,
         }
@@ -118,73 +69,23 @@ where
 
     /// Flush the write buffer to the socket
     fn poll_flush(&mut self) -> Poll<(), EpSinkError> {
-        // const MESSAGES_PER_TICK: usize = 10;
-
-        // // Receive all messages from peers.
-        // for i in 0..MESSAGES_PER_TICK {
-        //     // Polling an `UnboundedReceiver` cannot fail, so `unwrap` here is
-        //     // safe.
-        //     match self.out_rx.poll().unwrap() {
-        //         Async::Ready(Some(message)) => {
-        //             // Buffer the message. Once all messages are buffered, they will
-        //             // be flushed to the socket (right below).
-        //             self.buffer(message)?;
-
-        //             // If this is the last iteration, the loop will break even
-        //             // though there could still be lines to read. Because we did
-        //             // not reach `Async::NotReady`, we have to notify ourselves
-        //             // in order to tell the executor to schedule the task again.
-        //             if i + 1 == MESSAGES_PER_TICK {
-        //                 task::current().notify();
-        //             }
-        //         }
-        //         _ => break,
-        //     }
-        // }
-
-        // Flush the write buffer to the socket
         self.tx.poll_complete()
     }
 
-    // fn receive(&mut self) -> Poll<(), EndpointError> {
-    //     loop {
-    //         let poll = self.rx.poll()?;
-    //         match poll {
-    //             Async::Ready(msg) => {
-    //                 println!("receive got message {:?}", msg);
-    //                 match msg {
-    //                     Some(msg) => self.in_tx.unbounded_send(msg).unwrap(),
-    //                     None => return Ok(Async::Ready(())),
-    //                 }
-    //             }
-    //             Async::NotReady => return Ok(Async::NotReady),
-    //         }
-    //         // if let Some(msg) = try_ready!(self.rx.poll()) {
-    //         //     self.in_tx.unbounded_send(msg).unwrap();
-    //         // } else {
-    //         //     break;
-    //         // }
-    //     }
-    //     // Other end has disconnected
-    //     return Ok(Async::Ready(()));
-    // }
-
     /// Method for polling the MPSC channel that decoded generic messages are placed in.
-    fn poll_receive(&mut self) -> Poll<Option<GenericMessage>, EndpointError> {
+    fn poll_receive(&mut self) -> Poll<Option<GenericMessage>, Error> {
         // treat errors like a closed connection
-        // let poll = self.in_rx.poll();
-        // poll.or(Ok(Async::Ready(None)))
         self.rx
             .poll()
             .map(|a| a.map(|o| o.map(|msg| Message::from(msg))))
-            .map_err(|e| EndpointError::from(e))
+            .map_err(|e| Error::from(e))
     }
 
     /// Async::Ready(()) means the channel was closed.
     /// Async::NotReady is returned otherwise.
-    pub(crate) fn process_send_receive<F>(&mut self, message_handler: F) -> Poll<(), EndpointError>
+    pub(crate) fn process_send_receive<F>(&mut self, message_handler: F) -> Poll<(), Error>
     where
-        F: FnMut(GenericMessage) -> Result<(), EndpointError>,
+        F: FnMut(GenericMessage) -> Result<(), Error>,
     {
         let mut message_handler = message_handler;
         let _ = self.poll_flush()?;
@@ -195,7 +96,7 @@ where
             match try_ready!(self.poll_receive()) {
                 Some(msg) => {
                     eprintln!("poll_channel: received message {:?}", msg);
-                    message_handler(msg)?;
+                    message_handler(GenericMessage::from(msg))?;
                 }
                 None => {
                     eprintln!("poll_channel: received None");
@@ -215,5 +116,35 @@ where
         // OK to do because we either got not ready from self.poll_flush(),
         // self.receive(), or we've hit the limit (and have notified ourselves again accordingly)
         Ok(Async::NotReady)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn make_endpoint_channel() {
+        use crate::{codec::apply_message_framing, connect::connect_tcp};
+        let addr = "127.0.0.1:3883".parse().unwrap();
+        let _ = connect_tcp(addr)
+            .and_then(|stream| {
+                let mut chan = EndpointChannel::new(apply_message_framing(stream));
+                // future::poll_fn(move || ep.poll())
+                // .map_err(|e| {
+                //     eprintln!("{}", e);
+                //     panic!()
+                // })
+                for _i in 0..4 {
+                    let _ = chan
+                        .process_send_receive(|msg| {
+                            eprintln!("Received message {:?}", msg);
+                            Ok(())
+                        })
+                        .unwrap();
+                }
+                Ok(())
+            })
+            .wait()
+            .unwrap();
     }
 }

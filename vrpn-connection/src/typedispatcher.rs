@@ -143,7 +143,7 @@ impl CallbackCollection {
 
     /// Call all callbacks (subject to sender filters)
     fn call(&mut self, params: &GenericMessage) -> Result<()> {
-        for ref mut entry in self.callbacks.iter_mut() {
+        for entry in self.callbacks.iter_mut() {
             entry.call(params)?;
         }
         Ok(())
@@ -160,8 +160,11 @@ fn system_message_type_into_index(message_type: TypeId) -> Result<usize> {
 
 fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
     let raw_message_type = message_type.get();
+    if raw_message_type < 0 {
+        Err(Error::InvalidTypeId(raw_message_type))?;
+    }
     let index = raw_message_type as usize;
-    if index < 0 || index >= len {
+    if index >= len {
         Err(Error::InvalidTypeId(raw_message_type))?;
     }
 
@@ -176,15 +179,11 @@ pub struct TypeDispatcher {
     system_callbacks: Vec<Option<Box<dyn SystemHandler>>>,
 }
 
-// impl<'a> fmt::Debug for TypeDispatcher {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         f.debug_struct("TypeDispatcher")
-//             .field("types", &self.types)
-//             .field("senders", &self.senders)
-//             .field("system_callbacks", &self.system_callbacks)
-//             .finish()
-//     }
-// }
+impl Default for TypeDispatcher {
+    fn default() -> TypeDispatcher {
+        TypeDispatcher::new()
+    }
+}
 
 impl TypeDispatcher {
     pub fn new() -> TypeDispatcher {
@@ -273,7 +272,7 @@ impl TypeDispatcher {
         let name: TypeName = name.into();
         match self.get_type_id(name.clone()) {
             Some(i) => Ok(RegisterMapping::Found(i)),
-            None => self.add_type(name).map(|i| RegisterMapping::NewMapping(i)),
+            None => self.add_type(name).map(RegisterMapping::NewMapping),
         }
     }
 
@@ -285,9 +284,7 @@ impl TypeDispatcher {
         let name: SenderName = name.into();
         match self.get_sender_id(name.clone()) {
             Some(i) => Ok(RegisterMapping::Found(i)),
-            None => self
-                .add_sender(name)
-                .map(|i| RegisterMapping::NewMapping(i)),
+            None => self.add_sender(name).map(RegisterMapping::NewMapping),
         }
     }
 
@@ -309,9 +306,9 @@ impl TypeDispatcher {
             .add(handler, sender)
     }
 
-    pub fn do_callbacks_for(&mut self, msg: GenericMessage) -> Result<()> {
+    pub fn do_callbacks_for(&mut self, msg: &GenericMessage) -> Result<()> {
         let index = message_type_into_index(msg.header.message_type, self.types.len())?;
-        let ref mut mapping = &mut self.types[index];
+        let mapping = &mut self.types[index];
 
         self.generic_callbacks.call(&msg)?;
         mapping.call(&msg)
@@ -319,7 +316,7 @@ impl TypeDispatcher {
 
     pub fn do_system_callbacks_for(
         &mut self,
-        msg: GenericMessage,
+        msg: &GenericMessage,
         endpoint: &mut dyn Endpoint,
     ) -> Result<()> {
         let index = system_message_type_into_index(msg.header.message_type)?;

@@ -11,7 +11,8 @@ use crate::{
     connection::{
         Endpoint, Error as ConnectionError, Result as ConnectionResult, TranslationTable,
     },
-    endpoint_channel::{EndpointChannel, EndpointError},
+    endpoint_channel::{EndpointChannel, EpSinkError, EpSinkItem, EpStreamError, EpStreamItem},
+    error::Error,
     inner_lock, ArcConnectionIpInner,
 };
 use std::sync::{
@@ -45,7 +46,7 @@ impl EndpointIp {
             types: TranslationTable::new(),
             senders: TranslationTable::new(),
             wr: BytesMut::new(),
-            reliable_channel: EndpointChannel::new(framed, TCP_BUFLEN),
+            reliable_channel: EndpointChannel::new(framed),
             seq: AtomicUsize::new(0)
             // low_latency_channel,
         }
@@ -152,31 +153,22 @@ impl EndpointIp {
         let name: TypeName = name.into();
         self.type_table_mut().add_local_id(name.into(), local_type)
     }
-    fn poll_channel<T>(
-        &mut self,
-        ep_channel: &mut EndpointChannel<T>,
-        conn: ArcConnectionIpInner,
-    ) -> Poll<(), EndpointError>
-    where
-        T: Sink + Stream,
-    {
-        ep_channel.process_send_receive(move |msg| {
-            eprintln!("Received message {:?}", msg);
-            if msg.header.message_type.is_system_msg() {
-                let conn = inner_lock(&conn)?;
-                conn.type_dispatcher.do_system_callbacks_for(msg, self)?;
-            } else {
-                let conn = inner_lock(&conn)?;
-                conn.type_dispatcher.do_callbacks_for(msg)?;
-            }
-            // todo do something here
-            Ok(())
-        })
-    }
 
-    pub(crate) fn poll_endpoint(&mut self, conn: ArcConnectionIpInner) -> Poll<(), EndpointError> {
-        let closed = self
-            .poll_channel(&mut self.reliable_channel, Arc::clone(&conn))?
+    pub(crate) fn poll_endpoint(&mut self, conn: ArcConnectionIpInner) -> Poll<(), Error> {
+        let channel = &mut self.reliable_channel;
+        let closed = channel
+            .process_send_receive(|msg| -> Result<(), Error> {
+                eprintln!("Received message {:?}", msg);
+                if msg.header.message_type.is_system_message() {
+                    let mut conn = inner_lock::<Error>(&conn)?;
+                    conn.type_dispatcher.do_system_callbacks_for(&msg, self)?;
+                } else {
+                    let mut conn = inner_lock::<Error>(&conn)?;
+                    conn.type_dispatcher.do_callbacks_for(&msg)?;
+                }
+                // todo do something here
+                Ok(())
+            })?
             .is_ready();
 
         // todo UDP here.
@@ -204,7 +196,7 @@ impl Endpoint for EndpointIp {
 
 impl Future for EndpointIp {
     type Item = ();
-    type Error = EndpointError;
+    type Error = Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.reliable_channel.process_send_receive(|msg| {
             eprintln!("Received message {:?}", msg);
@@ -230,10 +222,13 @@ mod tests {
                 //     panic!()
                 // })
                 for _i in 0..4 {
-                    let _ = ep.reliable_channel.process_send_receive(|msg| {
-                        eprintln!("Received message {:?}", msg);
-                        Ok(())
-                    }).unwrap();
+                    let _ = ep
+                        .reliable_channel
+                        .process_send_receive(|msg| {
+                            eprintln!("Received message {:?}", msg);
+                            Ok(())
+                        })
+                        .unwrap();
                 }
                 Ok(())
             })

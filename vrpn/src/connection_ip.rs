@@ -8,12 +8,12 @@ use crate::{
         SenderId, SenderName, TypeId, TypeName,
     },
     buffer::message::unbuffer_typed_message_body,
-    connect::ConnectError,
     connection::{
         append_error, typedispatcher::RegisterMapping, Endpoint, Error as ConnectionError,
         Result as ConnectionResult, SystemHandler, TypeDispatcher,
     },
     endpoint_ip::{EndpointIp, MessageFramed, MessageFramedUdp},
+    error::Error,
     prelude::*,
 };
 use std::{
@@ -113,13 +113,13 @@ impl ConnectionIp {
     pub fn new_server(
         local_log_names: Option<LogFileNames>,
         addr: Option<SocketAddr>,
-    ) -> Result<ConnectionIp, ConnectError> {
+    ) -> Result<ConnectionIp, Error> {
         let addr =
             addr.unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
         let listener = TcpListener::bind(&addr)?;
         let mut inner = Self::new_inner(None, local_log_names)?;
         {
-            let mut inner = inner_lock_mut::<ConnectError>(&mut inner)?;
+            let mut inner = inner_lock_mut::<Error>(&mut inner)?;
             inner.server_tcp = Some(listener);
         }
         Self::new_impl(inner).map_err(|e| e.into())
@@ -177,22 +177,6 @@ impl ConnectionIp {
         }
         Ok(ConnectionIp { inner })
     }
-
-    // fn endpoints_iter_mut(&mut self) -> Self::EndpointIteratorMut {
-    //     self.endpoints.iter_mut()
-    // }
-
-    // fn endpoints_iter(&self) -> Self::EndpointIterator {
-    //     self.endpoints.iter()
-    // }
-
-    // fn dispatcher(&self) -> &TypeDispatcher {
-    //     &self.type_dispatcher
-    // }
-
-    // fn dispatcher_mut(&mut self) -> &mut TypeDispatcher {
-    //     &mut self.type_dispatcher
-    // }
 
     fn pack_sender_description(
         &mut self,

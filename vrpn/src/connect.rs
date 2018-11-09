@@ -7,6 +7,7 @@ use crate::{
     base::cookie::{self, check_ver_nonfile_compatible, CookieData},
     buffer::{buffer, unbuffer, ConstantBufferSize, Unbuffer},
     connection::Error as ConnectionError,
+    error::Error,
     prelude::*,
     *,
 };
@@ -16,47 +17,6 @@ use tokio::{
     net::{TcpStream, UdpFramed, UdpSocket},
     prelude::*,
 };
-
-quick_error! {
-    #[derive(Debug)]
-    pub enum ConnectError {
-        VersionError(err: cookie::VersionError) {
-            from()
-            display("version error: {}", err)
-            cause(err)
-        }
-        UnbufferError(err: unbuffer::Error) {
-            from()
-            display("unbuffer error: {}", err)
-            cause(err)
-        }
-        BufferError(err: buffer::Error) {
-            from()
-            display("buffer error: {}", err)
-            cause(err)
-        }
-        IoError(err: io::Error) {
-            from()
-            display("IO error: {}", err)
-            cause(err)
-        }
-        WrappedConnectionError(err: ConnectionError) {
-            from()
-            display("{}", err)
-            cause(err)
-        }
-        Other(err: Box<std::error::Error>) {
-            cause(&**err)
-            from()
-            display("{}", err)
-            cause(err)
-        }
-        OtherMessage(s: String) {
-            from()
-            display("{}", s)
-        }
-    }
-}
 
 fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
     use socket2::*;
@@ -85,33 +45,33 @@ fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
 /// Writes the supplied cookie to a stream.
 ///
 /// Future resolves to the provided stream on success.
-fn write_cookie<T>(stream: T, cookie: CookieData) -> impl Future<Item = T, Error = ConnectError>
+fn write_cookie<T>(stream: T, cookie: CookieData) -> impl Future<Item = T, Error = Error>
 where
     T: AsyncWrite,
 {
     BytesMut::new()
         .allocate_and_buffer(cookie)
-        .map_err(|e| ConnectError::BufferError(e))
+        .map_err(|e| Error::BufferError(e))
         .into_future()
         .and_then(|buf| {
             io::write_all(stream, buf.freeze())
                 .map(|(stream, _)| stream)
                 .from_err()
-            // .map_err(|e| ConnectError::IoError(e))
+            // .map_err(|e| Error::IoError(e))
         })
 }
 
 /// Reads a cookie's worth of data into a temporary buffer.
 ///
 /// Future resolves to (stream, buffer) on success.
-fn read_cookie<T>(stream: T) -> impl Future<Item = (T, Vec<u8>), Error = ConnectError>
+fn read_cookie<T>(stream: T) -> impl Future<Item = (T, Vec<u8>), Error = Error>
 where
     T: AsyncRead,
 {
     io::read_exact(stream, vec![0u8; CookieData::constant_buffer_size()]).from_err()
 }
 
-fn verify_version_nonfile(msg: CookieData) -> impl Future<Item = (), Error = ConnectError> {
+fn verify_version_nonfile(msg: CookieData) -> impl Future<Item = (), Error = Error> {
     check_ver_nonfile_compatible(msg.version)
         .into_future()
         .from_err()
@@ -120,10 +80,10 @@ fn verify_version_nonfile(msg: CookieData) -> impl Future<Item = (), Error = Con
 /// Accepts a buffer, and tries to unbuffer and verify compatibility of a magic cookie therein.
 ///
 /// Future resolves to () on success.
-fn unbuffer_and_verify_version_nonfile(buf: &[u8]) -> impl Future<Item = (), Error = ConnectError> {
+fn unbuffer_and_verify_version_nonfile(buf: &[u8]) -> impl Future<Item = (), Error = Error> {
     let mut buf = Bytes::from(buf);
     CookieData::unbuffer_ref(&mut buf)
-        .map_err(|e| ConnectError::UnbufferError(e))
+        .map_err(|e| Error::UnbufferError(e))
         .into_future()
         .and_then(verify_version_nonfile)
 }
@@ -131,7 +91,7 @@ fn unbuffer_and_verify_version_nonfile(buf: &[u8]) -> impl Future<Item = (), Err
 /// Writes the "non-file" magic cookie to the stream.
 ///
 /// Future resolves to the provided stream on success.
-fn send_nonfile_cookie<T>(stream: T) -> impl Future<Item = T, Error = ConnectError>
+fn send_nonfile_cookie<T>(stream: T) -> impl Future<Item = T, Error = Error>
 where
     T: AsyncWrite,
 {
@@ -141,7 +101,7 @@ where
 /// Reads a cookie's worth of data from the stream, and cheacks to make sure it is the right version.
 ///
 /// Future resolves to the provided stream on success.
-fn read_and_check_nonfile_cookie<T>(stream: T) -> impl Future<Item = T, Error = ConnectError>
+fn read_and_check_nonfile_cookie<T>(stream: T) -> impl Future<Item = T, Error = Error>
 where
     T: AsyncRead,
 {
@@ -152,18 +112,18 @@ where
 
 fn outgoing_tcp_connect(
     addr: std::net::SocketAddr,
-) -> impl Future<Item = tokio::net::TcpStream, Error = ConnectError> {
+) -> impl Future<Item = tokio::net::TcpStream, Error = Error> {
     make_tcp_socket(addr)
-        .map_err(|e| ConnectError::IoError(e))
+        .map_err(|e| Error::IoError(e))
         .into_future()
         .and_then(move |sock| {
             let addr = addr.clone();
             TcpStream::connect_std(sock, &addr, &tokio::reactor::Handle::default())
-                .map_err(|e| ConnectError::IoError(e))
+                .map_err(|e| Error::IoError(e))
         })
 }
 
-pub fn outgoing_handshake<T>(socket: T) -> impl Future<Item = T, Error = ConnectError>
+pub fn outgoing_handshake<T>(socket: T) -> impl Future<Item = T, Error = Error>
 where
     T: AsyncRead + AsyncWrite,
 {
@@ -174,13 +134,13 @@ where
 
 pub fn connect_tcp(
     addr: std::net::SocketAddr,
-) -> impl Future<Item = tokio::net::TcpStream, Error = ConnectError> {
+) -> impl Future<Item = tokio::net::TcpStream, Error = Error> {
     outgoing_tcp_connect(addr).and_then(outgoing_handshake)
     // TODO can pack log description here if we're enabling remote logging.
     // TODO if we have permission to use UDP, open an incoming socket and notify the other end about it here.
 }
 
-pub fn incoming_handshake<T>(socket: T) -> impl Future<Item = T, Error = ConnectError>
+pub fn incoming_handshake<T>(socket: T) -> impl Future<Item = T, Error = Error>
 where
     T: AsyncRead + AsyncWrite,
 {

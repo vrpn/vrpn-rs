@@ -8,28 +8,27 @@ use vrpn_base::{
     message::{Description, SequencedMessage},
     types::{BaseTypeSafeId, IdType, LocalId, RemoteId, TypeSafeId},
 };
-use vrpn_buffer::{buffer, Buffer};
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct TranslationEntry<T: BaseTypeSafeId> {
-    pub name: Bytes,
-    pub local_id: LocalId<T>,
-    pub remote_id: RemoteId<T>,
+    pub  name: Bytes,
+    local_id: LocalId<T>,
+    remote_id: RemoteId<T>,
 }
 
 impl<T: BaseTypeSafeId> TranslationEntry<T> {
-    pub fn new(name: Bytes, local_id: LocalId<T>, remote_id: RemoteId<T>) -> TranslationEntry<T> {
+    fn new(name: Bytes, local_id: LocalId<T>, remote_id: RemoteId<T>) -> TranslationEntry<T> {
         TranslationEntry {
             name,
             local_id,
             remote_id,
         }
     }
-    pub fn set_local_id(&mut self, local_id: LocalId<T>) {
+    fn set_local_id(&mut self, local_id: LocalId<T>) {
         self.local_id = local_id;
     }
 
-    pub fn buffer_description_ref(&self, buf: &mut BytesMut) -> Result<()> {
+    fn buffer_description_ref(&self, buf: &mut BytesMut) -> Result<()> {
         // let LocalId(id) = self.local_id.clone();
         // let msg = SequencedMessage::from(Description::new(id, self.name.clone()));
         // buf.reserve(msg.required_buffer_size());
@@ -38,7 +37,7 @@ impl<T: BaseTypeSafeId> TranslationEntry<T> {
         unimplemented!();
     }
 
-    pub fn pack_description(&self) -> Result<Bytes> {
+    fn pack_description(&self) -> Result<Bytes> {
         let mut buf = BytesMut::new();
         self.buffer_description_ref(&mut buf)?;
         Ok(buf.freeze())
@@ -48,6 +47,12 @@ impl<T: BaseTypeSafeId> TranslationEntry<T> {
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct TranslationTable<T: BaseTypeSafeId> {
     entries: Vec<Option<TranslationEntry<T>>>,
+}
+
+impl<T: BaseTypeSafeId> Default for TranslationTable<T> {
+    fn default() -> TranslationTable<T> {
+        TranslationTable::new()
+    }
 }
 
 impl<T: BaseTypeSafeId> TranslationTable<T> {
@@ -67,7 +72,7 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
             return Err(Error::InvalidRemoteId(index));
         }
         if let Some(ref entry) = self.entries[index as usize] {
-            Ok(Some(entry.local_id.clone()))
+            Ok(Some(entry.local_id))
         } else {
             Err(Error::EmptyEntry)
         }
@@ -89,7 +94,7 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
         self.entries[real_index as usize] = Some(TranslationEntry {
             name,
             local_id,
-            remote_id: remote_id.clone(),
+            remote_id,
         });
         Ok(remote_id)
     }
@@ -101,10 +106,9 @@ impl<T: BaseTypeSafeId> TranslationTable<T> {
         });
         match find_result {
             Some(i) => {
-                match self.entries[i] {
-                    Some(ref mut entry) => entry.set_local_id(local_id),
-                    None => {}
-                };
+                if let Some(ref mut entry) = self.entries[i] {
+                    entry.set_local_id(local_id);
+                }
                 true
             }
             None => false,
