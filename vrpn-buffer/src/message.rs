@@ -79,6 +79,8 @@ pub struct MessageSize {
     pub unpadded_body_size: usize,
 }
 
+pub type LengthField = u32;
+
 impl MessageSize {
     const UNPADDED_HEADER_SIZE: usize = 5 * 4;
 
@@ -95,13 +97,26 @@ impl MessageSize {
             unpadded_message_size - MessageSize::UNPADDED_HEADER_SIZE,
         )
     }
+    /// Get a MessageSize from the length field of a message (padded header plus unpadded body)
+    #[inline]
+    pub fn from_length_field(length_field: LengthField) -> MessageSize {
+        MessageSize::from_unpadded_body_size(
+            length_field as usize - padded(MessageSize::UNPADDED_HEADER_SIZE),
+        )
+    }
 
-    /// The total unpadded size of a message (header plus body).
+    /// The unpadded size of just the message body.
+    #[inline]
+    pub fn unpadded_body_size(&self) -> usize {
+        self.unpadded_body_size
+    }
+
+    /// The padded header size plus the unpadded body size.
     ///
     /// This is the value put in the message header's length field.
     #[inline]
-    pub fn unpadded_message_size(&self) -> usize {
-        self.unpadded_body_size + MessageSize::UNPADDED_HEADER_SIZE
+    pub fn length_field(&self) -> LengthField {
+        (self.unpadded_body_size + padded(MessageSize::UNPADDED_HEADER_SIZE)) as LengthField
     }
 
     /// The size of the body plus padding (multiple of ALIGN)
@@ -193,9 +208,9 @@ impl Buffer for SequencedMessage<GenericBody> {
         if buf.remaining_mut() < size.padded_message_size() {
             return Err(buffer::Error::OutOfBuffer);
         }
-        let unpadded_len: u32 = size.unpadded_message_size() as u32;
+        let length_field = size.length_field() as u32;
 
-        Buffer::buffer_ref(&unpadded_len, buf)
+        Buffer::buffer_ref(&length_field, buf)
             .and_then(|()| self.message.header.time().buffer_ref(buf))
             .and_then(|()| self.message.header.sender().buffer_ref(buf))
             .and_then(|()| self.message.header.message_type().buffer_ref(buf))
@@ -213,8 +228,8 @@ impl Unbuffer for SequencedMessage<GenericBody> {
     /// Deserialize from a buffer.
     fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<SequencedMessage<GenericBody>> {
         let initial_remaining = buf.len();
-        let unpadded_len = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
-        let size = MessageSize::from_unpadded_message_size(unpadded_len as usize);
+        let length_field = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
+        let size = MessageSize::from_length_field(length_field);
 
         // Subtracting the length of the u32 we already unbuffered.
         let expected_remaining_bytes = size.padded_message_size() - size_of::<u32>();
@@ -234,13 +249,13 @@ impl Unbuffer for SequencedMessage<GenericBody> {
 
         let body;
         {
-            let mut body_buf = buf.split_to(size.unpadded_body_size);
+            let mut body_buf = buf.split_to(size.unpadded_body_size());
             body = GenericBody::unbuffer_ref(&mut body_buf).map_exactly_err_to_at_least()?;
             assert_eq!(body_buf.len(), 0);
         }
 
         // drop padding bytes
-        buf.split_to(size.body_padding());
+        let _ = buf.split_to(size.body_padding());
         Ok(SequencedMessage::new(
             Some(time),
             message_type,
@@ -293,7 +308,7 @@ impl<U: BaseTypeSafeId> Buffer for InnerDescription<U> {
 
 impl<T: BaseTypeSafeId> Unbuffer for InnerDescription<T> {
     fn unbuffer_ref(buf: &mut Bytes) -> unbuffer::Result<InnerDescription<T>> {
-        length_prefixed::unbuffer_string(buf).map(|b| InnerDescription::new(b))
+        length_prefixed::unbuffer_string(buf).map(InnerDescription::new)
     }
 }
 
@@ -386,5 +401,26 @@ mod tests {
             0,
             "The sequence number should make our header need no additional padding."
         );
+    }
+
+    #[test]
+    fn sizes() {
+        // Based on the initial "VRPN Control" sender ID message
+        assert_eq!(
+            MessageSize::from_unpadded_body_size(17).unpadded_body_size(),
+            17
+        );
+        assert_eq!(
+            MessageSize::from_unpadded_body_size(17).padded_body_size(),
+            24
+        );
+        assert_eq!(MessageSize::UNPADDED_HEADER_SIZE, 20);
+        assert_eq!(
+            MessageSize::from_unpadded_body_size(17).padded_message_size(),
+            48
+        );
+        assert_eq!(MessageSize::from_unpadded_body_size(17).length_field(), 41);
+        assert_eq!(MessageSize::from_length_field(41).length_field(), 41);
+        assert_eq!(MessageSize::from_length_field(41).unpadded_body_size(), 17);
     }
 }

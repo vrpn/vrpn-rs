@@ -28,15 +28,19 @@ The header consists of five (5) 32-bit integers which form four (4) fields:
 - sender ID
 - message type ID
 
-The value of the `length` field is the sum of the *unpadded* lengths of the header and body.
-The header length, unpadded, is always `5 * 4 = 20` bytes.
+The value of the `length` field is the sum of padded length of the header and
+the *unpadded* length of the body.
+The header length, unpadded, is always `5 * 4 = 20` bytes, which results in a
+padded length of `24` bytes.
 
 In the "padding" following the header, there is actually a sixth `u32`:
 a sequence number.
 The mainline does not deserialize it, and it is not included in the length field.
 
-The header is then padded out to eight (8) bytes (typically with null) before starting the body.
-The body is similarly padded out to a multiple of `vrpn_ALIGN` (8).
+The header is then padded out to a multiple eight (8) bytes before starting the body.
+This overlaps completely with the (optional) sequence number field,
+so if you include the sequence number in the header, there is no padding for the header.
+The body is padded out (typically with 0) to a multiple of `vrpn_ALIGN` (8).
 
 Additionally, messages may have a "class of service" specified.
 The main usage for this is distinguishing "reliable" (send via TCP) and
