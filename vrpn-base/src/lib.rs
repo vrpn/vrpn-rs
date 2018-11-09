@@ -7,6 +7,8 @@ extern crate bitmask;
 
 extern crate bytes;
 
+extern crate cgmath;
+
 #[macro_use]
 extern crate quick_error;
 
@@ -16,6 +18,7 @@ pub mod error;
 pub mod log;
 pub mod message;
 pub mod time;
+pub mod tracker;
 pub mod types;
 
 pub use crate::{
@@ -31,3 +34,7 @@ pub use crate::{
     time::TimeVal,
     types::*,
 };
+
+pub mod prelude {
+    pub use cgmath::prelude::*;
+}

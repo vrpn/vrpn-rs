@@ -3,7 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
-use crate::constants;
+use cgmath::{Quaternion, Vector3};
+use crate::{constants, prelude::*};
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
@@ -231,3 +232,10 @@ impl std::cmp::PartialEq<StaticTypeName> for TypeName {
 /// Sequence number - not used on receive side, only used for sniffers (?)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SequenceNumber(pub u32);
+
+/// Sensor ID for trackers.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct Sensor(pub i32);
+
+pub type Quat = Quaternion<f64>;
+pub type Vec3 = Vector3<f64>;
