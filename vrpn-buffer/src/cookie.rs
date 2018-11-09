@@ -3,12 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{BufMut, Bytes};
-use crate::traits::{
-    buffer::{self, Buffer, BytesMutExtras},
-    unbuffer::{self, check_expected, OutputResultExtras, Unbuffer},
-    ConstantBufferSize,
-};
-use std::{num::ParseIntError, result};
+use crate::{prelude::*, unbuffer::check_expected, Buffer, ConstantBufferSize, Unbuffer};
 use vrpn_base::{
     constants::{COOKIE_SIZE, MAGIC_PREFIX},
     CookieData, EmptyResult, Error, LogFlags, LogMode, Result, Version,
@@ -37,7 +32,6 @@ impl Buffer for CookieData {
 #[inline]
 fn from_dec(input: &[u8]) -> Result<u8> {
     u8::from_str_radix(&String::from_utf8_lossy(input), 10).map_err(|e| Error::from(e))
-    //.map_err(|e| Box::new::<dyn std::error::Error>(e).into())
 }
 
 #[inline]

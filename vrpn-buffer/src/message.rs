@@ -2,25 +2,18 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use crate::{
     length_prefixed::{self, LengthBehavior, NullTermination},
-    traits::{
-        buffer::{self, Buffer, BytesMutExtras},
-        unbuffer::{self, OutputResultExtras, Unbuffer},
-        BufferSize, WrappedConstantSize,
-    },
+    prelude::*,
+    Buffer, BufferSize, Unbuffer,
 };
-use std::{
-    mem::size_of,
-    net::{IpAddr, SocketAddr},
-    ops::{Deref, DerefMut},
-};
+use std::{mem::size_of, net::IpAddr};
 use vrpn_base::{
     constants::ALIGN, BaseTypeSafeId, BytesRequired, EmptyResult, Error, GenericBody,
-    GenericMessage, IdType, InnerDescription, LocalId, Message, MessageBody, RemoteId, Result,
-    SenderId, SequenceNumber, SequencedGenericMessage, SequencedMessage, TimeVal, TypeId,
-    TypeSafeId, TypedMessageBody, UdpDescription, UdpInnerDescription,
+    GenericMessage, IdType, InnerDescription, Message, Result, SenderId, SequenceNumber,
+    SequencedGenericMessage, SequencedMessage, TimeVal, TypeId, TypeSafeId, TypedMessageBody,
+    UdpInnerDescription,
 };
 
 impl WrappedConstantSize for SequenceNumber {
@@ -52,15 +45,6 @@ impl WrappedConstantSize for TypeId {
         TypeId(v)
     }
 }
-// impl<T: BaseTypeSafeId> WrappedConstantSize for RemoteId<T> {
-//     type WrappedType = IdType;
-//     fn get(&self) -> Self::WrappedType {
-//         TypeSafeId::get(self)
-//     }
-//     fn new(v: Self::WrappedType) -> Self {
-//         RemoteId(T::new(v))
-//     }
-// }
 
 #[inline]
 fn compute_padding(len: usize) -> usize {
@@ -140,49 +124,8 @@ impl MessageSize {
     }
 }
 
-/// Wraps a type implementing BufMut to also track the initial remaining length,
-/// to allow for automatic padding of fields.
-// struct BufMutWrapper<T: BufMut>(T, usize);
-// impl<T: BufMut> BufMutWrapper<T> {
-//     fn new(buf: T) -> BufMutWrapper<T> {
-//         let remaining = buf.remaining_mut();
-//         BufMutWrapper(buf, remaining)
-//     }
-//     fn buffered(&self) -> usize {
-//         self.1 - self.0.remaining_mut()
-//     }
-//     fn pad_to_align(&mut self) {
-//         for _ in 0..compute_padding(self.buffered()) {
-//             self.0.put_u8(0)
-//         }
-//     }
-//     #[inline]
-//     fn borrow_buf(&self) -> &T {
-//         &self.0
-//     }
-//     #[inline]
-//     fn borrow_buf_mut(&mut self) -> &mut T {
-//         &mut self.0
-//     }
-// }
-
-// impl<T: BufMut> Deref for BufMutWrapper<T> {
-//     type Target = T;
-//     #[inline]
-//     fn deref(&self) -> &T {
-//         self.borrow_buf()
-//     }
-// }
-
-// impl<T: BufMut> DerefMut for BufMutWrapper<T> {
-//     #[inline]
-//     fn deref_mut(&mut self) -> &mut T {
-//         self.borrow_buf_mut()
-//     }
-// }
-
 // Header is 5 i32s (padded to vrpn_ALIGN):
-// - unpadded header size + unpadded body size
+// - padded header size + unpadded body size
 // - time stamp
 // - sender
 // - type

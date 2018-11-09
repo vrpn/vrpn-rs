@@ -24,7 +24,7 @@ pub use crate::{
     primitives::*,
     traits::{
         buffer::{self, Buffer},
-        unbuffer::{self, Unbuffer, UnbufferConstantSize},
-        BufferSize, ConstantBufferSize,
+        unbuffer::{self, check_expected, Source, Unbuffer, UnbufferConstantSize},
+        BufferSize, ConstantBufferSize, WrappedConstantSize,
     },
 };

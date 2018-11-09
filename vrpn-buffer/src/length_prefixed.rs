@@ -3,13 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{BufMut, Bytes};
-use crate::{
-    prelude::*,
-    traits::{
-        buffer::{self, Buffer},
-        unbuffer::{self, check_expected, OutputResultExtras, Source, Unbuffer},
-    },
-};
+use crate::{check_expected, prelude::*, Buffer, Unbuffer};
 use std::mem::size_of;
 use vrpn_base::{BytesRequired, EmptyResult, Error, Result};
 

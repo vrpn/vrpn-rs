@@ -4,8 +4,8 @@
 
 use bytes::Bytes;
 use crate::{
-    constants, BaseTypeSafeId, IdType, RemoteId, SenderId, SequenceNumber, StaticTypeName, TimeVal,
-    TypeId, TypeSafeId,
+    constants, BaseTypeSafeId, IdType, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId,
+    TypeSafeId,
 };
 use std::{
     marker::PhantomData,

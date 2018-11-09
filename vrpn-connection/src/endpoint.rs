@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::Bytes;
-use crate::TranslationTable;
 use downcast_rs::Downcast;
 use vrpn_base::{
     constants, ClassOfService, Description, Error, GenericMessage, InnerDescription, LogFileNames,

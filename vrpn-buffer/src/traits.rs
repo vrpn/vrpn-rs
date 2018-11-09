@@ -63,7 +63,7 @@ pub mod buffer {
 
 pub mod unbuffer {
     use super::*;
-    use bytes::{Buf, Bytes, BytesMut, IntoBuf};
+    use bytes::{Bytes, BytesMut, IntoBuf};
 
     /// Unifying trait over things we can unbuffer from (Bytes and BytesMut)
     pub trait Source:
@@ -227,27 +227,6 @@ pub mod unbuffer {
         }
     }
 
-    /// Wraps a type implementing Source to allow updating of position only when a closure succeeds.
-    struct SourceWrapper<'a, T: Source>(&'a mut T);
-    impl<'a, T: Source> SourceWrapper<'a, T> {
-        fn new(buf: &'a mut T) -> SourceWrapper<'a, T> {
-            SourceWrapper(buf)
-        }
-        fn call<F, U, E>(self, f: F) -> std::result::Result<U, E>
-        where
-            F: FnOnce(&mut T) -> std::result::Result<U, E>,
-        {
-            let orig_len = self.0.len();
-            let mut temp_buf = T::clone(self.0);
-            match f(&mut temp_buf) {
-                Ok(v) => {
-                    self.0.advance(orig_len - temp_buf.len());
-                    Ok(v)
-                }
-                Err(e) => Err(e),
-            }
-        }
-    }
 }
 
 /// Trait for computing the buffer size needed for types

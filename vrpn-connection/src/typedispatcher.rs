@@ -10,7 +10,6 @@ use vrpn_base::{
     types::{self, *},
     Error, GenericMessage, Result,
 };
-use vrpn_buffer::{buffer, unbuffer};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum RegisterMapping<T: BaseTypeSafeId> {
@@ -33,26 +32,12 @@ type HandlerInnerType = types::IdType;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct HandlerHandle(HandlerInnerType);
-// pub type HandlerFnMutInner = FnMut(&GenericMessage) -> Result<()>;
 
 pub trait Handler: fmt::Debug {
     // TODO replace with an associated const once we can do that and still box it.
     fn message_type(&self) -> IdToHandle<TypeId>;
     fn handle(&mut self, msg: &GenericMessage) -> Result<()>;
 }
-
-pub trait SystemHandler: fmt::Debug {
-    // TODO replace with an associated const once we can do that and still box it.
-    fn message_type(&self) -> TypeId;
-    fn handle(&mut self, msg: &GenericMessage, endpoint: &mut dyn Endpoint) -> Result<()>;
-}
-
-// pub struct HandlerFnMut(HandlerFnMutInner);
-// impl<'a> fmt::Debug for HandlerFnMut {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(f, "HandlerFnMut")
-//     }
-// }
 
 /// Type storing a boxed callback function, an optional sender ID filter,
 /// and the unique-per-CallbackCollection handle that can be used to unregister a handler.
@@ -63,15 +48,6 @@ struct MsgCallbackEntry {
     pub sender: IdToHandle<SenderId>,
 }
 
-// impl<'a> fmt::Debug for MsgCallbackEntry {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(
-//             f,
-//             "MsgCallbackEntry {{ handle: {:?}, sender: {:?} }}",
-//             self.handle, self.sender
-//         )
-//     }
-// }
 impl MsgCallbackEntry {
     pub fn new(
         handle: HandlerHandle,
@@ -176,7 +152,6 @@ pub struct TypeDispatcher {
     types: Vec<CallbackCollection>,
     generic_callbacks: CallbackCollection,
     senders: Vec<SenderName>,
-    system_callbacks: Vec<Option<Box<dyn SystemHandler>>>,
 }
 
 impl Default for TypeDispatcher {
@@ -191,7 +166,6 @@ impl TypeDispatcher {
             types: Vec::new(),
             generic_callbacks: CallbackCollection::new(Bytes::from_static(constants::GENERIC)),
             senders: Vec::new(),
-            system_callbacks: Vec::new(),
         };
 
         disp.register_sender(constants::CONTROL)
@@ -219,21 +193,6 @@ impl TypeDispatcher {
                 Ok(&mut self.types[index])
             }
             AnyId => Ok(&mut self.generic_callbacks),
-        }
-    }
-
-    /// Get a borrow of the CallbackCollection associated with the supplied TypeId
-    /// (or the generic callbacks for AnyId)
-    fn get_type_callbacks<'a>(
-        &'a self,
-        type_id: IdToHandle<TypeId>,
-    ) -> Result<&'a CallbackCollection> {
-        match type_id {
-            SomeId(i) => {
-                let index = message_type_into_index(i, self.types.len())?;
-                Ok(&self.types[index])
-            }
-            AnyId => Ok(&self.generic_callbacks),
         }
     }
 
@@ -312,31 +271,6 @@ impl TypeDispatcher {
 
         self.generic_callbacks.call(&msg)?;
         mapping.call(&msg)
-    }
-
-    pub fn do_system_callbacks_for(
-        &mut self,
-        msg: &GenericMessage,
-        endpoint: &mut dyn Endpoint,
-    ) -> Result<()> {
-        let index = system_message_type_into_index(msg.header.message_type())?;
-        if index >= self.system_callbacks.len() {
-            // Not an error to try to call an unhandled system message
-            return Ok(());
-        }
-        match self.system_callbacks[index] {
-            Some(ref mut handler) => handler.handle(&msg, endpoint),
-            None => Ok(()),
-        }
-    }
-
-    pub fn set_system_handler(&mut self, handler: Box<dyn SystemHandler>) -> Result<()> {
-        let index = system_message_type_into_index(handler.message_type())?;
-        while index >= self.system_callbacks.len() {
-            self.system_callbacks.push(None);
-        }
-        self.system_callbacks[index] = Some(handler);
-        Ok(())
     }
 }
 #[cfg(test)]

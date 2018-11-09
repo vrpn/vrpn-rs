@@ -7,8 +7,6 @@ extern crate bitmask;
 
 extern crate bytes;
 
-extern crate libc;
-
 #[macro_use]
 extern crate quick_error;
 

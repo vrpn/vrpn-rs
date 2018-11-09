@@ -6,6 +6,7 @@ extern crate bytes;
 
 #[macro_use]
 extern crate downcast_rs;
+
 extern crate socket2;
 
 #[macro_use]

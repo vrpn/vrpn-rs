@@ -3,14 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{BufMut, Bytes};
-use crate::{
-    prelude::*,
-    traits::{
-        buffer::{self, Buffer},
-        unbuffer::Unbuffer,
-        ConstantBufferSize, WrappedConstantSize,
-    },
-};
+use crate::{prelude::*, Buffer, ConstantBufferSize, Unbuffer, WrappedConstantSize};
 use vrpn_base::{
     error::*,
     time::{Microseconds, Seconds},

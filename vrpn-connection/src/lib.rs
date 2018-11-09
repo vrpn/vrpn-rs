@@ -11,14 +11,13 @@ extern crate bytes;
 extern crate downcast_rs;
 
 pub mod endpoint;
-pub mod translation;
 pub mod translationtable;
 pub mod typedispatcher;
 
 pub use crate::{
     endpoint::*,
     translationtable::{MatchingTable, Table as TranslationTable, Tables as TranslationTables},
-    typedispatcher::{Handler, RegisterMapping, SystemHandler, TypeDispatcher},
+    typedispatcher::{Handler, RegisterMapping, TypeDispatcher},
 };
 
 pub mod prelude {

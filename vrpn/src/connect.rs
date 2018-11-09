@@ -4,17 +4,13 @@
 
 use bytes::{Bytes, BytesMut};
 use crate::{
-    base::{cookie::check_ver_nonfile_compatible, CookieData, Error, Result},
-    buffer::{buffer, unbuffer, ConstantBufferSize, Unbuffer},
+    base::{cookie::check_ver_nonfile_compatible, CookieData, Error},
+    buffer::{ConstantBufferSize, Unbuffer},
     prelude::*,
     *,
 };
 use std::net::SocketAddr;
-use tokio::{
-    io,
-    net::{TcpStream, UdpFramed, UdpSocket},
-    prelude::*,
-};
+use tokio::{io, net::TcpStream, prelude::*};
 
 fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
     use socket2::*;
@@ -54,7 +50,6 @@ where
             io::write_all(stream, buf.freeze())
                 .map(|(stream, _)| stream)
                 .from_err()
-            // .map_err(|e| Error::IoError(e))
         })
 }
 
@@ -158,6 +153,7 @@ mod tests {
     #[test]
     fn sync_connect() {
         use crate::buffer::Buffer;
+
         let addr = "127.0.0.1:3883".parse().unwrap();
 
         let sock = make_tcp_socket(addr).expect("failure making the socket");

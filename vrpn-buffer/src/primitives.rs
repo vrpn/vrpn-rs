@@ -2,12 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Buf, BufMut, Bytes, IntoBuf};
-use crate::traits::{
-    buffer::{self, Buffer},
-    unbuffer::{self, Source, UnbufferConstantSize},
-    ConstantBufferSize,
-};
+use bytes::{Buf, BufMut};
+use crate::{unbuffer, Buffer, ConstantBufferSize, Source, UnbufferConstantSize};
 use vrpn_base::{EmptyResult, Result};
 
 macro_rules! buffer_primitive {
