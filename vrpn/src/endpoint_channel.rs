@@ -6,14 +6,17 @@
 
 use bytes::BytesMut;
 use crate::{
-    base::message::{GenericMessage, Message, SequencedGenericMessage},
+    base::{GenericMessage, Message, SequenceNumber, SequencedGenericMessage},
     buffer::{buffer, unbuffer},
     codec::FramedMessageCodec,
     error::Error,
     prelude::*,
 };
 use futures::{sync::mpsc, StartSend};
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
 use tokio::{
     codec::{Decoder, Encoder},
     io,
@@ -31,6 +34,7 @@ type Rx = mpsc::UnboundedReceiver<SequencedGenericMessage>;
 pub(crate) struct EndpointChannel<T> {
     tx: stream::SplitSink<T>,
     rx: stream::SplitStream<T>,
+    seq: AtomicUsize,
 
     /// The "internal" end of the mpsc channel for returning received messages from the endpoint.
     in_tx: Tx,
@@ -51,6 +55,7 @@ where
         Arc::new(Mutex::new(EndpointChannel {
             tx,
             rx,
+            seq: AtomicUsize::new(0),
             in_tx,
             in_rx,
         }))
@@ -92,31 +97,55 @@ where
         let _ = self.poll_flush()?;
 
         // let _ = self.receive()?;
-        const MAX_PER_TICK: usize = 10;
-        for i in 0..MAX_PER_TICK {
-            match try_ready!(self.poll_receive()) {
-                Some(msg) => {
-                    eprintln!("poll_channel: received message {:?}", msg);
-                    message_handler(msg)?;
-                }
-                None => {
-                    eprintln!("poll_channel: received None");
-                    return Ok(Async::Ready(()));
-                }
-            }
-
-            // If this is the last iteration, the loop will break even
-            // though there could still be messages to read. Because we did
-            // not reach `Async::NotReady`, we have to notify ourselves
-            // in order to tell the executor to schedule the task again.
-            if i + 1 == MAX_PER_TICK {
-                task::current().notify();
-            }
-        }
 
         // OK to do because we either got not ready from self.poll_flush(),
         // self.receive(), or we've hit the limit (and have notified ourselves again accordingly)
         Ok(Async::NotReady)
+    }
+}
+
+impl<T> Stream for EndpointChannel<T>
+where
+    T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>
+        + Stream<Item = EpStreamItem, Error = EpStreamError>,
+{
+    type Item = GenericMessage;
+    type Error = EpStreamError;
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        // treat errors like a closed connection
+        self.rx
+            .poll()
+            // these nested maps are to get all the way inside the Ok(Async::Ready(Some(msg)))
+            .map(|a| a.map(|o| o.map(|msg| Message::from(msg))))
+        //.map_err(|e| Error::from(e))
+    }
+}
+
+impl<T> Sink for EndpointChannel<T>
+where
+    T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>
+        + Stream<Item = EpStreamItem, Error = EpStreamError>,
+{
+    type SinkItem = GenericMessage;
+    type SinkError = Error;
+    fn start_send(
+        &mut self,
+        item: Self::SinkItem,
+    ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
+        let seq = self.seq.fetch_add(1, Ordering::SeqCst);
+
+        match self
+            .tx
+            .start_send(item.into_sequenced_message(SequenceNumber(seq as u32)))?
+        {
+            AsyncSink::Ready => Ok(AsyncSink::Ready),
+
+            // Unwrap the message again if not ready.
+            AsyncSink::NotReady(msg) => Ok(AsyncSink::NotReady(GenericMessage::from(msg))),
+        }
+    }
+    fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
+        self.tx.poll_complete().map_err(|e| Error::from(e))
     }
 }
 

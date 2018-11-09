@@ -4,13 +4,14 @@
 
 use crate::{
     base::{
-        constants, Description, GenericMessage, InnerDescription, LocalId, LogFileNames, RemoteId,
-        SenderId, SenderName, TypeId, TypeName,
+        constants, BaseTypeSafeId, Description, GenericMessage, InnerDescription, LocalId,
+        LogFileNames, Message, RemoteId, SenderId, SenderName, TypeId, TypeName, TypedMessageBody,
     },
     buffer::message::unbuffer_typed_message_body,
     connection::{
         append_error, typedispatcher::RegisterMapping, Endpoint, Error as ConnectionError,
-        Result as ConnectionResult, SystemHandler, TypeDispatcher,
+        MatchingTable, Result as ConnectionResult, SystemHandler, TranslationTables,
+        TypeDispatcher,
     },
     endpoint_ip::{EndpointIp, MessageFramed, MessageFramedUdp},
     error::Error,
@@ -33,45 +34,50 @@ pub(crate) struct ConnectionIpInner {
 }
 
 impl ConnectionIpInner {
-    fn pack_sender_description<T: Into<SenderName>>(
-        &mut self,
-        name: T,
-        sender: SenderId,
-    ) -> ConnectionResult<()> {
-        let name: SenderName = name.into();
-        let sender = LocalId(sender);
-        let mut my_result = Ok(());
-        for endpoint in self.endpoints.iter_mut().flatten() {
-            match endpoint.pack_sender_description(sender) {
-                Ok(()) => (),
-                Err(e) => {
-                    my_result = append_error(my_result, e);
-                }
-            }
-            endpoint.new_local_sender(name.clone(), sender);
-        }
-        my_result
-    }
+    // fn pack_sender_description<T: Into<SenderName>, U>(
+    //     &mut self,
+    //     name: T,
+    //     sender: SenderId,
+    // ) -> ConnectionResult<()>
+    // where
+    //     T: BaseTypeSafeId,
+    //     InnerDescription<U>: TypedMessageBody,
+    //     TranslationTables: MatchingTable<U>,
+    // {
+    //     let name: SenderName = name.into();
+    //     let sender = LocalId(sender);
+    //     let mut my_result = Ok(());
+    //     for endpoint in self.endpoints.iter_mut().flatten() {
+    //         match endpoint.pack_description(sender) {
+    //             Ok(()) => (),
+    //             Err(e) => {
+    //                 my_result = append_error(my_result, e);
+    //             }
+    //         }
+    //         endpoint.new_local_sender(name.clone(), sender);
+    //     }
+    //     my_result
+    // }
 
-    fn pack_type_description<T: Into<TypeName>>(
-        &mut self,
-        name: T,
-        message_type: TypeId,
-    ) -> ConnectionResult<()> {
-        let name: TypeName = name.into();
-        let message_type = LocalId(message_type);
-        let mut my_result = Ok(());
-        for endpoint in self.endpoints.iter_mut().flatten() {
-            match endpoint.pack_type_description(message_type) {
-                Ok(()) => (),
-                Err(e) => {
-                    my_result = append_error(my_result, e);
-                }
-            }
-            endpoint.new_local_type(name.clone(), message_type);
-        }
-        my_result
-    }
+    // fn pack_type_description<T: Into<TypeName>>(
+    //     &mut self,
+    //     name: T,
+    //     message_type: TypeId,
+    // ) -> ConnectionResult<()> {
+    //     let name: TypeName = name.into();
+    //     let message_type = LocalId(message_type);
+    //     let mut my_result = Ok(());
+    //     for endpoint in self.endpoints.iter_mut().flatten() {
+    //         match endpoint.pack_type_description(message_type) {
+    //             Ok(()) => (),
+    //             Err(e) => {
+    //                 my_result = append_error(my_result, e);
+    //             }
+    //         }
+    //         endpoint.new_local_type(name.clone(), message_type);
+    //     }
+    //     my_result
+    // }
 }
 
 pub(crate) type ArcConnectionIpInner = Arc<Mutex<ConnectionIpInner>>;
@@ -178,22 +184,22 @@ impl ConnectionIp {
         Ok(ConnectionIp { inner })
     }
 
-    fn pack_sender_description(
-        &mut self,
-        name: impl Into<SenderName>,
-        sender: SenderId,
-    ) -> ConnectionResult<()> {
-        self.inner_lock_mut()?.pack_sender_description(name, sender)
-    }
+    // fn pack_sender_description(
+    //     &mut self,
+    //     name: impl Into<SenderName>,
+    //     sender: SenderId,
+    // ) -> ConnectionResult<()> {
+    //     self.inner_lock_mut()?.pack_sender_description(name, sender)
+    // }
 
-    fn pack_type_description(
-        &mut self,
-        name: impl Into<TypeName>,
-        message_type: TypeId,
-    ) -> ConnectionResult<()> {
-        self.inner_lock_mut()?
-            .pack_type_description(name, message_type)
-    }
+    // fn pack_type_description(
+    //     &mut self,
+    //     name: impl Into<TypeName>,
+    //     message_type: TypeId,
+    // ) -> ConnectionResult<()> {
+    //     self.inner_lock_mut()?
+    //         .pack_type_description(name, message_type)
+    // }
 
     fn add_type(&mut self, name: impl Into<TypeName>) -> ConnectionResult<TypeId> {
         self.inner_lock_mut()?.type_dispatcher.add_type(name)

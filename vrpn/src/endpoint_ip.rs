@@ -20,13 +20,14 @@ use crate::{
     inner_lock, ArcConnectionIpInner,
 };
 use futures::sync::mpsc;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc, Mutex,
+use std::{
+    ops::DerefMut,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
 };
 use tokio::{
-    codec::{Decoder, Encoder, Framed},
-    io,
     net::{TcpStream, UdpFramed, UdpSocket},
     prelude::*,
 };
@@ -34,20 +35,19 @@ use tokio::{
 pub type MessageFramed = codec::MessageFramed<TcpStream>;
 pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
 
-fn poll_and_dispatch_channel<T>(
+/// Given a stream of GenericMessage, poll the stream and dispatch received messages.
+fn poll_and_dispatch<T>(
     endpoint: &mut EndpointIp,
-    channel: &mut EndpointChannel<T>,
+    stream: &mut T,
     dispatcher: &mut TypeDispatcher,
 ) -> Poll<(), Error>
 where
-    T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>
-        + Stream<Item = EpStreamItem, Error = EpStreamError>,
+    T: Stream<Item = GenericMessage, Error = Error>,
 {
-    let mut closed = channel.poll_flush()?.is_ready();
-
     const MAX_PER_TICK: usize = 10;
+    let mut closed = false;
     for i in 0..MAX_PER_TICK {
-        match channel.poll_receive()? {
+        match stream.poll()? {
             Async::Ready(Some(msg)) => {
                 eprintln!("Received message {:?}", msg);
                 if msg.is_system_message() {
@@ -59,6 +59,7 @@ where
             Async::Ready(None) => {
                 // connection closed
                 closed = true;
+                break;
             }
             Async::NotReady => {
                 break;
@@ -78,6 +79,50 @@ where
         Ok(Async::NotReady)
     }
 }
+// fn poll_and_dispatch_channel<T>(
+//     endpoint: &mut EndpointIp,
+//     channel: &mut EndpointChannel<T>,
+//     dispatcher: &mut TypeDispatcher,
+// ) -> Poll<(), Error>
+// where
+//     T: Sink<SinkItem = EpSinkItem, SinkError = EpSinkError>
+//         + Stream<Item = EpStreamItem, Error = EpStreamError>,
+// {
+//     let mut closed = channel.poll_flush()?.is_ready();
+
+//     const MAX_PER_TICK: usize = 10;
+//     for i in 0..MAX_PER_TICK {
+//         match channel.poll_receive()? {
+//             Async::Ready(Some(msg)) => {
+//                 eprintln!("Received message {:?}", msg);
+//                 if msg.is_system_message() {
+//                     endpoint.handle_system_message(msg)?;
+//                 } else {
+//                     dispatcher.do_callbacks_for(&msg)?;
+//                 }
+//             }
+//             Async::Ready(None) => {
+//                 // connection closed
+//                 closed = true;
+//             }
+//             Async::NotReady => {
+//                 break;
+//             }
+//         }
+//         // If this is the last iteration, the loop will break even
+//         // though there could still be messages to read. Because we did
+//         // not reach `Async::NotReady`, we have to notify ourselves
+//         // in order to tell the executor to schedule the task again.
+//         if i + 1 == MAX_PER_TICK {
+//             task::current().notify();
+//         }
+//     }
+//     if closed {
+//         Ok(Async::Ready(()))
+//     } else {
+//         Ok(Async::NotReady)
+//     }
+// }
 
 #[derive(Debug)]
 pub struct EndpointIp {
@@ -113,15 +158,14 @@ impl EndpointIp {
     //     &self.types
     // }
 
-    pub(crate) fn pack_sender_description(
-        &mut self,
-        local_sender: LocalId<SenderId>,
-    ) -> ConnectionResult<()> {
-        let LocalId(id) = local_sender;
-        let name = self
-            .translation
-            .senders
-            .find_by_local_id(local_sender)
+    pub(crate) fn pack_description<T>(&mut self, local_id: LocalId<T>) -> ConnectionResult<()>
+    where
+        T: BaseTypeSafeId,
+        InnerDescription<T>: TypedMessageBody,
+        TranslationTables: MatchingTable<T>,
+    {
+        let LocalId(id) = local_id;
+        let name = translation::find_by_local_id(&mut self.translation, local_id)
             .ok_or_else(|| ConnectionError::InvalidLocalId(id.get()))
             .and_then(|entry| Ok(entry.name().clone()))?;
         let desc_msg = Message::from(Description::new(id, name));
@@ -187,7 +231,8 @@ impl EndpointIp {
         let mut channel = channel_arc
             .lock()
             .map_err(|e| Error::OtherMessage(e.to_string()))?;
-        let closed = poll_and_dispatch_channel(self, &mut channel, dispatcher)?.is_ready();
+        let _ = channel.poll_complete()?;
+        let closed = poll_and_dispatch(self, channel.deref_mut(), dispatcher)?.is_ready();
 
         // todo UDP here.
 
@@ -218,8 +263,15 @@ impl Endpoint for EndpointIp {
             .reliable_channel
             .lock()
             .map_err(|e| ConnectionError::OtherMessage(e.to_string()))?;
-        channel.buffer(msg.into_sequenced_message(SequenceNumber(seq as u32)))?;
-        Ok(())
+        match channel
+            .start_send(msg)
+            .map_err(|e| ConnectionError::OtherMessage(e.to_string()))?
+        {
+            AsyncSink::Ready => Ok(()),
+            AsyncSink::NotReady(_) => Err(ConnectionError::OtherMessage(String::from(
+                "Didn't have room in send buffer",
+            ))),
+        }
     }
 }
 

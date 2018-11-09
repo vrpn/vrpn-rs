@@ -40,6 +40,12 @@ impl<T: BaseTypeSafeId> Entry<T> {
     pub fn name(&self) -> &Bytes {
         &self.name
     }
+    pub fn local_id(&self) -> LocalId<T> {
+        self.local_id
+    }
+    pub fn remote_id(&self) -> RemoteId<T> {
+        self.remote_id
+    }
 
     fn pack_description(&self) -> Result<Bytes> {
         let mut buf = BytesMut::new();
@@ -126,7 +132,7 @@ impl<T: BaseTypeSafeId> Table<T> {
         // };
     }
 
-    fn find_by_predicate<F>(&self, f: F) -> Option<&Entry<T>>
+    pub(crate) fn find_by_predicate<F>(&self, f: F) -> Option<&Entry<T>>
     where
         F: Fn(&Entry<T>) -> bool,
     {
@@ -233,31 +239,6 @@ impl<T: BaseTypeSafeId> MatchingTable<T> for Table<T> {
     fn table_mut(&mut self) -> &mut Table<T> {
         self
     }
-}
-
-/// Convert a remote ID to a local ID, if found.
-pub fn map_to_local_id<T, U>(translation: &U, id: RemoteId<T>) -> Result<Option<LocalId<T>>>
-where
-    T: BaseTypeSafeId,
-    U: MatchingTable<T>,
-{
-    translation.table().map_to_local_id(id)
-}
-
-/// Record a remote and local ID with the corresponding name.
-pub fn add_remote_entry<T, U>(
-    translation: &mut U,
-    name: Bytes,
-    remote_id: RemoteId<T>,
-    local_id: LocalId<T>,
-) -> Result<RemoteId<T>>
-where
-    T: BaseTypeSafeId,
-    U: MatchingTable<T>,
-{
-    translation
-        .table_mut()
-        .add_remote_entry(name, remote_id, local_id)
 }
 
 #[cfg(test)]
