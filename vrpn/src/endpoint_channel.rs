@@ -5,7 +5,10 @@
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
 use crate::{
-    base::{Error, GenericMessage, Message, SequenceNumber, SequencedGenericMessage},
+    base::{
+        Error, GenericMessage, LocalId, Message, MessageHeader, RemoteId, SequenceNumber,
+        SequencedGenericMessage,
+    },
     connection::{Endpoint, TypeDispatcher},
     endpoint_ip::EndpointIp,
 };
@@ -100,7 +103,27 @@ where
                 if msg.is_system_message() {
                     endpoint.handle_system_message(msg)?;
                 } else {
-                    dispatcher.do_callbacks_for(&msg)?;
+                    if let Some(LocalId(new_type)) =
+                        endpoint.map_to_local_id(RemoteId(msg.header.message_type()))
+                    {
+                        if let Some(LocalId(new_sender)) =
+                            endpoint.map_to_local_id(RemoteId(msg.header.sender()))
+                        {
+                            let msg = Message::from_header_and_body(
+                                MessageHeader::new(
+                                    Some(msg.header.time().clone()),
+                                    new_type,
+                                    new_sender,
+                                ),
+                                msg.body,
+                            );
+                            dispatcher.do_callbacks_for(&msg)?;
+                        } else {
+                            eprintln!("Could not map sender to local");
+                        }
+                    } else {
+                        eprintln!("Could not map type to local");
+                    }
                 }
             }
             Async::Ready(None) => {
