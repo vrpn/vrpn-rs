@@ -3,15 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    base::{
-        Error, IdToHandle, LogFileNames, Message, Result, SenderId, SenderName, SomeId,
-        StaticSenderName, StaticTypeName, TypeId, TypeName,
-    },
-    connection::{
-        typedispatcher::{HandlerHandle, RegisterMapping},
-        Handler, TypeDispatcher,
-    },
-    endpoint_ip::EndpointIp,
+    type_dispatcher::{HandlerHandle, RegisterMapping},
+    vrpn_tokio::endpoint_ip::EndpointIp,
+    Error, Handler, IdToHandle, LogFileNames, Message, Result, SenderId, SenderName, SomeId,
+    StaticSenderName, StaticTypeName, TypeDispatcher, TypeId, TypeName,
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -157,10 +152,7 @@ impl ConnectionIp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        base::tracker::*, base::GenericMessage, buffer::unbuffer_typed_message_body,
-        connection::Handler,
-    };
+    use crate::{tracker::*, unbuffer_typed_message_body, GenericMessage, Handler};
 
     #[derive(Debug)]
     struct TrackerHandler {
@@ -178,7 +170,7 @@ mod tests {
     //#[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker() {
-        use crate::connect::connect_tcp;
+        use crate::vrpn_tokio::connect_tcp;
         let addr = "127.0.0.1:3883".parse().unwrap();
         let flag = Arc::new(Mutex::new(false));
 

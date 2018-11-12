@@ -3,11 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::BytesMut;
-use crate::{
-    base::{Error, Result, SequencedGenericMessage},
-    buffer::{Buffer, MessageSize, Unbuffer},
-    prelude::*,
-};
+use crate::prelude::*;
+use crate::{message::MessageSize, Buffer, Error, Result, SequencedGenericMessage, Unbuffer};
 use pretty_hex::*;
 use tokio::{
     codec::{Decoder, Encoder, Framed},

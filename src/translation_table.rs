@@ -3,7 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
-use vrpn_base::{BaseTypeSafeId, Error, LocalId, RemoteId, Result, SenderId, TypeId, TypeSafeId};
+use crate::prelude::*;
+use crate::{BaseTypeSafeId, Error, LocalId, RemoteId, Result, SenderId, TypeId, TypeSafeId};
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Entry<T: BaseTypeSafeId> {
@@ -225,7 +226,7 @@ mod tests {
     #[test]
     fn simple() {
         use super::*;
-        use vrpn_base::types::{RemoteId, SenderId};
+        use crate::types::{RemoteId, SenderId};
         let mut table: Table<SenderId> = Table::new();
         table
             .add_remote_entry(

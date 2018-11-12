@@ -3,18 +3,149 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{BufMut, Bytes, BytesMut};
+use crate::prelude::*;
 use crate::{
-    length_prefixed::{self, LengthBehavior, NullTermination},
-    prelude::*,
-    Buffer, BufferSize, Unbuffer,
+    constants::ALIGN, length_prefixed, BaseTypeSafeId, Buffer, BufferSize, BytesRequired,
+    EmptyResult, Error, IdType, Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId,
+    TypeSafeId, Unbuffer,
 };
-use std::{mem::size_of, net::IpAddr};
-use vrpn_base::{
-    constants::ALIGN, BaseTypeSafeId, BytesRequired, EmptyResult, Error, GenericBody,
-    GenericMessage, IdType, InnerDescription, Message, Result, SenderId, SequenceNumber,
-    SequencedGenericMessage, SequencedMessage, TimeVal, TypeId, TypeSafeId, TypedMessageBody,
-    UdpInnerDescription,
-};
+use std::mem::size_of;
+
+/// Empty trait used to indicate types that can be placed in a message body.
+pub trait MessageBody /*: Buffer + Unbuffer */ {}
+
+/// The identification used for a typed message body type.
+pub enum MessageTypeIdentifier {
+    /// User message types are identified by a string which is dynamically associated
+    /// with an ID on each side.
+    UserMessageName(StaticTypeName),
+
+    /// System message types are identified by a constant, negative message type ID.
+    ///
+    /// TODO: find a way to assert/enforce that this is negative - maybe a SystemTypeId type?
+    SystemMessageId(TypeId),
+}
+
+/// Trait for typed message bodies.
+///
+pub trait TypedMessageBody {
+    /// The name string (for user messages) or type ID (for system messages) used to identify this message type.
+    const MESSAGE_IDENTIFIER: MessageTypeIdentifier;
+}
+
+impl<T> MessageBody for T where T: TypedMessageBody /*+ Buffer + Unbuffer*/ {}
+
+/// Header information for a message.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct MessageHeader {
+    time: TimeVal,
+    message_type: TypeId,
+    sender: SenderId,
+}
+
+impl MessageHeader {
+    pub fn new(time: Option<TimeVal>, message_type: TypeId, sender: SenderId) -> MessageHeader {
+        MessageHeader {
+            time: time.unwrap_or_else(|| TimeVal::get_time_of_day()),
+            message_type,
+            sender,
+        }
+    }
+    pub fn time(&self) -> &TimeVal {
+        &self.time
+    }
+    pub fn message_type(&self) -> TypeId {
+        self.message_type
+    }
+    pub fn sender(&self) -> SenderId {
+        self.sender
+    }
+}
+
+/// A message with header information, almost ready to be buffered to the wire.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct Message<T: MessageBody> {
+    pub header: MessageHeader,
+    pub body: T,
+}
+
+pub type GenericMessage = Message<GenericBody>;
+
+impl<T: MessageBody> Message<T> {
+    pub fn new(
+        time: Option<TimeVal>,
+        message_type: TypeId,
+        sender: SenderId,
+        body: T,
+    ) -> Message<T> {
+        Message {
+            header: MessageHeader::new(time, message_type, sender),
+            body,
+        }
+    }
+
+    /// Create a message by combining a header and a body.
+    pub fn from_header_and_body(header: MessageHeader, body: T) -> Message<T> {
+        Message { header, body }
+    }
+
+    /// Consumes this message and returns a new SequencedMessage, which the supplied sequence number has been added to.
+    pub fn into_sequenced_message(self, sequence_number: SequenceNumber) -> SequencedMessage<T> {
+        SequencedMessage {
+            message: self,
+            sequence_number,
+        }
+    }
+
+    /// true if the message type indicates that it is a "system" message (type ID < 0)
+    pub fn is_system_message(&self) -> bool {
+        self.header.message_type.is_system_message()
+    }
+}
+
+/// A message with header information and sequence number, ready to be buffered to the wire.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct SequencedMessage<T: MessageBody> {
+    pub message: Message<T>,
+    pub sequence_number: SequenceNumber,
+}
+
+pub type SequencedGenericMessage = SequencedMessage<GenericBody>;
+
+impl<T: MessageBody> SequencedMessage<T> {
+    pub fn new(
+        time: Option<TimeVal>,
+        message_type: TypeId,
+        sender: SenderId,
+        body: T,
+        sequence_number: SequenceNumber,
+    ) -> SequencedMessage<T> {
+        SequencedMessage {
+            message: Message::new(time, message_type, sender, body),
+            sequence_number,
+        }
+    }
+}
+
+impl<T: MessageBody> From<SequencedMessage<T>> for Message<T> {
+    fn from(v: SequencedMessage<T>) -> Message<T> {
+        v.message
+    }
+}
+
+/// Generic body struct used in unbuffering process, before dispatch on type to fully decode.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct GenericBody {
+    pub inner: Bytes,
+}
+
+impl GenericBody {
+    pub fn new(inner: Bytes) -> GenericBody {
+        GenericBody { inner }
+    }
+}
+
+impl MessageBody for GenericBody {}
 
 impl WrappedConstantSize for SequenceNumber {
     type WrappedType = u32;
@@ -232,59 +363,6 @@ impl Buffer for GenericBody {
     }
 }
 
-impl<T: BaseTypeSafeId> BufferSize for InnerDescription<T> {
-    fn buffer_size(&self) -> usize {
-        length_prefixed::buffer_size(self.name().as_ref(), NullTermination::AddTrailingNull)
-    }
-}
-
-impl<U: BaseTypeSafeId> Buffer for InnerDescription<U> {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
-        length_prefixed::buffer_string(
-            self.name().as_ref(),
-            buf,
-            NullTermination::AddTrailingNull,
-            LengthBehavior::IncludeNull,
-        )
-    }
-}
-
-impl<T: BaseTypeSafeId> Unbuffer for InnerDescription<T> {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<InnerDescription<T>> {
-        length_prefixed::unbuffer_string(buf).map(InnerDescription::new)
-    }
-}
-
-impl Unbuffer for UdpInnerDescription {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<UdpInnerDescription> {
-        let ip_buf: Vec<u8> = buf.iter().take_while(|b| **b != 0).cloned().collect();
-        let ip_str = String::from_utf8_lossy(&ip_buf);
-        let addr: IpAddr = ip_str
-            .parse()
-            .map_err(|e| Error::OtherMessage(format!("ip address parse error: {}", e)))?;
-        buf.advance(ip_buf.len());
-
-        Ok(UdpInnerDescription::new(addr))
-    }
-}
-
-impl BufferSize for UdpInnerDescription {
-    fn buffer_size(&self) -> usize {
-        self.address.to_string().len() + 1
-    }
-}
-impl Buffer for UdpInnerDescription {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
-        let addr_str = self.address.to_string();
-        if buf.remaining_mut() < (addr_str.len() + 1) {
-            return Err(Error::OutOfBuffer);
-        }
-        buf.put(addr_str);
-        buf.put_u8(0);
-        Ok(())
-    }
-}
-
 pub fn unbuffer_typed_message_body<T: Unbuffer + TypedMessageBody>(
     msg: GenericMessage,
 ) -> Result<Message<T>> {
@@ -327,7 +405,7 @@ pub fn make_sequenced_message_body_generic<T: Buffer + TypedMessageBody>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::traits::ConstantBufferSize;
+    use crate::ConstantBufferSize;
     #[test]
     fn constant() {
         // The size field is a u32.

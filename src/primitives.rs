@@ -4,9 +4,9 @@
 
 use bytes::{Buf, BufMut, Bytes};
 use crate::{
-    Buffer, ConstantBufferSize, Source, Unbuffer, UnbufferConstantSize, WrappedConstantSize,
+    unbuffer::Source, unbuffer::UnbufferConstantSize, Buffer, BytesRequired, ConstantBufferSize,
+    EmptyResult, Error, Quat, Result, Sensor, Unbuffer, Vec3, WrappedConstantSize,
 };
-use vrpn_base::{BytesRequired, EmptyResult, Error, Quat, Result, Sensor, Vec3};
 
 macro_rules! buffer_primitive {
     ($t:ty, $put:ident, $get:ident) => {

@@ -3,14 +3,16 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
+use crate::types::*;
 use crate::{
-    base::types::*,
-    base::{
-        Description, Error, GenericMessage, InnerDescription, Message, Result, TypedMessageBody,
+    descriptions::InnerDescription,
+    endpoint::*,
+    vrpn_tokio::{
+        codec::{self, FramedMessageCodec},
+        endpoint_channel::{poll_and_dispatch, EndpointChannel},
     },
-    codec::{self, FramedMessageCodec},
-    connection::{endpoint::*, MatchingTable, TranslationTables, TypeDispatcher},
-    endpoint_channel::{poll_and_dispatch, EndpointChannel},
+    Description, Error, GenericMessage, MatchingTable, Message, Result, TranslationTables,
+    TypeDispatcher, TypedMessageBody,
 };
 use futures::sync::mpsc;
 use std::{
@@ -190,9 +192,9 @@ impl Endpoint for EndpointIp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vrpn_tokio::connect::connect_tcp;
     #[test]
     fn make_endpoint() {
-        use crate::connect::connect_tcp;
         let addr = "127.0.0.1:3883".parse().unwrap();
         let _ = connect_tcp(addr)
             .and_then(|stream| {
@@ -216,7 +218,6 @@ mod tests {
     }
     #[test]
     fn run_endpoint() {
-        use crate::connect::connect_tcp;
         let addr = "127.0.0.1:3883".parse().unwrap();
         let _ = connect_tcp(addr)
             .and_then(|stream| {

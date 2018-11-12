@@ -3,9 +3,11 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{BufMut, Bytes};
-use crate::{check_expected, prelude::*, Buffer, Unbuffer};
+use crate::prelude::*;
+use crate::{
+    unbuffer::check_expected, unbuffer, Buffer, BytesRequired, EmptyResult, Error, Result, Unbuffer,
+};
 use std::mem::size_of;
-use vrpn_base::{BytesRequired, EmptyResult, Error, Result};
 
 /// Does the "length prefix" value include a trailing null character (strlen() + 1)?
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]

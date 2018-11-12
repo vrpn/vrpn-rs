@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use downcast_rs::Downcast;
-use vrpn_base::{
-    constants, ClassOfService, Description, Error, GenericMessage, InnerDescription, LogFileNames,
-    Message, Result, SenderId, TypeId, TypeSafeId, TypedMessageBody, UdpDescription,
-    UdpInnerDescription,
+use crate::{
+    constants,
+    descriptions::{InnerDescription, UdpDescription, UdpInnerDescription},
+    make_message_body_generic, unbuffer_typed_message_body, Buffer, ClassOfService, Description,
+    Error, GenericMessage, LogFileNames, Message, Result, SenderId, TypeId, TypeSafeId,
+    TypedMessageBody,
 };
-use vrpn_buffer::{make_message_body_generic, unbuffer_typed_message_body, Buffer};
+use downcast_rs::Downcast;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum SystemMessage {

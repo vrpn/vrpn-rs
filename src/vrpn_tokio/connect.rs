@@ -3,11 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Bytes, BytesMut};
+use crate::prelude::*;
 use crate::{
-    base::{cookie::check_ver_nonfile_compatible, CookieData, Error},
-    buffer::{ConstantBufferSize, Unbuffer},
-    prelude::*,
-    *,
+    constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible, ConstantBufferSize, CookieData,
+    Error, Unbuffer,
 };
 use std::net::SocketAddr;
 use tokio::{io, net::TcpStream, prelude::*};
@@ -84,7 +83,7 @@ fn send_nonfile_cookie<T>(stream: T) -> impl Future<Item = T, Error = Error>
 where
     T: AsyncWrite,
 {
-    write_cookie(stream, CookieData::from(constants::MAGIC_DATA))
+    write_cookie(stream, CookieData::from(MAGIC_DATA))
 }
 
 /// Reads a cookie's worth of data from the stream, and cheacks to make sure it is the right version.
@@ -161,7 +160,7 @@ mod tests {
             .wait()
             .unwrap();
 
-        let cookie = CookieData::from(constants::MAGIC_DATA);
+        let cookie = CookieData::from(MAGIC_DATA);
         let mut send_buf = BytesMut::with_capacity(cookie.required_buffer_size());
         cookie.buffer_ref(&mut send_buf).unwrap();
         let (stream, _) = io::write_all(stream, send_buf.freeze()).wait().unwrap();

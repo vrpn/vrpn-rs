@@ -3,12 +3,9 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
+use crate::types::*;
+use crate::{constants, types, Error, GenericMessage, Result};
 use std::fmt;
-use vrpn_base::{
-    constants,
-    types::{self, *},
-    Error, GenericMessage, Result,
-};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum RegisterMapping<T: BaseTypeSafeId> {
@@ -281,7 +278,7 @@ impl TypeDispatcher {
 }
 #[cfg(test)]
 mod tests {
-    use crate::typedispatcher::*;
+    use crate::type_dispatcher::*;
     use std::rc::Rc;
     #[test]
     fn callback_collection() {
