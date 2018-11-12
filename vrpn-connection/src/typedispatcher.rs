@@ -27,14 +27,14 @@ impl<T: BaseTypeSafeId> RegisterMapping<T> {
         }
     }
 }
-type HandlerInnerType = types::IdType;
+type HandlerHandleInnerType = types::IdType;
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+struct HandlerHandleInner(HandlerHandleInnerType);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct HandlerHandle(HandlerInnerType);
+pub struct HandlerHandle(IdToHandle<TypeId>, HandlerHandleInnerType);
 
 pub trait Handler: fmt::Debug {
-    // TODO replace with an associated const once we can do that and still box it.
-    fn message_type(&self) -> IdToHandle<TypeId>;
     fn handle(&mut self, msg: &GenericMessage) -> Result<()>;
 }
 
@@ -42,14 +42,14 @@ pub trait Handler: fmt::Debug {
 /// and the unique-per-CallbackCollection handle that can be used to unregister a handler.
 #[derive(Debug)]
 struct MsgCallbackEntry {
-    handle: HandlerHandle,
+    handle: HandlerHandleInner,
     pub handler: Box<dyn Handler>,
     pub sender: IdToHandle<SenderId>,
 }
 
 impl MsgCallbackEntry {
     pub fn new(
-        handle: HandlerHandle,
+        handle: HandlerHandleInner,
         handler: Box<dyn Handler>,
         sender: IdToHandle<SenderId>,
     ) -> MsgCallbackEntry {
@@ -76,7 +76,7 @@ impl MsgCallbackEntry {
 struct CallbackCollection {
     name: Bytes,
     callbacks: Vec<MsgCallbackEntry>,
-    next_handle: HandlerInnerType,
+    next_handle: HandlerHandleInnerType,
 }
 
 impl CallbackCollection {
@@ -94,11 +94,11 @@ impl CallbackCollection {
         &mut self,
         handler: Box<dyn Handler>,
         sender: IdToHandle<SenderId>,
-    ) -> Result<HandlerHandle> {
+    ) -> Result<HandlerHandleInner> {
         if self.callbacks.len() > types::MAX_VEC_USIZE {
             return Err(Error::TooManyHandlers);
         }
-        let handle = HandlerHandle(self.next_handle);
+        let handle = HandlerHandleInner(self.next_handle);
         self.callbacks
             .push(MsgCallbackEntry::new(handle, handler, sender));
         self.next_handle += 1;
@@ -106,7 +106,7 @@ impl CallbackCollection {
     }
 
     /// Remove a callback
-    fn remove(&mut self, handle: HandlerHandle) -> Result<()> {
+    fn remove(&mut self, handle: HandlerHandleInner) -> Result<()> {
         match self.callbacks.iter().position(|ref x| x.handle == handle) {
             Some(i) => {
                 self.callbacks.remove(i);
@@ -258,10 +258,17 @@ impl TypeDispatcher {
     pub fn add_handler(
         &mut self,
         handler: Box<dyn Handler>,
+        message_type: IdToHandle<TypeId>,
         sender: IdToHandle<SenderId>,
     ) -> Result<HandlerHandle> {
-        self.get_type_callbacks_mut(handler.message_type())?
+        self.get_type_callbacks_mut(message_type)?
             .add(handler, sender)
+            .map(|HandlerHandleInner(h)| HandlerHandle(message_type, h))
+    }
+    pub fn remove_handler(&mut self, handler_handle: HandlerHandle) -> Result<()> {
+        let HandlerHandle(message_type, inner) = handler_handle;
+        self.get_type_callbacks_mut(message_type)?
+            .remove(HandlerHandleInner(inner))
     }
 
     pub fn do_callbacks_for(&mut self, msg: &GenericMessage) -> Result<()> {

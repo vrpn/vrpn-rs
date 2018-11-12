@@ -120,6 +120,12 @@ impl Error {
     }
 }
 
+impl<T> From<std::sync::PoisonError<T>> for Error {
+    fn from(v: std::sync::PoisonError<T>) -> Error {
+        Error::OtherMessage(v.to_string())
+    }
+}
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub type EmptyResult = Result<()>;

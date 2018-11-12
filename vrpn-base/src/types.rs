@@ -151,6 +151,18 @@ pub struct StaticSenderName(pub &'static [u8]);
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct SenderName(pub Bytes);
 
+impl From<&'static [u8]> for SenderName {
+    fn from(val: &'static [u8]) -> SenderName {
+        SenderName(Bytes::from_static(val))
+    }
+}
+
+impl From<&'static [u8]> for StaticSenderName {
+    fn from(val: &'static [u8]) -> StaticSenderName {
+        StaticSenderName(val)
+    }
+}
+
 impl From<StaticSenderName> for SenderName {
     fn from(val: StaticSenderName) -> SenderName {
         SenderName(Bytes::from(val))
@@ -186,6 +198,18 @@ pub struct StaticTypeName(pub &'static [u8]);
 
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct TypeName(pub Bytes);
+
+impl From<&'static [u8]> for TypeName {
+    fn from(val: &'static [u8]) -> TypeName {
+        TypeName(Bytes::from_static(val))
+    }
+}
+
+impl From<&'static [u8]> for StaticTypeName {
+    fn from(val: &'static [u8]) -> StaticTypeName {
+        StaticTypeName(val)
+    }
+}
 
 impl From<StaticTypeName> for TypeName {
     fn from(val: StaticTypeName) -> TypeName {

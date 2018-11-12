@@ -3,59 +3,43 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    base::{Error, LogFileNames, Result, SenderId, SenderName, TypeId, TypeName},
-    connection::{typedispatcher::RegisterMapping, TypeDispatcher},
+    base::{
+        Error, IdToHandle, LogFileNames, Message, Result, SenderId, SenderName, SomeId,
+        StaticSenderName, StaticTypeName, TypeId, TypeName,
+    },
+    connection::{
+        typedispatcher::{HandlerHandle, RegisterMapping},
+        Handler, TypeDispatcher,
+    },
     endpoint_ip::EndpointIp,
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex, MutexGuard},
 };
-use tokio::net::{TcpListener, TcpStream};
+use tokio::{
+    net::{TcpListener, TcpStream},
+    prelude::*,
+};
 
 #[derive(Debug)]
-pub(crate) struct ConnectionIpInner {
-    pub(crate) type_dispatcher: TypeDispatcher,
-    remote_log_names: LogFileNames,
-    local_log_names: LogFileNames,
-    endpoints: Vec<Option<EndpointIp>>,
-    server_tcp: Option<TcpListener>,
+pub(crate) struct EndpointIpCollection {
+    inner: Vec<Option<EndpointIp>>,
 }
 
-impl ConnectionIpInner {}
-
-pub(crate) type ArcConnectionIpInner = Arc<Mutex<ConnectionIpInner>>;
-
-pub(crate) fn inner_lock_mut<'a, E>(
-    inner: &'a mut ArcConnectionIpInner,
-) -> std::result::Result<MutexGuard<'a, ConnectionIpInner>, E>
-where
-    E: std::error::Error + From<String>,
-{
-    inner.lock().map_err(|e| E::from(e.to_string()))
-}
-
-pub(crate) fn inner_lock<'a, E>(
-    inner: &'a ArcConnectionIpInner,
-) -> std::result::Result<MutexGuard<'a, ConnectionIpInner>, E>
-where
-    E: std::error::Error + From<String>,
-{
-    inner.lock().map_err(|e| E::from(e.to_string()))
-}
-
-pub(crate) fn inner_lock_option<'a>(
-    inner: &'a ArcConnectionIpInner,
-) -> Option<MutexGuard<'a, ConnectionIpInner>> {
-    match inner.lock() {
-        Ok(guard) => Some(guard),
-        Err(_) => None,
+impl EndpointIpCollection {
+    fn new() -> Arc<Mutex<EndpointIpCollection>> {
+        Arc::new(Mutex::new(EndpointIpCollection { inner: Vec::new() }))
     }
 }
 
 #[derive(Debug)]
 pub struct ConnectionIp {
-    inner: ArcConnectionIpInner,
+    endpoints: Arc<Mutex<Vec<Option<EndpointIp>>>>,
+    pub(crate) type_dispatcher: Arc<Mutex<TypeDispatcher>>,
+    remote_log_names: LogFileNames,
+    local_log_names: LogFileNames,
+    server_tcp: Option<TcpListener>,
 }
 
 impl ConnectionIp {
@@ -66,13 +50,14 @@ impl ConnectionIp {
     ) -> Result<ConnectionIp> {
         let addr =
             addr.unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
-        let listener = TcpListener::bind(&addr)?;
-        let mut inner = Self::new_inner(None, local_log_names)?;
-        {
-            let mut inner = inner_lock_mut::<Error>(&mut inner)?;
-            inner.server_tcp = Some(listener);
-        }
-        Self::new_impl(inner)
+        let server_tcp = TcpListener::bind(&addr)?;
+        Ok(ConnectionIp {
+            endpoints: Arc::new(Mutex::new(Vec::new())),
+            type_dispatcher: Arc::new(Mutex::new(TypeDispatcher::new())),
+            remote_log_names: LogFileNames::new(),
+            local_log_names: LogFileNames::from(local_log_names),
+            server_tcp: Some(server_tcp),
+        })
     }
 
     /// Create a new ConnectionIp that is a client.
@@ -82,74 +67,143 @@ impl ConnectionIp {
         reliable_channel: TcpStream,
         // low_latency_channel: Option<MessageFramedUdp>,
     ) -> Result<ConnectionIp> {
-        let mut inner = Self::new_inner(remote_log_names, local_log_names)?;
-        {
-            let mut inner = inner_lock_mut::<Error>(&mut inner)?;
-            inner
-                .endpoints
-                .push(Some(EndpointIp::new(reliable_channel)));
-        }
-        Self::new_impl(inner)
-    }
-
-    fn new_inner(
-        local_log_names: Option<LogFileNames>,
-        remote_log_names: Option<LogFileNames>,
-    ) -> Result<ArcConnectionIpInner> {
-        Ok(Arc::new(Mutex::new(ConnectionIpInner {
-            type_dispatcher: TypeDispatcher::new(),
+        let mut endpoints: Vec<Option<EndpointIp>> = Vec::new();
+        endpoints.push(Some(EndpointIp::new(reliable_channel)));
+        Ok(ConnectionIp {
+            endpoints: Arc::new(Mutex::new(endpoints)),
+            type_dispatcher: Arc::new(Mutex::new(TypeDispatcher::new())),
             remote_log_names: LogFileNames::from(remote_log_names),
             local_log_names: LogFileNames::from(local_log_names),
-            endpoints: Vec::new(),
             server_tcp: None,
-        })))
-    }
-    /// Common new implementation
-    fn new_impl(inner: ArcConnectionIpInner) -> Result<ConnectionIp> {
-        Ok(ConnectionIp { inner })
+        })
     }
 
-    fn add_type(&mut self, name: impl Into<TypeName>) -> Result<TypeId> {
-        self.inner_lock_mut()?.type_dispatcher.add_type(name)
+    fn add_type(&self, name: impl Into<TypeName>) -> Result<TypeId> {
+        let mut dispatcher = self.type_dispatcher.lock()?;
+        dispatcher.add_type(name)
     }
 
-    fn add_sender(&mut self, name: impl Into<SenderName>) -> Result<SenderId> {
-        self.inner_lock_mut()?.type_dispatcher.add_sender(name)
+    fn add_sender(&self, name: impl Into<SenderName>) -> Result<SenderId> {
+        let mut dispatcher = self.type_dispatcher.lock()?;
+        dispatcher.add_sender(name)
     }
     /// Returns the ID for the type name, if found.
     fn get_type_id(&self, name: impl Into<TypeName>) -> Option<TypeId> {
-        self.inner_lock_option()?.type_dispatcher.get_type_id(name)
+        let dispatcher = self.type_dispatcher.lock().ok()?;
+        dispatcher.get_type_id(name)
     }
     /// Returns the ID for the sender name, if found.
     fn get_sender_id(&self, name: impl Into<SenderName>) -> Option<SenderId> {
-        self.inner_lock_option()?
-            .type_dispatcher
-            .get_sender_id(name)
+        let dispatcher = self.type_dispatcher.lock().ok()?;
+        dispatcher.get_sender_id(name)
     }
 
-    fn register_type(&mut self, name: impl Into<TypeName>) -> Result<RegisterMapping<TypeId>> {
-        self.inner_lock_mut()?.type_dispatcher.register_type(name)
+    pub fn register_type(&self, name: impl Into<TypeName>) -> Result<RegisterMapping<TypeId>> {
+        let mut dispatcher = self.type_dispatcher.lock()?;
+        dispatcher.register_type(name)
     }
 
-    fn register_sender(
-        &mut self,
+    pub fn register_sender(
+        &self,
         name: impl Into<SenderName>,
     ) -> Result<RegisterMapping<SenderId>> {
-        self.inner_lock_mut()?.type_dispatcher.register_sender(name)
+        let mut dispatcher = self.type_dispatcher.lock()?;
+        dispatcher.register_sender(name)
     }
 
-    fn inner_lock_mut(&mut self) -> Result<MutexGuard<ConnectionIpInner>> {
-        inner_lock_mut(&mut self.inner)
+    pub fn add_handler(
+        &self,
+        handler: Box<dyn Handler>,
+        message_type: IdToHandle<TypeId>,
+        sender: IdToHandle<SenderId>,
+    ) -> Result<HandlerHandle> {
+        let mut dispatcher = self.type_dispatcher.lock()?;
+        dispatcher.add_handler(handler, message_type, sender)
     }
 
-    fn inner_lock<E>(&self) -> std::result::Result<MutexGuard<ConnectionIpInner>, E>
-    where
-        E: std::error::Error + From<String>,
-    {
-        inner_lock(&self.inner)
+    pub fn remove_handler(&self, handler_handle: HandlerHandle) -> Result<()> {
+        let mut dispatcher = self.type_dispatcher.lock()?;
+        dispatcher.remove_handler(handler_handle)
     }
 
-    fn inner_lock_option(&self) -> Option<MutexGuard<ConnectionIpInner>> {
-        inner_lock_option(&self.inner)
+    fn poll_endpoints(&self) -> Poll<(), Error> {
+        let endpoints = Arc::clone(&self.endpoints);
+        let dispatcher = Arc::clone(&self.type_dispatcher);
+        {
+            let mut endpoints = endpoints.lock()?;
+            let mut dispatcher = dispatcher.lock()?;
+            let mut got_not_ready = false;
+            for ep in endpoints.iter_mut().flatten() {
+                match ep.poll_endpoint(&mut dispatcher)? {
+                    Async::Ready(()) => {
+                        // that endpoint closed.
+                        // TODO Handle this
+                    }
+                    Async::NotReady => {
+                        got_not_ready = true;
+                        // this is normal.
+                    }
+                }
+            }
+            if got_not_ready {
+                Ok(Async::NotReady)
+            } else {
+                Ok(Async::Ready(()))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        base::tracker::*, base::GenericMessage, buffer::unbuffer_typed_message_body,
+        connection::Handler,
+    };
+
+    #[derive(Debug)]
+    struct TrackerHandler {
+        flag: Arc<Mutex<bool>>,
+    }
+    impl Handler for TrackerHandler {
+        fn handle(&mut self, msg: &GenericMessage) -> Result<()> {
+            let report: Message<PoseReport> = unbuffer_typed_message_body(msg.clone())?.into();
+            println!("{:?}", report);
+            let mut flag = self.flag.lock()?;
+            *flag = true;
+            Ok(())
+        }
+    }
+    //#[ignore] // because it requires an external server to be running.
+    #[test]
+    fn tracker() {
+        use crate::connect::connect_tcp;
+        let addr = "127.0.0.1:3883".parse().unwrap();
+        let flag = Arc::new(Mutex::new(false));
+
+        connect_tcp(addr)
+            .and_then(|stream| -> Result<()> {
+                let conn = ConnectionIp::new_client(None, None, stream)?;
+                let tracker_message_id = conn
+                    .register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))?
+                    .get();
+                let sender = conn.register_sender(StaticSenderName(b"Tracker0"))?.get();
+                let handler_handle = conn.add_handler(
+                    Box::new(TrackerHandler {
+                        flag: Arc::clone(&flag),
+                    }),
+                    SomeId(tracker_message_id),
+                    SomeId(sender),
+                )?;
+                for _ in 0..4 {
+                    let _ = conn.poll_endpoints()?;
+                }
+                conn.remove_handler(handler_handle)?;
+                Ok(())
+            })
+            .wait()
+            .unwrap();
+        assert!(*flag.lock().unwrap() == true);
     }
 }

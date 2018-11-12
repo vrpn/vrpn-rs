@@ -7,6 +7,7 @@ use crate::{
 };
 
 /// Position and orientation for trackers.
+#[derive(Clone, Debug, PartialEq)]
 pub struct PoseReport {
     pub sensor: Sensor,
     pub pos: Vec3,
@@ -19,6 +20,7 @@ impl TypedMessageBody for PoseReport {
 }
 
 /// Linear and angular velocity for trackers.
+#[derive(Clone, Debug, PartialEq)]
 pub struct VelocityReport {
     pub sensor: Sensor,
     pub vel: Vec3,
@@ -32,6 +34,7 @@ impl TypedMessageBody for VelocityReport {
 }
 
 /// Linear and angular acceleration for trackers.
+#[derive(Clone, Debug, PartialEq)]
 pub struct AccelReport {
     pub sensor: Sensor,
     pub acc: Vec3,
