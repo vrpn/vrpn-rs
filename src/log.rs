@@ -4,8 +4,9 @@
 use bytes::{BufMut, Bytes};
 use crate::prelude::*;
 use crate::{
-    unbuffer::check_expected, Buffer, BufferSize, BytesRequired, ConstantBufferSize, EmptyResult,
-    Error, Result, Unbuffer,
+    constants::LOG_DESCRIPTION, unbuffer::check_expected, Buffer, BufferSize, BytesRequired,
+    ConstantBufferSize, EmptyResult, Error, MessageTypeIdentifier, Result, TypedMessageBody,
+    Unbuffer,
 };
 
 bitmask!{
@@ -86,6 +87,7 @@ impl LogFileNames {
         }
     }
 }
+
 impl From<Option<LogFileNames>> for LogFileNames {
     fn from(v: Option<LogFileNames>) -> LogFileNames {
         match v {
@@ -94,11 +96,14 @@ impl From<Option<LogFileNames>> for LogFileNames {
         }
     }
 }
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 enum FileNameState {
     In,
     Out,
 }
+
+/// Allows iteration through the two optional fields of the LogFileNames struct.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct LogFileNameIter<'a> {
     names: &'a LogFileNames,
@@ -145,6 +150,7 @@ impl BufferSize for LogFileNames {
         self.filenames_iter().fold(0 as usize, |acc, name| acc + filename_len(name))
     }
 }
+
 impl Buffer for LogFileNames {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         if buf.remaining_mut() < self.buffer_size() {
@@ -161,6 +167,10 @@ impl Buffer for LogFileNames {
         }
         Ok(())
     }
+}
+impl TypedMessageBody for LogFileNames {
+    const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
+        MessageTypeIdentifier::SystemMessageId(LOG_DESCRIPTION);
 }
 
 fn unbuffer_logname(len: usize, buf: &mut Bytes) -> Result<Option<Bytes>> {
