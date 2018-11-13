@@ -3,10 +3,12 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
+    descriptions::InnerDescription,
     type_dispatcher::{HandlerHandle, RegisterMapping},
     vrpn_tokio::endpoint_ip::EndpointIp,
-    Error, Handler, IdToHandle, LogFileNames, Message, Result, SenderId, SenderName, SomeId,
-    StaticSenderName, StaticTypeName, TypeDispatcher, TypeId, TypeName,
+    BaseTypeSafeId, Error, Handler, IdToHandle, LocalId, LogFileNames, MatchingTable, Message,
+    MessageTypeIdentifier, Result, SenderId, SenderName, SomeId, StaticSenderName, StaticTypeName,
+    TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -82,17 +84,40 @@ impl ConnectionIp {
         dispatcher.get_sender_id(name)
     }
 
-    pub fn register_type(&self, name: impl Into<TypeName>) -> Result<RegisterMapping<TypeId>> {
+    pub fn register_type<T>(&self, name: T) -> Result<TypeId>
+    where
+        T: Into<TypeName> + Clone,
+    {
         let mut dispatcher = self.type_dispatcher.lock()?;
-        dispatcher.register_type(name)
+        match dispatcher.register_type(name.clone())? {
+            RegisterMapping::Found(id) => Ok(id),
+            RegisterMapping::NewMapping(id) => {
+                self.pack_description(LocalId(id))?;
+                let mut endpoints = self.endpoints.lock()?;
+                for ep in endpoints.iter_mut().flatten() {
+                    ep.new_local_id(name.clone(), LocalId(id));
+    }
+                Ok(id)
+            }
+        }
     }
 
-    pub fn register_sender(
-        &self,
-        name: impl Into<SenderName>,
-    ) -> Result<RegisterMapping<SenderId>> {
+    pub fn register_sender<T>(&self, name: T) -> Result<SenderId>
+    where
+        T: Into<SenderName> + Clone,
+    {
         let mut dispatcher = self.type_dispatcher.lock()?;
-        dispatcher.register_sender(name)
+        match dispatcher.register_sender(name.clone())? {
+            RegisterMapping::Found(id) => Ok(id),
+            RegisterMapping::NewMapping(id) => {
+                self.pack_description(LocalId(id))?;
+                let mut endpoints = self.endpoints.lock()?;
+                for ep in endpoints.iter_mut().flatten() {
+                    ep.new_local_id(name.clone(), LocalId(id));
+                }
+                Ok(id)
+            }
+        }
     }
 
     pub fn add_handler(
@@ -105,9 +130,43 @@ impl ConnectionIp {
         dispatcher.add_handler(handler, message_type, sender)
     }
 
+    pub fn add_typed_handler<T: 'static>(
+        &self,
+        handler: Box<T>,
+        sender: IdToHandle<SenderId>,
+    ) -> Result<HandlerHandle>
+    where
+        T: TypedHandler + Handler + Sized,
+    {
+        let message_type = match T::Item::MESSAGE_IDENTIFIER {
+            MessageTypeIdentifier::UserMessageName(name) => SomeId(self.register_type(name)?),
+            MessageTypeIdentifier::SystemMessageId(id) => SomeId(id),
+        };
+        self.add_handler(handler, message_type, sender)
+    }
     pub fn remove_handler(&self, handler_handle: HandlerHandle) -> Result<()> {
         let mut dispatcher = self.type_dispatcher.lock()?;
         dispatcher.remove_handler(handler_handle)
+    }
+
+    pub fn pack_description<T>(&self, id: LocalId<T>) -> Result<()>
+    where
+        T: BaseTypeSafeId,
+        InnerDescription<T>: TypedMessageBody,
+        TranslationTables: MatchingTable<T>,
+    {
+        let mut endpoints = self.endpoints.lock()?;
+        for ep in endpoints.iter_mut().flatten() {
+            ep.pack_description(id)?;
+        }
+        Ok(())
+    }
+    pub fn pack_all_descriptions(&self) -> Result<()> {
+        let mut endpoints = self.endpoints.lock()?;
+        for ep in endpoints.iter_mut().flatten() {
+            ep.pack_all_descriptions()?;
+        }
+        Ok(())
     }
 
     fn poll_endpoints(&self) -> Poll<(), Error> {
@@ -141,7 +200,7 @@ impl ConnectionIp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tracker::*, TypedHandler};
+    use crate::{tracker::*, TypeSafeId, TypedHandler};
 
     #[derive(Debug)]
     struct TrackerHandler {
@@ -166,10 +225,9 @@ mod tests {
         connect_tcp(addr)
             .and_then(|stream| -> Result<()> {
                 let conn = ConnectionIp::new_client(None, None, stream)?;
-                let tracker_message_id = conn
-                    .register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))?
-                    .get();
-                let sender = conn.register_sender(StaticSenderName(b"Tracker0"))?.get();
+                let tracker_message_id =
+                    conn.register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))?;
+                let sender = conn.register_sender(StaticSenderName(b"Tracker0"))?;
                 let handler_handle = conn.add_handler(
                     Box::new(TrackerHandler {
                         flag: Arc::clone(&flag),

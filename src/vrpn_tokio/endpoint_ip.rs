@@ -67,6 +67,36 @@ impl EndpointIp {
             .map(|_| ())
     }
 
+    pub(crate) fn pack_all_descriptions(&mut self) -> Result<()> {
+        {
+            let mut messages = Vec::new();
+            for entry in self.translation.senders.iter() {
+                let desc_msg = Message::from(Description::new(
+                    entry.local_id().into_id(),
+                    entry.name().clone(),
+                ));
+                messages.push(desc_msg);
+            }
+            for msg in messages.into_iter() {
+                self.buffer_message(msg, ClassOfService::from(ServiceFlags::RELIABLE))?;
+            }
+        }
+        {
+            let mut messages = Vec::new();
+            for entry in self.translation.types.iter() {
+                let desc_msg = Message::from(Description::new(
+                    entry.local_id().into_id(),
+                    entry.name().clone(),
+                ));
+                messages.push(desc_msg);
+            }
+            for msg in messages.into_iter() {
+                self.buffer_message(msg, ClassOfService::from(ServiceFlags::RELIABLE))?;
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn clear_other_senders_and_types(&mut self) {
         self.translation.clear();
     }
