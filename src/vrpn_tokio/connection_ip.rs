@@ -205,9 +205,12 @@ mod tests {
         connect_tcp(addr)
             .and_then(|stream| -> Result<()> {
                 let conn = ConnectionIp::new_client(None, None, stream)?;
-                let tracker_message_id =
-                    conn.register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))?;
-                let sender = conn.register_sender(StaticSenderName(b"Tracker0"))?;
+                let tracker_message_id = conn
+                    .register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))
+                    .expect("should be able to register type");
+                let sender = conn
+                    .register_sender(StaticSenderName(b"Tracker0"))
+                    .expect("should be able to register sender");
                 let handler_handle = conn.add_handler(
                     Box::new(TrackerHandler {
                         flag: Arc::clone(&flag),
@@ -218,7 +221,8 @@ mod tests {
                 for _ in 0..4 {
                     let _ = conn.poll_endpoints()?;
                 }
-                conn.remove_handler(handler_handle)?;
+                conn.remove_handler(handler_handle)
+                    .expect("should be able to remove handler");
                 Ok(())
             })
             .wait()

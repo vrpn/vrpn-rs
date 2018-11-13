@@ -112,7 +112,8 @@ impl EndpointIp {
             Err(_) => None,
         }
     }
-    pub(crate) fn new_local_id<T, U>(&mut self, name: U, local_id: LocalId<T>) -> bool
+
+    pub(crate) fn new_local_id<T, U>(&mut self, name: U, local_id: LocalId<T>) -> Result<()>
     where
         T: BaseTypeSafeIdName + BaseTypeSafeId,
         InnerDescription<T>: TypedMessageBody,
@@ -121,7 +122,11 @@ impl EndpointIp {
     {
         let name: <T as BaseTypeSafeIdName>::Name = name.into();
         let name: Bytes = name.into();
-        self.translation.add_local_id(name, local_id)
+        if self.translation.add_local_id(name, local_id) {
+            self.pack_description(local_id)
+        } else {
+            Ok(())
+        }
     }
 
     pub(crate) fn poll_endpoint(&mut self, dispatcher: &mut TypeDispatcher) -> Poll<(), Error> {
