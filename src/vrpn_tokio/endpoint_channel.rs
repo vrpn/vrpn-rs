@@ -113,7 +113,7 @@ where
                                 ),
                                 msg.body,
                             );
-                            dispatcher.do_callbacks_for(&msg)?;
+                            dispatcher.call(&msg)?;
                         } else {
                             eprintln!("Could not map sender to local");
                         }

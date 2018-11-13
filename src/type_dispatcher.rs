@@ -143,6 +143,13 @@ fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
     Ok(index)
 }
 
+/// Structure holding and dispatching generic and message-filtered callbacks.
+///
+/// Unlike in the mainline C++ code, this does **not** handle "system" message types.
+/// The main reason is that they are easiest hard-coded and need to access the endpoint
+/// they're operating on, which can be a struggle to get past the borrow checker.
+/// Thus, a hard-coded setup simply turns system messages into SystemMessage enum values,
+/// which get queued through the Endpoint trait using interior mutability (e.g. with something like mpsc)type_dispatcher
 #[derive(Debug)]
 pub struct TypeDispatcher {
     types: Vec<CallbackCollection>,
@@ -283,7 +290,8 @@ impl TypeDispatcher {
             .remove(HandlerHandleInner(inner))
     }
 
-    pub fn do_callbacks_for(&mut self, msg: &GenericMessage) -> Result<()> {
+    /// Akin to vrpn_TypeDispatcher::doCallbacksFor
+    pub fn call(&mut self, msg: &GenericMessage) -> Result<()> {
         let index = message_type_into_index(msg.header.message_type, self.types.len())?;
         let mapping = &mut self.types[index];
 
@@ -294,61 +302,130 @@ impl TypeDispatcher {
 #[cfg(test)]
 mod tests {
     use crate::type_dispatcher::*;
-    use std::rc::Rc;
+    use crate::{GenericBody, GenericMessage, TimeVal};
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Debug, Clone)]
+    struct SetTo10 {
+        val: Arc<Mutex<i8>>,
+    }
+    impl Handler for SetTo10 {
+        fn handle(&mut self, _msg: &GenericMessage) -> Result<()> {
+            let mut val = self.val.lock()?;
+            *val = 10;
+            Ok(())
+        }
+    }
+    #[derive(Debug, Clone)]
+    struct SetTo15 {
+        val: Arc<Mutex<i8>>,
+    }
+    impl Handler for SetTo15 {
+        fn handle(&mut self, _msg: &GenericMessage) -> Result<()> {
+            let mut val = self.val.lock()?;
+            *val = 15;
+            Ok(())
+        }
+    }
     #[test]
     fn callback_collection() {
-        /*
-        let val: Rc<i8> = Rc::new(5);
-        let a = Rc::clone(&val);
-        let mut sample_callback = |params: &GenericMessage| -> Result<()> {
-            a = 10;
-            Ok(())
-        };
-        let b = Rc::clone(&val);
-        let mut sample_callback2 = |params: &GenericMessage| -> Result<()> {
-            b = 15;
-            Ok(())
-        };
-        let mut collection = CallbackCollection::new(String::from("dummy"));
-        let handler = collection.add(&mut sample_callback, AnyId).unwrap();
-        let params = GenericMessage {
-            message_type: TypeId(0),
-            sender: SenderId(0),
-            msg_time: Time::default(),
-            buffer: bytes::Bytes::with_capacity(10),
-        };
-        collection.call(&params);
-        assert_eq!(val, 10);
-        
+        let val: Arc<Mutex<i8>> = Arc::new(Mutex::new(5));
+        let a = Arc::clone(&val);
+        let sample_callback = SetTo10 { val: a };
+        let b = Arc::clone(&val);
+        let sample_callback2 = SetTo15 { val: b };
+
+        let mut collection = CallbackCollection::new(Bytes::from_static(b"dummy"));
+        let handler = collection
+            .add(Box::new(sample_callback.clone()), AnyId)
+            .unwrap();
+        let msg = GenericMessage::new(
+            Some(TimeVal::get_time_of_day()),
+            TypeId(0),
+            SenderId(0),
+            GenericBody::default(),
+        );
+        collection.call(&msg).unwrap();
+        assert_eq!(*val.lock().unwrap(), 10);
+
         collection
             .remove(handler)
             .expect("Can't remove added callback");
         // No callbacks should fire now.
-        val = 5;
-        collection.call(&params);
-        assert_eq!(val, 5);
-        
-        let handler2 = collection
-            .add(&mut sample_callback2, SomeId(SenderId(0)))
+        *val.lock().unwrap() = 5;
+        collection.call(&msg).unwrap();
+        assert_eq!(*val.lock().unwrap(), 5);
+
+        let _ = collection
+            .add(Box::new(sample_callback2), SomeId(SenderId(0)))
             .unwrap();
-        val = 5;
-        collection.call(&params);
-        assert_eq!(val, 15);
-        
+        *val.lock().unwrap() = 5;
+        collection.call(&msg).unwrap();
+        assert_eq!(*val.lock().unwrap(), 15);
+
         // Check that later-registered callbacks get run later
-        let handler = collection.add(&mut sample_callback, AnyId).unwrap();
-        val = 5;
-        collection.call(&params);
-        assert_eq!(val, 10);
-        
+        let _ = collection.add(Box::new(sample_callback), AnyId).unwrap();
+        *val.lock().unwrap() = 5;
+        collection.call(&msg).unwrap();
+        assert_eq!(*val.lock().unwrap(), 10);
+
         // This shouldn't trigger callback 2
-        let params = GenericMessage {
-            sender: SenderId(1),
-            ..params
-        };
-        val = 5;
-        collection.call(&params);
-        assert_eq!(val, 10);
-        */
+        let mut msg2 = msg.clone();
+        msg2.header.sender = SenderId(1);
+        *val.lock().unwrap() = 5;
+        collection.call(&msg2).unwrap();
+        assert_eq!(*val.lock().unwrap(), 10);
+    }
+
+    #[test]
+    fn type_dispatcher() {
+        let val: Arc<Mutex<i8>> = Arc::new(Mutex::new(5));
+        let a = Arc::clone(&val);
+        let sample_callback = SetTo10 { val: a };
+        let b = Arc::clone(&val);
+        let sample_callback2 = SetTo15 { val: b };
+
+        let mut dispatcher = TypeDispatcher::new();
+        let handler = dispatcher
+            .add_handler(Box::new(sample_callback.clone()), AnyId, AnyId)
+            .unwrap();
+        let msg = GenericMessage::new(
+            Some(TimeVal::get_time_of_day()),
+            TypeId(0),
+            SenderId(0),
+            GenericBody::default(),
+        );
+        dispatcher.call(&msg).unwrap();
+        assert_eq!(*val.lock().unwrap(), 10);
+
+        dispatcher
+            .remove_handler(handler)
+            .expect("Can't remove added callback");
+        // No callbacks should fire now.
+        *val.lock().unwrap() = 5;
+        dispatcher.call(&msg).unwrap();
+        assert_eq!(*val.lock().unwrap(), 5);
+
+        let _ = dispatcher
+            .add_handler(Box::new(sample_callback2), AnyId, SomeId(SenderId(0)))
+            .unwrap();
+        *val.lock().unwrap() = 5;
+        dispatcher.call(&msg).unwrap();
+        assert_eq!(*val.lock().unwrap(), 15);
+
+        // Check that later-registered callbacks get run later
+        let _ = dispatcher
+            .add_handler(Box::new(sample_callback), AnyId, AnyId)
+            .unwrap();
+        *val.lock().unwrap() = 5;
+        dispatcher.call(&msg).unwrap();
+        assert_eq!(*val.lock().unwrap(), 10);
+
+        // This shouldn't trigger callback 2
+        let mut msg2 = msg.clone();
+        msg2.header.sender = SenderId(1);
+        *val.lock().unwrap() = 5;
+        dispatcher.call(&msg2).unwrap();
+        assert_eq!(*val.lock().unwrap(), 10);
     }
 }
