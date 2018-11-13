@@ -10,10 +10,6 @@ pub trait Handler: fmt::Debug {
     fn handle(&mut self, msg: &GenericMessage) -> Result<()>;
 }
 
-// pub trait IntoBoxedHandler {
-//     fn into_boxed_handler(self) -> Box<dyn Handler>;
-// }
-
 /// A trait implemented by structs that can handle typed messages.
 ///
 /// A blanket impl for Handler exists for all types implementing this trait,

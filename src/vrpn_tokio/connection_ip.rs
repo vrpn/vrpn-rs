@@ -64,26 +64,6 @@ impl ConnectionIp {
         })
     }
 
-    fn add_type(&self, name: impl Into<TypeName>) -> Result<TypeId> {
-        let mut dispatcher = self.type_dispatcher.lock()?;
-        dispatcher.add_type(name)
-    }
-
-    fn add_sender(&self, name: impl Into<SenderName>) -> Result<SenderId> {
-        let mut dispatcher = self.type_dispatcher.lock()?;
-        dispatcher.add_sender(name)
-    }
-    /// Returns the ID for the type name, if found.
-    fn get_type_id(&self, name: impl Into<TypeName>) -> Option<TypeId> {
-        let dispatcher = self.type_dispatcher.lock().ok()?;
-        dispatcher.get_type_id(name)
-    }
-    /// Returns the ID for the sender name, if found.
-    fn get_sender_id(&self, name: impl Into<SenderName>) -> Option<SenderId> {
-        let dispatcher = self.type_dispatcher.lock().ok()?;
-        dispatcher.get_sender_id(name)
-    }
-
     pub fn register_type<T>(&self, name: T) -> Result<TypeId>
     where
         T: Into<TypeName> + Clone,
