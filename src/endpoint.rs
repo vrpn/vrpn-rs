@@ -46,10 +46,11 @@ pub trait Endpoint: Downcast {
                 self.send_system_change(SystemMessage::UdpDescription(msg.into()))?;
             }
             constants::LOG_DESCRIPTION => {
-                eprintln!("Handling of LOG_DESCRIPTION not yet implemented");
+                let msg: Message<LogFileNames> = Message::try_from_generic(&msg)?;
+                self.send_system_change(SystemMessage::LogDescription(msg.body))?;
             }
             constants::DISCONNECT_MESSAGE => {
-                eprintln!("Handling of DISCONNECT_MESSAGE not yet implemented");
+                self.send_system_change(SystemMessage::DisconnectMessage)?;
             }
             _ => {
                 Err(Error::UnrecognizedSystemMessage(
