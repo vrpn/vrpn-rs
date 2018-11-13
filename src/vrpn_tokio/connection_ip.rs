@@ -72,11 +72,10 @@ impl ConnectionIp {
         match dispatcher.register_type(name.clone())? {
             RegisterMapping::Found(id) => Ok(id),
             RegisterMapping::NewMapping(id) => {
-                self.pack_description(LocalId(id))?;
                 let mut endpoints = self.endpoints.lock()?;
                 for ep in endpoints.iter_mut().flatten() {
                     ep.new_local_id(name.clone(), LocalId(id));
-    }
+                }
                 Ok(id)
             }
         }
@@ -90,10 +89,9 @@ impl ConnectionIp {
         match dispatcher.register_sender(name.clone())? {
             RegisterMapping::Found(id) => Ok(id),
             RegisterMapping::NewMapping(id) => {
-                self.pack_description(LocalId(id))?;
                 let mut endpoints = self.endpoints.lock()?;
                 for ep in endpoints.iter_mut().flatten() {
-                    ep.new_local_id(name.clone(), LocalId(id));
+                    ep.new_local_id(name.clone(), LocalId(id))?;
                 }
                 Ok(id)
             }
@@ -198,6 +196,37 @@ mod tests {
     //#[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker() {
+        use crate::vrpn_tokio::connect_tcp;
+        let addr = "127.0.0.1:3883".parse().unwrap();
+        let flag = Arc::new(Mutex::new(false));
+
+        connect_tcp(addr)
+            .and_then(|stream| -> Result<()> {
+                let conn = ConnectionIp::new_client(None, None, stream)?;
+                let sender = conn
+                    .register_sender(StaticSenderName(b"Tracker0"))
+                    .expect("should be able to register sender");
+                let handler_handle = conn.add_typed_handler(
+                    Box::new(TrackerHandler {
+                        flag: Arc::clone(&flag),
+                    }),
+                    SomeId(sender),
+                )?;
+                conn.pack_all_descriptions()?;
+                for _ in 0..4 {
+                    let _ = conn.poll_endpoints()?;
+                }
+                conn.remove_handler(handler_handle)
+                    .expect("should be able to remove handler");
+                Ok(())
+            })
+            .wait()
+            .unwrap();
+        assert!(*flag.lock().unwrap() == true);
+    }
+    //#[ignore] // because it requires an external server to be running.
+    #[test]
+    fn tracker_manual() {
         use crate::vrpn_tokio::connect_tcp;
         let addr = "127.0.0.1:3883".parse().unwrap();
         let flag = Arc::new(Mutex::new(false));
