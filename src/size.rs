@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{unbuffer::UnbufferConstantSize, Buffer, BytesRequired, EmptyResult, Error, Result};
+use crate::{unbuffer::UnbufferConstantSize, Buffer};
 
 /// Trait for computing the buffer size needed for types
 /// that can be "buffered" (serialized to a byte buffer),

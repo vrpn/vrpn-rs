@@ -3,9 +3,11 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::Bytes;
+use crate::handler::*;
 use crate::types::*;
-use crate::{constants, types, Error, GenericMessage, Result};
-use std::fmt;
+use crate::{
+    constants, types, Error, GenericMessage, MessageTypeIdentifier, Result, TypedMessageBody,
+};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum RegisterMapping<T: BaseTypeSafeId> {
@@ -24,16 +26,22 @@ impl<T: BaseTypeSafeId> RegisterMapping<T> {
         }
     }
 }
+
 type HandlerHandleInnerType = types::IdType;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 struct HandlerHandleInner(HandlerHandleInnerType);
 
+impl HandlerHandleInner {
+    fn into_handler_handle(self, message_type: IdToHandle<TypeId>) -> HandlerHandle {
+        HandlerHandle(message_type, self.0)
+    }
+}
+
+/// A way to refer uniquely to a single added handler in a TypeDispatcher, in case
+/// you want to remove it in the future.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct HandlerHandle(IdToHandle<TypeId>, HandlerHandleInnerType);
-
-pub trait Handler: fmt::Debug {
-    fn handle(&mut self, msg: &GenericMessage) -> Result<()>;
-}
 
 /// Type storing a boxed callback function, an optional sender ID filter,
 /// and the unique-per-CallbackCollection handle that can be used to unregister a handler.
@@ -57,9 +65,9 @@ impl MsgCallbackEntry {
         }
     }
 
-    /// Invokes the callback with the given params, if the sender filter (if not None) matches.
+    /// Invokes the callback with the given msg, if the sender filter (if not None) matches.
     pub fn call<'a>(&mut self, msg: &'a GenericMessage) -> Result<()> {
-        if self.sender.matches(&msg.header.sender()) {
+        if self.sender.matches(&msg.header.sender) {
             self.handler.handle(msg)
         } else {
             Ok(())
@@ -114,20 +122,12 @@ impl CallbackCollection {
     }
 
     /// Call all callbacks (subject to sender filters)
-    fn call(&mut self, params: &GenericMessage) -> Result<()> {
+    fn call(&mut self, msg: &GenericMessage) -> Result<()> {
         for entry in self.callbacks.iter_mut() {
-            entry.call(params)?;
+            entry.call(msg)?;
         }
         Ok(())
     }
-}
-
-fn system_message_type_into_index(message_type: TypeId) -> Result<usize> {
-    let raw_message_type = message_type.get();
-    if raw_message_type >= 0 {
-        Err(Error::InvalidId(raw_message_type))?;
-    }
-    Ok((-raw_message_type) as usize)
 }
 
 fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
@@ -260,8 +260,23 @@ impl TypeDispatcher {
     ) -> Result<HandlerHandle> {
         self.get_type_callbacks_mut(message_type)?
             .add(handler, sender)
-            .map(|HandlerHandleInner(h)| HandlerHandle(message_type, h))
+            .map(|h| h.into_handler_handle(message_type))
     }
+    pub fn add_typed_handler<T: 'static>(
+        &mut self,
+        handler: Box<T>,
+        sender: IdToHandle<SenderId>,
+    ) -> Result<HandlerHandle>
+    where
+        T: TypedHandler + Handler + Sized,
+    {
+        let message_type = match T::Item::MESSAGE_IDENTIFIER {
+            MessageTypeIdentifier::UserMessageName(name) => SomeId(self.register_type(name)?.get()),
+            MessageTypeIdentifier::SystemMessageId(id) => SomeId(id),
+        };
+        self.add_handler(handler, message_type, sender)
+    }
+
     pub fn remove_handler(&mut self, handler_handle: HandlerHandle) -> Result<()> {
         let HandlerHandle(message_type, inner) = handler_handle;
         self.get_type_callbacks_mut(message_type)?
@@ -269,7 +284,7 @@ impl TypeDispatcher {
     }
 
     pub fn do_callbacks_for(&mut self, msg: &GenericMessage) -> Result<()> {
-        let index = message_type_into_index(msg.header.message_type(), self.types.len())?;
+        let index = message_type_into_index(msg.header.message_type, self.types.len())?;
         let mapping = &mut self.types[index];
 
         self.generic_callbacks.call(&msg)?;

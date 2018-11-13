@@ -16,7 +16,7 @@ use std::{
 /// Body struct for use in Message<T> for sender/type descriptions
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct InnerDescription<T: BaseTypeSafeId> {
-    name: Bytes,
+    pub(crate) name: Bytes,
     phantom: PhantomData<T>,
 }
 
@@ -26,10 +26,6 @@ impl<T: BaseTypeSafeId> InnerDescription<T> {
             name,
             phantom: PhantomData,
         }
-    }
-
-    pub fn name(&self) -> &Bytes {
-        &self.name
     }
 }
 
@@ -48,7 +44,7 @@ where
     InnerDescription<T>: TypedMessageBody,
 {
     fn which(&self) -> T {
-        T::new(self.header.sender().get())
+        T::new(self.header.sender.get())
     }
 }
 
@@ -127,7 +123,7 @@ impl TypedMessageBody for UdpInnerDescription {
 
 impl Message<UdpInnerDescription> {
     fn port(&self) -> u16 {
-        self.header.sender().get() as u16
+        self.header.sender.get() as u16
     }
 }
 
@@ -153,7 +149,7 @@ impl From<UdpDescription> for Message<UdpInnerDescription> {
 impl<T: BaseTypeSafeId> BufferSize for InnerDescription<T> {
     fn buffer_size(&self) -> usize {
         length_prefixed::buffer_size(
-            self.name().as_ref(),
+            self.name.as_ref(),
             length_prefixed::NullTermination::AddTrailingNull,
         )
     }
@@ -162,7 +158,7 @@ impl<T: BaseTypeSafeId> BufferSize for InnerDescription<T> {
 impl<U: BaseTypeSafeId> Buffer for InnerDescription<U> {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         length_prefixed::buffer_string(
-            self.name().as_ref(),
+            self.name.as_ref(),
             buf,
             length_prefixed::NullTermination::AddTrailingNull,
             length_prefixed::LengthBehavior::IncludeNull,

@@ -12,13 +12,15 @@ pub type IdType = i32;
 pub const MAX_VEC_USIZE: usize = (IdType::max_value() - 2) as usize;
 
 pub trait TypeSafeId: Clone + Eq + PartialEq + Ord + PartialOrd {
+    /// Base ID type. Self in the case of BaseTypeSafeId, otherwise the thing that's being wrapped.
+    type Id: BaseTypeSafeId;
     fn get(&self) -> IdType;
     fn new(val: IdType) -> Self;
+    fn into_id(self) -> Self::Id;
 }
 
-pub trait BaseTypeSafeId
-where
-    Self: TypeSafeId + Clone + Copy + std::fmt::Debug + PartialEq + Eq + BaseTypeSafeIdName,
+pub trait BaseTypeSafeId:
+    TypeSafeId + Clone + Copy + std::fmt::Debug + PartialEq + Eq + BaseTypeSafeIdName
 {
     fn description_type() -> TypeId;
 }
@@ -47,29 +49,42 @@ pub struct TypeId(pub IdType);
 pub struct SenderId(pub IdType);
 
 impl<T: BaseTypeSafeId> TypeSafeId for LocalId<T> {
+    type Id = T;
     fn get(&self) -> IdType {
         self.0.get()
     }
     fn new(val: IdType) -> LocalId<T> {
         LocalId(T::new(val))
     }
+
+    fn into_id(self) -> Self::Id {
+        self.0
+    }
 }
 
 impl<T: BaseTypeSafeId> TypeSafeId for RemoteId<T> {
+    type Id = T;
     fn get(&self) -> IdType {
         self.0.get()
     }
     fn new(val: IdType) -> RemoteId<T> {
         RemoteId(T::new(val))
     }
+    fn into_id(self) -> Self::Id {
+        self.0
+    }
 }
 
 impl TypeSafeId for TypeId {
+    type Id = TypeId;
     fn get(&self) -> IdType {
         self.0
     }
     fn new(val: IdType) -> TypeId {
         TypeId(val)
+    }
+    fn into_id(self) -> Self::Id {
+        self
     }
 }
 
@@ -93,11 +108,15 @@ impl BaseTypeSafeIdName for TypeId {
 }
 
 impl TypeSafeId for SenderId {
+    type Id = SenderId;
     fn get(&self) -> IdType {
         self.0
     }
     fn new(val: IdType) -> SenderId {
         SenderId(val)
+    }
+    fn into_id(self) -> Self::Id {
+        self
     }
 }
 

@@ -5,9 +5,8 @@
 use crate::{
     constants,
     descriptions::{InnerDescription, UdpDescription, UdpInnerDescription},
-    make_message_body_generic, unbuffer_typed_message_body, Buffer, ClassOfService, Description,
-    Error, GenericMessage, LogFileNames, Message, Result, SenderId, TypeId, TypeSafeId,
-    TypedMessageBody,
+    Buffer, ClassOfService, Description, Error, GenericMessage, LogFileNames, Message, Result,
+    SenderId, TypeId, TypeSafeId, TypedMessageBody,
 };
 use downcast_rs::Downcast;
 
@@ -33,18 +32,18 @@ pub trait Endpoint: Downcast {
         if !msg.is_system_message() {
             Err(Error::NotSystemMessage)?;
         }
-        match msg.header.message_type() {
+        match msg.header.message_type {
             constants::TYPE_DESCRIPTION => {
-                let desc = unbuffer_typed_message_body::<InnerDescription<TypeId>>(msg)?.into();
-                self.send_system_change(SystemMessage::TypeDescription(desc))?;
+                let msg: Message<InnerDescription<TypeId>> = Message::try_from_generic(&msg)?;
+                self.send_system_change(SystemMessage::TypeDescription(msg.into()))?;
             }
             constants::SENDER_DESCRIPTION => {
-                let desc = unbuffer_typed_message_body::<InnerDescription<SenderId>>(msg)?.into();
-                self.send_system_change(SystemMessage::SenderDescription(desc))?;
+                let msg: Message<InnerDescription<SenderId>> = Message::try_from_generic(&msg)?;
+                self.send_system_change(SystemMessage::SenderDescription(msg.into()))?;
             }
             constants::UDP_DESCRIPTION => {
-                let desc = unbuffer_typed_message_body::<UdpInnerDescription>(msg)?.into();
-                self.send_system_change(SystemMessage::UdpDescription(desc))?;
+                let msg: Message<UdpInnerDescription> = Message::try_from_generic(&msg)?;
+                self.send_system_change(SystemMessage::UdpDescription(msg.into()))?;
             }
             constants::LOG_DESCRIPTION => {
                 eprintln!("Handling of LOG_DESCRIPTION not yet implemented");
@@ -54,7 +53,7 @@ pub trait Endpoint: Downcast {
             }
             _ => {
                 Err(Error::UnrecognizedSystemMessage(
-                    msg.header.message_type().get(),
+                    msg.header.message_type.get(),
                 ))?;
             }
         }
@@ -80,7 +79,7 @@ where
     where
         T: Buffer + TypedMessageBody,
     {
-        let generic_msg = make_message_body_generic(msg)?;
+        let generic_msg = msg.try_into_generic()?;
         self.buffer_generic_message(generic_msg, class)
     }
 }

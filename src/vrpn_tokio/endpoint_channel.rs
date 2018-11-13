@@ -100,14 +100,14 @@ where
                     endpoint.handle_system_message(msg)?;
                 } else {
                     if let Some(LocalId(new_type)) =
-                        endpoint.map_to_local_id(RemoteId(msg.header.message_type()))
+                        endpoint.map_to_local_id(RemoteId(msg.header.message_type))
                     {
                         if let Some(LocalId(new_sender)) =
-                            endpoint.map_to_local_id(RemoteId(msg.header.sender()))
+                            endpoint.map_to_local_id(RemoteId(msg.header.sender))
                         {
                             let msg = Message::from_header_and_body(
                                 MessageHeader::new(
-                                    Some(msg.header.time().clone()),
+                                    Some(msg.header.time.clone()),
                                     new_type,
                                     new_sender,
                                 ),

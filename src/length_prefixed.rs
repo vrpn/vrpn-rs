@@ -5,7 +5,7 @@
 use bytes::{BufMut, Bytes};
 use crate::prelude::*;
 use crate::{
-    unbuffer::check_expected, unbuffer, Buffer, BytesRequired, EmptyResult, Error, Result, Unbuffer,
+    unbuffer::check_expected, Buffer, BytesRequired, EmptyResult, Error, Result, Unbuffer,
 };
 use std::mem::size_of;
 

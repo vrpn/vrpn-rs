@@ -5,9 +5,8 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use crate::prelude::*;
 use crate::{
-    constants::ALIGN, length_prefixed, BaseTypeSafeId, Buffer, BufferSize, BytesRequired,
-    EmptyResult, Error, IdType, Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId,
-    TypeSafeId, Unbuffer,
+    constants::ALIGN, Buffer, BufferSize, BytesRequired, EmptyResult, Error, IdType, Result,
+    SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer,
 };
 use std::mem::size_of;
 
@@ -15,6 +14,7 @@ use std::mem::size_of;
 pub trait MessageBody /*: Buffer + Unbuffer */ {}
 
 /// The identification used for a typed message body type.
+#[derive(Debug)]
 pub enum MessageTypeIdentifier {
     /// User message types are identified by a string which is dynamically associated
     /// with an ID on each side.
@@ -28,7 +28,7 @@ pub enum MessageTypeIdentifier {
 
 /// Trait for typed message bodies.
 ///
-pub trait TypedMessageBody {
+pub trait TypedMessageBody: std::fmt::Debug {
     /// The name string (for user messages) or type ID (for system messages) used to identify this message type.
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier;
 }
@@ -38,9 +38,9 @@ impl<T> MessageBody for T where T: TypedMessageBody /*+ Buffer + Unbuffer*/ {}
 /// Header information for a message.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct MessageHeader {
-    time: TimeVal,
-    message_type: TypeId,
-    sender: SenderId,
+    pub time: TimeVal,
+    pub message_type: TypeId,
+    pub sender: SenderId,
 }
 
 impl MessageHeader {
@@ -50,15 +50,6 @@ impl MessageHeader {
             message_type,
             sender,
         }
-    }
-    pub fn time(&self) -> &TimeVal {
-        &self.time
-    }
-    pub fn message_type(&self) -> TypeId {
-        self.message_type
-    }
-    pub fn sender(&self) -> SenderId {
-        self.sender
     }
 }
 
@@ -103,6 +94,37 @@ impl<T: MessageBody> Message<T> {
     }
 }
 
+impl<T: TypedMessageBody + Unbuffer> Message<T> {
+    pub fn try_from_generic(msg: &GenericMessage) -> Result<Message<T>> {
+        let mut buf = msg.body.inner.clone();
+        let body = T::unbuffer_ref(&mut buf)
+            .map_need_more_err_to_generic_parse_err("parsing message body")?;
+        if buf.len() > 0 {
+            return Err(Error::OtherMessage(format!(
+                "message body length was indicated as {}, but {} bytes remain unconsumed",
+                msg.body.inner.len(),
+                buf.len()
+            )));
+        }
+        Ok(Message::from_header_and_body(msg.header.clone(), body))
+    }
+}
+
+impl<T: TypedMessageBody + Buffer> Message<T> {
+    pub fn try_into_generic(self) -> Result<GenericMessage> {
+        let old_body = self.body;
+        let header = self.header;
+        BytesMut::new()
+            .allocate_and_buffer(old_body)
+            .and_then(|body| {
+                Ok(GenericMessage::from_header_and_body(
+                    header,
+                    GenericBody::new(body.freeze()),
+                ))
+            })
+    }
+}
+
 /// A message with header information and sequence number, ready to be buffered to the wire.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SequencedMessage<T: MessageBody> {
@@ -142,6 +164,12 @@ pub struct GenericBody {
 impl GenericBody {
     pub fn new(inner: Bytes) -> GenericBody {
         GenericBody { inner }
+    }
+}
+
+impl Default for GenericBody {
+    fn default() -> GenericBody {
+        GenericBody::new(Bytes::default())
     }
 }
 
@@ -285,9 +313,9 @@ impl Buffer for SequencedMessage<GenericBody> {
         let length_field = size.length_field() as u32;
 
         Buffer::buffer_ref(&length_field, buf)
-            .and_then(|()| self.message.header.time().buffer_ref(buf))
-            .and_then(|()| self.message.header.sender().buffer_ref(buf))
-            .and_then(|()| self.message.header.message_type().buffer_ref(buf))
+            .and_then(|()| self.message.header.time.buffer_ref(buf))
+            .and_then(|()| self.message.header.sender.buffer_ref(buf))
+            .and_then(|()| self.message.header.message_type.buffer_ref(buf))
             .and_then(|()| self.sequence_number.buffer_ref(buf))?;
 
         buf.put(&self.message.body.inner);
@@ -364,42 +392,26 @@ impl Buffer for GenericBody {
 }
 
 pub fn unbuffer_typed_message_body<T: Unbuffer + TypedMessageBody>(
-    msg: GenericMessage,
+    msg: &GenericMessage,
 ) -> Result<Message<T>> {
-    let mut buf = msg.body.inner.clone();
-    let body =
-        T::unbuffer_ref(&mut buf).map_need_more_err_to_generic_parse_err("parsing message body")?;
-    if buf.len() > 0 {
-        return Err(Error::OtherMessage(format!(
-            "message body length was indicated as {}, but {} bytes remain unconsumed",
-            msg.body.inner.len(),
-            buf.len()
-        )));
-    }
-    Ok(Message::from_header_and_body(msg.header, body))
+    let typed_msg: Message<T> = Message::try_from_generic(msg)?;
+    Ok(typed_msg)
 }
 
+#[deprecated]
 pub fn make_message_body_generic<T: Buffer + TypedMessageBody>(
     msg: Message<T>,
-) -> std::result::Result<GenericMessage, Error> {
-    let old_body = msg.body;
-    let header = msg.header;
-    BytesMut::new()
-        .allocate_and_buffer(old_body)
-        .and_then(|body| {
-            Ok(GenericMessage::from_header_and_body(
-                header,
-                GenericBody::new(body.freeze()),
-            ))
-        })
+) -> Result<GenericMessage> {
+    msg.try_into_generic()
 }
 
+#[deprecated]
 pub fn make_sequenced_message_body_generic<T: Buffer + TypedMessageBody>(
     msg: SequencedMessage<T>,
-) -> std::result::Result<SequencedGenericMessage, Error> {
+) -> Result<SequencedGenericMessage> {
     let seq = msg.sequence_number;
-    make_message_body_generic(msg.message)
-        .map(|generic_msg| generic_msg.into_sequenced_message(seq))
+    let generic_msg = msg.message.try_into_generic()?;
+    Ok(generic_msg.into_sequenced_message(seq))
 }
 
 #[cfg(test)]

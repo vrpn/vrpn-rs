@@ -10,23 +10,12 @@ use crate::{
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
 };
 use tokio::{
     net::{TcpListener, TcpStream},
     prelude::*,
 };
-
-#[derive(Debug)]
-pub(crate) struct EndpointIpCollection {
-    inner: Vec<Option<EndpointIp>>,
-}
-
-impl EndpointIpCollection {
-    fn new() -> Arc<Mutex<EndpointIpCollection>> {
-        Arc::new(Mutex::new(EndpointIpCollection { inner: Vec::new() }))
-    }
-}
 
 #[derive(Debug)]
 pub struct ConnectionIp {
@@ -152,16 +141,16 @@ impl ConnectionIp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tracker::*, unbuffer_typed_message_body, GenericMessage, Handler};
+    use crate::{tracker::*, TypedHandler};
 
     #[derive(Debug)]
     struct TrackerHandler {
         flag: Arc<Mutex<bool>>,
     }
-    impl Handler for TrackerHandler {
-        fn handle(&mut self, msg: &GenericMessage) -> Result<()> {
-            let report: Message<PoseReport> = unbuffer_typed_message_body(msg.clone())?.into();
-            println!("{:?}", report);
+    impl TypedHandler for TrackerHandler {
+        type Item = PoseReport;
+        fn handle_typed(&mut self, msg: &Message<PoseReport>) -> Result<()> {
+            println!("{:?}", msg);
             let mut flag = self.flag.lock()?;
             *flag = true;
             Ok(())

@@ -24,6 +24,7 @@ pub mod cookie;
 pub mod descriptions;
 pub mod endpoint;
 pub mod error;
+pub mod handler;
 pub mod length_prefixed;
 pub mod log;
 pub mod message;
@@ -41,13 +42,13 @@ pub mod vrpn_tokio;
 pub use crate::{
     buffer::{BufMutExtras, Buffer, BytesMutExtras},
     cookie::{CookieData, Version},
-    descriptions::{Description, UdpDescription, UdpInnerDescription},
+    descriptions::{Description, UdpDescription},
     endpoint::*,
     error::*,
+    handler::{Handler, TypedHandler},
     log::{LogFileNames, LogFlags, LogMode},
     message::{
-        make_message_body_generic, unbuffer_typed_message_body, GenericBody, GenericMessage,
-        Message, MessageBody, MessageHeader, MessageTypeIdentifier,
+        GenericBody, GenericMessage, Message, MessageBody, MessageHeader, MessageTypeIdentifier,
         MessageTypeIdentifier::UserMessageName, SequencedGenericMessage, SequencedMessage,
         TypedMessageBody,
     },
@@ -55,7 +56,7 @@ pub use crate::{
     size::{BufferSize, ConstantBufferSize, WrappedConstantSize},
     time::TimeVal,
     translation_table::{MatchingTable, Table as TranslationTable, Tables as TranslationTables},
-    type_dispatcher::{Handler, RegisterMapping, TypeDispatcher},
+    type_dispatcher::{RegisterMapping, TypeDispatcher},
     types::*,
     unbuffer::{BytesExtras, OutputResultExtras, Unbuffer, UnbufferOutput},
 };
