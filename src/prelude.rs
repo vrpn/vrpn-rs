@@ -5,6 +5,5 @@
 pub use crate::{
     buffer::{BufMutExtras, BytesMutExtras},
     size::{BufferSize, ConstantBufferSize, WrappedConstantSize},
-    translation_table::MatchingTable,
     unbuffer::{BytesExtras, OutputResultExtras, UnbufferOutput},
 };

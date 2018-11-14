@@ -55,8 +55,12 @@ pub use crate::{
     primitives::*,
     size::{BufferSize, ConstantBufferSize, WrappedConstantSize},
     time::TimeVal,
-    translation_table::{MatchingTable, Table as TranslationTable, Tables as TranslationTables},
     type_dispatcher::{RegisterMapping, TypeDispatcher},
     types::*,
     unbuffer::{BytesExtras, OutputResultExtras, Unbuffer, UnbufferOutput},
+};
+
+pub(crate) use crate::{
+    translation_table::{MatchingTable, Table as TranslationTable, Tables as TranslationTables},
+    types::{determine_id_range, RangedId},
 };

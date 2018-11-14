@@ -270,3 +270,28 @@ pub struct Sensor(pub i32);
 
 pub type Quat = Quaternion<f64>;
 pub type Vec3 = Vector3<f64>;
+
+pub(crate) enum RangedId {
+    BelowZero(IdType),
+    InArray(IdType),
+    AboveArray(IdType),
+}
+
+/// Categorize an ID into either below array, in array, or above array.
+///
+/// Typically, calling code will then match on the result and make one or more
+/// of the variants produce an error. However, which ones are errors vary between
+/// functions.
+pub(crate) fn determine_id_range<T: BaseTypeSafeId>(id: T, len: usize) -> RangedId {
+    let raw = id.get();
+    if raw < 0 {
+        RangedId::BelowZero(raw)
+    } else {
+        let index = raw as usize;
+        if index < len {
+            RangedId::InArray(raw)
+        } else {
+            RangedId::AboveArray(raw)
+        }
+    }
+}
