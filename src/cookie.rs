@@ -185,6 +185,7 @@ mod tests {
     use super::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData};
     use bytes::BytesMut;
     use crate::constants::{FILE_MAGIC_DATA, MAGICLEN, MAGIC_DATA, MAGIC_PREFIX};
+    use crate::prelude::*;
 
     #[test]
     fn formatting() {
