@@ -104,7 +104,8 @@ mod tests {
             Ok(())
         }
     }
-    //#[ignore] // because it requires an external server to be running.
+
+    #[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker() {
         use crate::vrpn_tokio::connect_tcp;
@@ -135,7 +136,8 @@ mod tests {
             .unwrap();
         assert!(*flag.lock().unwrap() == true);
     }
-    //#[ignore] // because it requires an external server to be running.
+
+    #[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker_manual() {
         use crate::vrpn_tokio::connect_tcp;

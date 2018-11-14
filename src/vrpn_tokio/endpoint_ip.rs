@@ -160,6 +160,8 @@ impl Endpoint for EndpointIp {
 mod tests {
     use super::*;
     use crate::vrpn_tokio::connect::connect_tcp;
+
+    #[ignore] // because it requires an external server to be running.
     #[test]
     fn make_endpoint() {
         let addr = "127.0.0.1:3883".parse().unwrap();
@@ -183,6 +185,8 @@ mod tests {
             .wait()
             .unwrap();
     }
+
+    #[ignore] // because it requires an external server to be running.
     #[test]
     fn run_endpoint() {
         let addr = "127.0.0.1:3883".parse().unwrap();

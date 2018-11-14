@@ -11,6 +11,7 @@ use vrpn::{
     LocalId, RemoteId, SenderId,
 };
 
+#[ignore] // because it requires an external server to be running.
 #[test]
 fn main() {
     let addr = "127.0.0.1:3883".parse().unwrap();
