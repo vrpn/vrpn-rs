@@ -89,7 +89,9 @@ impl Connection for ConnectionIp {
 mod tests {
     use super::*;
     use crate::{
-        tracker::*, Message, SomeId, StaticSenderName, StaticTypeName, TypeSafeId, TypedHandler,
+        handler::{HandlerCode, TypedHandler},
+        tracker::*,
+        Message, SomeId, StaticSenderName, StaticTypeName, TypeSafeId,
     };
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
@@ -100,11 +102,11 @@ mod tests {
     }
     impl TypedHandler for TrackerHandler {
         type Item = PoseReport;
-        fn handle_typed(&mut self, msg: &Message<PoseReport>) -> Result<()> {
+        fn handle_typed(&mut self, msg: &Message<PoseReport>) -> Result<HandlerCode> {
             println!("{:?}", msg);
             let mut flag = self.flag.lock()?;
             *flag = true;
-            Ok(())
+            Ok(HandlerCode::ContinueProcessing)
         }
     }
 

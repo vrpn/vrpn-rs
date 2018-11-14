@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use chrono::prelude::*;
+use chrono::{prelude::*, Duration};
 use crate::{
-    type_dispatcher::HandlerHandle, unbuffer::check_expected, BaseTypeSafeId, Buffer, BufferSize,
-    BytesRequired, Connection, ConstantBufferSize, EmptyMessage, EmptyResult, Error, LocalId,
-    Message, MessageHeader, MessageTypeIdentifier, Result, SenderId, SenderName, ServiceFlags,
-    SomeId, StaticTypeName, TypeId, TypeSafeId, TypedBodylessHandler, TypedHandler,
-    TypedMessageBody, Unbuffer,
+    handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
+    BaseTypeSafeId, Buffer, BufferSize, BytesRequired, Connection, ConstantBufferSize,
+    EmptyMessage, EmptyResult, Error, LocalId, Message, MessageHeader, MessageTypeIdentifier,
+    Result, SenderId, SenderName, ServiceFlags, SomeId, StaticTypeName, TypeId, TypeSafeId,
+    TypedHandler, TypedMessageBody, Unbuffer,
 };
 use std::{
     fmt,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -43,51 +43,75 @@ impl TypedMessageBody for Pong {
         MessageTypeIdentifier::UserMessageName(PONG_MESSAGE);
 }
 
-struct PongHandler<T: Connection> {
-    inner: ClientInnerHolder<T>,
+struct PongHandler {
+    inner: Weak<Mutex<ClientInner>>,
 }
 
-impl<T: Connection> fmt::Debug for PongHandler<T> {
+impl fmt::Debug for PongHandler {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("PongHandler").finish()
     }
 }
 
-impl<T: Connection> TypedBodylessHandler for PongHandler<T> {
+impl TypedBodylessHandler for PongHandler {
     type Item = Pong;
-    fn handle_typed_bodyless(&mut self, header: &MessageHeader) -> Result<()> {
-        // TODO mark as alive/revived?
-        let mut inner = self.inner.lock()?;
-        inner.unanswered_ping = None;
-        Ok(())
+    fn handle_typed_bodyless(&mut self, _header: &MessageHeader) -> Result<HandlerCode> {
+        match self.inner.upgrade() {
+            Some(inner) => {
+                let mut inner = inner.lock()?;
+                inner.unanswered_ping = None;
+                inner.last_warning = None;
+                if inner.flatlined {
+                    eprintln!("Remote host started responding again");
+                    inner.flatlined = false;
+                }
+                Ok(HandlerCode::ContinueProcessing)
+            }
+
+            // If we get here, then the inner has gone away
+            None => Ok(HandlerCode::RemoveThisHandler),
+        }
     }
 }
 
 pub struct Client<T: Connection + 'static> {
-    inner: ClientInnerHolder<T>,
+    connection: Arc<T>,
+    inner: Arc<Mutex<ClientInner>>,
     ping_type: TypeId,
     sender: SenderId,
 }
 
-struct ClientInner<T: Connection> {
-    connection: Arc<T>,
+struct ClientInner {
+    /// The time of the first unanswered ping.
     unanswered_ping: Option<DateTime<Utc>>,
+    /// The time of the last warning message and unanswered ping.
+    last_warning: Option<DateTime<Utc>>,
+    /// whether the server seems disconnected or unresponsive
+    flatlined: bool,
 }
 
-type ClientInnerHolder<T> = Arc<Mutex<ClientInner<T>>>;
-
+impl ClientInner {
+    fn new() -> Arc<Mutex<ClientInner>> {
+        Arc::new(Mutex::new(ClientInner {
+            unanswered_ping: None,
+            last_warning: None,
+            flatlined: false,
+        }))
+    }
+}
 impl<T: Connection + 'static> Client<T> {
     pub fn new(sender: LocalId<SenderId>, connection: Arc<T>) -> Result<Client<T>> {
         let ping_type = connection.register_type(PING_MESSAGE)?;
-        let inner = ClientInner::new(Arc::clone(&connection));
+        let inner = ClientInner::new();
 
         let _ = connection.add_typed_handler(
             Box::new(PongHandler {
-                inner: Arc::clone(&inner),
+                inner: Arc::downgrade(&inner),
             }),
             SomeId(sender.into_id()),
         )?;
         Ok(Client {
+            connection,
             inner,
             ping_type,
             sender: sender.into_id(),
@@ -101,41 +125,62 @@ impl<T: Connection + 'static> Client<T> {
         Self::new(LocalId(sender_id), connection)
     }
 
+    pub fn initiate_ping_cycle(&self) -> Result<()> {
+        {
+            let mut inner = self.inner.lock()?;
+            inner.unanswered_ping = Some(Utc::now());
+        }
+        self.send_ping()
+    }
+
+    /// Checks to see if we're due for another ping.
+    ///
+    /// Returns the time stamp of the first unanswered ping,
+    /// or None if there are no unanswered pings.
+    pub fn check_ping_cycle(&self) -> Result<Option<DateTime<Utc>>> {
+        let mut inner = self.inner.lock()?;
+        if let (Some(unanswered), Some(last_warning)) =
+            (inner.unanswered_ping, &mut inner.last_warning)
+        {
+            let now = Utc::now();
+            if now.signed_duration_since(*last_warning) > Duration::seconds(1) {
+                *last_warning = now;
+                if now.signed_duration_since(unanswered) > Duration::seconds(10) {
+                    inner.flatlined = true;
+                }
+                self.send_ping()?;
+            }
+        }
+        Ok(inner.unanswered_ping)
+    }
+
     fn send_ping(&self) -> Result<()> {
         let msg = Message::new(None, self.ping_type, self.sender, Pong::default());
-        let mut inner = self.inner.lock()?;
-        inner
-            .connection
+        self.connection
             .pack_message(msg, ServiceFlags::RELIABLE.into())?;
-        inner.unanswered_ping = Some(Utc::now());
         Ok(())
-    }
-}
-
-impl<T: Connection> ClientInner<T> {
-    fn new(connection: Arc<T>) -> Arc<Mutex<ClientInner<T>>> {
-        Arc::new(Mutex::new(ClientInner {
-            connection,
-            unanswered_ping: None,
-        }))
     }
 }
 
 #[derive(Debug)]
 struct PingHandler<T: Connection> {
-    connection: Arc<T>,
+    connection: Weak<T>,
     pong_type: TypeId,
     sender: SenderId,
 }
 
 impl<T: Connection> TypedBodylessHandler for PingHandler<T> {
     type Item = Ping;
-    fn handle_typed_bodyless(&mut self, _header: &MessageHeader) -> Result<()> {
+    fn handle_typed_bodyless(&mut self, _header: &MessageHeader) -> Result<HandlerCode> {
         // TODO use sender from header?
-        let msg = Message::new(None, self.pong_type, self.sender, Pong::default());
-        self.connection
-            .pack_message(msg, ServiceFlags::RELIABLE.into())?;
-        Ok(())
+        match self.connection.upgrade() {
+            Some(connection) => {
+                let msg = Message::new(None, self.pong_type, self.sender, Pong::default());
+                connection.pack_message(msg, ServiceFlags::RELIABLE.into())?;
+                Ok(HandlerCode::ContinueProcessing)
+            }
+            None => Ok(HandlerCode::RemoveThisHandler),
+        }
     }
 }
 
@@ -151,11 +196,10 @@ impl Server {
         sender: LocalId<SenderId>,
         connection: Arc<T>,
     ) -> Result<Server> {
-        let connection_clone = Arc::clone(&connection);
         let pong_type = connection.register_type(PONG_MESSAGE)?;
         let handler = connection.add_typed_handler(
             Box::new(PingHandler {
-                connection: connection_clone,
+                connection: Arc::downgrade(&connection),
                 pong_type,
                 sender: sender.into_id(),
             }),

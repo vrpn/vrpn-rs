@@ -81,11 +81,11 @@ impl MsgCallbackEntry {
     }
 
     /// Invokes the callback with the given msg, if the sender filter (if not None) matches.
-    pub fn call<'a>(&mut self, msg: &'a GenericMessage) -> Result<()> {
+    pub fn call<'a>(&mut self, msg: &'a GenericMessage) -> Result<HandlerCode> {
         if self.sender.matches(&msg.header.sender) {
             self.handler.handle(msg)
         } else {
-            Ok(())
+            Ok(HandlerCode::ContinueProcessing)
         }
     }
 }
@@ -95,7 +95,7 @@ impl MsgCallbackEntry {
 #[derive(Debug)]
 struct CallbackCollection {
     name: Bytes,
-    callbacks: Vec<MsgCallbackEntry>,
+    callbacks: Vec<Option<MsgCallbackEntry>>,
     next_handle: HandlerHandleInnerType,
 }
 
@@ -120,14 +120,18 @@ impl CallbackCollection {
         }
         let handle = HandlerHandleInner(self.next_handle);
         self.callbacks
-            .push(MsgCallbackEntry::new(handle, handler, sender));
+            .push(Some(MsgCallbackEntry::new(handle, handler, sender)));
         self.next_handle += 1;
         Ok(handle)
     }
 
     /// Remove a callback
     fn remove(&mut self, handle: HandlerHandleInner) -> Result<()> {
-        match self.callbacks.iter().position(|ref x| x.handle == handle) {
+        match self.callbacks.iter().position(|x| {
+            x.as_ref()
+                .map(|handler| handler.handle == handle)
+                .unwrap_or(false)
+        }) {
             Some(i) => {
                 self.callbacks.remove(i);
                 Ok(())
@@ -138,8 +142,12 @@ impl CallbackCollection {
 
     /// Call all callbacks (subject to sender filters)
     fn call(&mut self, msg: &GenericMessage) -> Result<()> {
-        for entry in self.callbacks.iter_mut() {
-            entry.call(msg)?;
+        for entry in &mut self.callbacks.iter_mut() {
+            if let Some(unwrapped_entry) = entry {
+                if unwrapped_entry.call(msg)? == HandlerCode::RemoveThisHandler {
+                    entry.take();
+                }
+            }
         }
         Ok(())
     }
@@ -357,10 +365,10 @@ mod tests {
         val: Arc<Mutex<i8>>,
     }
     impl Handler for SetTo10 {
-        fn handle(&mut self, _msg: &GenericMessage) -> Result<()> {
+        fn handle(&mut self, _msg: &GenericMessage) -> Result<HandlerCode> {
             let mut val = self.val.lock()?;
             *val = 10;
-            Ok(())
+            Ok(HandlerCode::ContinueProcessing)
         }
     }
     #[derive(Debug, Clone)]
@@ -368,10 +376,10 @@ mod tests {
         val: Arc<Mutex<i8>>,
     }
     impl Handler for SetTo15 {
-        fn handle(&mut self, _msg: &GenericMessage) -> Result<()> {
+        fn handle(&mut self, _msg: &GenericMessage) -> Result<HandlerCode> {
             let mut val = self.val.lock()?;
             *val = 15;
-            Ok(())
+            Ok(HandlerCode::ContinueProcessing)
         }
     }
     #[test]
