@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Bytes, BytesMut};
-use crate::prelude::*;
 use crate::{
-    constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible, ConstantBufferSize, CookieData,
-    Error, Unbuffer,
+    prelude::WrappedConstantSize,
+    vrpn_tokio::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
+    Error,
 };
 use std::net::SocketAddr;
 use tokio::{io, net::TcpStream, prelude::*};
@@ -33,69 +32,6 @@ fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
     }
     sock.set_reuse_address(true)?;
     Ok(sock.into_tcp_stream())
-}
-
-/// Writes the supplied cookie to a stream.
-///
-/// Future resolves to the provided stream on success.
-fn write_cookie<T>(stream: T, cookie: CookieData) -> impl Future<Item = T, Error = Error>
-where
-    T: AsyncWrite,
-{
-    BytesMut::new()
-        .allocate_and_buffer(cookie)
-        .into_future()
-        .and_then(|buf| {
-            io::write_all(stream, buf.freeze())
-                .map(|(stream, _)| stream)
-                .from_err()
-        })
-}
-
-/// Reads a cookie's worth of data into a temporary buffer.
-///
-/// Future resolves to (stream, buffer) on success.
-fn read_cookie<T>(stream: T) -> impl Future<Item = (T, Vec<u8>), Error = Error>
-where
-    T: AsyncRead,
-{
-    io::read_exact(stream, vec![0u8; CookieData::constant_buffer_size()]).from_err()
-}
-
-fn verify_version_nonfile(msg: CookieData) -> impl Future<Item = (), Error = Error> {
-    check_ver_nonfile_compatible(msg.version).into_future()
-}
-
-/// Accepts a buffer, and tries to unbuffer and verify compatibility of a magic cookie therein.
-///
-/// Future resolves to () on success.
-fn unbuffer_and_verify_version_nonfile(buf: &[u8]) -> impl Future<Item = (), Error = Error> {
-    let mut buf = Bytes::from(buf);
-    CookieData::unbuffer_ref(&mut buf)
-        .into_future()
-        .and_then(verify_version_nonfile)
-}
-
-/// Writes the "non-file" magic cookie to the stream.
-///
-/// Future resolves to the provided stream on success.
-fn send_nonfile_cookie<T>(stream: T) -> impl Future<Item = T, Error = Error>
-where
-    T: AsyncWrite,
-{
-    write_cookie(stream, CookieData::from(MAGIC_DATA))
-}
-
-/// Reads a cookie's worth of data from the stream, and cheacks to make sure it is the right version.
-///
-/// Future resolves to the provided stream on success.
-fn read_and_check_nonfile_cookie<T>(stream: T) -> impl Future<Item = T, Error = Error>
-where
-    T: AsyncRead,
-{
-    read_cookie(stream).and_then(|(stream, read_buf)| {
-        unbuffer_and_verify_version_nonfile(&read_buf).and_then(|()| Ok(stream))
-    })
 }
 
 fn outgoing_tcp_connect(
