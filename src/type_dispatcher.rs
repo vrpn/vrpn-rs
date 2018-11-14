@@ -2,11 +2,17 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use self::RangedId::*;
 use bytes::Bytes;
 use crate::handler::*;
 use crate::types::*;
 use crate::{
-    constants, types, Error, GenericMessage, MessageTypeIdentifier, Result, TypedMessageBody,
+    constants, determine_id_range, types, Error, GenericMessage, MessageTypeIdentifier, RangedId,
+    Result, TypedMessageBody,
+};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -131,16 +137,20 @@ impl CallbackCollection {
 }
 
 fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
-    let raw_message_type = message_type.get();
-    if raw_message_type < 0 {
-        Err(Error::InvalidId(raw_message_type))?;
+    match determine_id_range(message_type, len) {
+        BelowZero(v) => Err(Error::InvalidId(v)),
+        AboveArray(v) => Err(Error::InvalidId(v)),
+        InArray(v) => Ok(v as usize),
     }
-    let index = raw_message_type as usize;
-    if index >= len {
-        Err(Error::InvalidId(raw_message_type))?;
-    }
+}
 
-    Ok(index)
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct Name(Bytes);
+
+impl Hash for Name {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.0[..]);
+    }
 }
 
 /// Structure holding and dispatching generic and message-filtered callbacks.
@@ -152,9 +162,13 @@ fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
 /// which get queued through the Endpoint trait using interior mutability (e.g. with something like mpsc)type_dispatcher
 #[derive(Debug)]
 pub struct TypeDispatcher {
+    /// Index is the local type ID
     types: Vec<CallbackCollection>,
+    types_by_name: HashMap<Name, LocalId<TypeId>>,
     generic_callbacks: CallbackCollection,
+    /// Index is the local sender ID
     senders: Vec<SenderName>,
+    senders_by_name: HashMap<Name, LocalId<SenderId>>,
 }
 
 impl Default for TypeDispatcher {
@@ -167,8 +181,10 @@ impl TypeDispatcher {
     pub fn new() -> TypeDispatcher {
         let mut disp = TypeDispatcher {
             types: Vec::new(),
+            types_by_name: HashMap::new(),
             generic_callbacks: CallbackCollection::new(Bytes::from_static(constants::GENERIC)),
             senders: Vec::new(),
+            senders_by_name: HashMap::new(),
         };
 
         disp.register_sender(constants::CONTROL)
@@ -199,20 +215,26 @@ impl TypeDispatcher {
         }
     }
 
-    pub fn add_type(&mut self, name: impl Into<TypeName>) -> Result<TypeId> {
+    fn add_type(&mut self, name: impl Into<TypeName>) -> Result<TypeId> {
         if self.types.len() > MAX_VEC_USIZE {
             return Err(Error::TooManyMappings);
         }
-        self.types.push(CallbackCollection::new(name.into().0));
-        Ok(TypeId((self.types.len() - 1) as IdType))
+        let name = name.into();
+        self.types.push(CallbackCollection::new(name.clone().0));
+        let id = TypeId((self.types.len() - 1) as IdType);
+        self.types_by_name.insert(Name(name.0), LocalId(id));
+        Ok(id)
     }
 
-    pub fn add_sender(&mut self, name: impl Into<SenderName>) -> Result<SenderId> {
+    fn add_sender(&mut self, name: impl Into<SenderName>) -> Result<SenderId> {
         if self.senders.len() > (IdType::max_value() - 2) as usize {
             return Err(Error::TooManyMappings);
         }
-        self.senders.push(name.into());
-        Ok(SenderId((self.senders.len() - 1) as IdType))
+        let name = name.into();
+        self.senders.push(name.clone());
+        let id = SenderId((self.senders.len() - 1) as IdType);
+        self.senders_by_name.insert(Name(name.0), LocalId(id));
+        Ok(id)
     }
 
     /// Returns the ID for the type name, if found.
@@ -222,10 +244,10 @@ impl TypeDispatcher {
     {
         let name: TypeName = name.into();
         let name: Bytes = name.into();
-        self.types
-            .iter()
-            .position(|ref x| x.name == name)
-            .map(|i| TypeId(i as IdType))
+        self.types_by_name
+            .get(&Name(name))
+            .cloned()
+            .map(|LocalId(id)| id)
     }
 
     /// Calls add_type if get_type_id() returns None.
@@ -253,10 +275,11 @@ impl TypeDispatcher {
     /// Returns the ID for the sender name, if found.
     pub fn get_sender_id(&self, name: impl Into<SenderName>) -> Option<SenderId> {
         let name: SenderName = name.into();
-        self.senders
-            .iter()
-            .position(|ref x| **x == name)
-            .map(|i| SenderId(i as IdType))
+        let name: Bytes = name.into();
+        self.senders_by_name
+            .get(&Name(name))
+            .cloned()
+            .map(|LocalId(id)| id)
     }
 
     pub fn add_handler(
@@ -297,6 +320,21 @@ impl TypeDispatcher {
 
         self.generic_callbacks.call(&msg)?;
         mapping.call(&msg)
+    }
+
+    pub fn senders_iter<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (LocalId<SenderId>, &'a SenderName)> + 'a {
+        self.senders
+            .iter()
+            .enumerate()
+            .map(|(i, name)| (LocalId(SenderId(i as i32)), name))
+    }
+    pub fn types_iter<'a>(&'a self) -> impl Iterator<Item = (LocalId<TypeId>, TypeName)> + 'a {
+        self.types
+            .iter()
+            .enumerate()
+            .map(|(i, callbacks)| (LocalId(TypeId(i as i32)), TypeName(callbacks.name.clone())))
     }
 }
 #[cfg(test)]

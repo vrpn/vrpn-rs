@@ -19,6 +19,7 @@ extern crate downcast_rs;
 extern crate tokio;
 
 pub mod buffer;
+pub mod connection;
 pub mod constants;
 pub mod cookie;
 pub mod descriptions;
@@ -61,6 +62,6 @@ pub use crate::{
 };
 
 pub(crate) use crate::{
-    translation_table::{MatchingTable, Table as TranslationTable, Tables as TranslationTables},
+    translation_table::{MatchingTable, Tables as TranslationTables},
     types::{determine_id_range, RangedId},
 };

@@ -4,8 +4,8 @@
 
 use bytes::{BufMut, Bytes};
 use crate::{
-    prelude::*, Buffer, ConstantBufferSize, EmptyResult, MessageTypeIdentifier, Quat, Result,
-    Sensor, StaticTypeName, TypedMessageBody, Unbuffer, Vec3,
+    Buffer, ConstantBufferSize, EmptyResult, MessageTypeIdentifier, Quat, Result, Sensor,
+    StaticTypeName, TypedMessageBody, Unbuffer, Vec3,
 };
 
 /// Position and orientation for trackers.

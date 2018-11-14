@@ -5,8 +5,8 @@
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
 use crate::{
-    vrpn_tokio::endpoint_ip::EndpointIp, Endpoint, Error, GenericMessage, LocalId, Message,
-    MessageHeader, RemoteId, SequenceNumber, SequencedGenericMessage, TypeDispatcher,
+    vrpn_tokio::endpoint_ip::EndpointIp, Endpoint, EndpointGeneric, Error, GenericMessage, LocalId,
+    Message, MessageHeader, RemoteId, SequenceNumber, SequencedGenericMessage, TypeDispatcher,
 };
 use std::sync::{
     atomic::{AtomicUsize, Ordering},

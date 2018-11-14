@@ -2,18 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{
-    descriptions::InnerDescription,
-    type_dispatcher::{HandlerHandle, RegisterMapping},
-    vrpn_tokio::endpoint_ip::EndpointIp,
-    BaseTypeSafeId, Error, Handler, IdToHandle, LocalId, LogFileNames, MatchingTable, Message,
-    MessageTypeIdentifier, Result, SenderId, SenderName, SomeId, StaticSenderName, StaticTypeName,
-    TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,
-};
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::{Arc, Mutex},
-};
+use crate::{connection::*, vrpn_tokio::endpoint_ip::EndpointIp, Error, LogFileNames, Result};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::{
     net::{TcpListener, TcpStream},
     prelude::*,
@@ -21,10 +11,7 @@ use tokio::{
 
 #[derive(Debug)]
 pub struct ConnectionIp {
-    endpoints: Arc<Mutex<Vec<Option<EndpointIp>>>>,
-    pub(crate) type_dispatcher: Arc<Mutex<TypeDispatcher>>,
-    remote_log_names: LogFileNames,
-    local_log_names: LogFileNames,
+    core: ConnectionCore<EndpointIp>,
     server_tcp: Option<TcpListener>,
 }
 
@@ -38,10 +25,7 @@ impl ConnectionIp {
             addr.unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
         let server_tcp = TcpListener::bind(&addr)?;
         Ok(ConnectionIp {
-            endpoints: Arc::new(Mutex::new(Vec::new())),
-            type_dispatcher: Arc::new(Mutex::new(TypeDispatcher::new())),
-            remote_log_names: LogFileNames::new(),
-            local_log_names: LogFileNames::from(local_log_names),
+            core: ConnectionCore::new(Vec::new(), local_log_names, None),
             server_tcp: Some(server_tcp),
         })
     }
@@ -56,100 +40,15 @@ impl ConnectionIp {
         let mut endpoints: Vec<Option<EndpointIp>> = Vec::new();
         endpoints.push(Some(EndpointIp::new(reliable_channel)));
         Ok(ConnectionIp {
-            endpoints: Arc::new(Mutex::new(endpoints)),
-            type_dispatcher: Arc::new(Mutex::new(TypeDispatcher::new())),
-            remote_log_names: LogFileNames::from(remote_log_names),
-            local_log_names: LogFileNames::from(local_log_names),
+            core: ConnectionCore::new(endpoints, local_log_names, remote_log_names),
             server_tcp: None,
         })
     }
 
-    pub fn register_type<T>(&self, name: T) -> Result<TypeId>
-    where
-        T: Into<TypeName> + Clone,
-    {
-        let mut dispatcher = self.type_dispatcher.lock()?;
-        match dispatcher.register_type(name.clone())? {
-            RegisterMapping::Found(id) => Ok(id),
-            RegisterMapping::NewMapping(id) => {
-                let mut endpoints = self.endpoints.lock()?;
-                for ep in endpoints.iter_mut().flatten() {
-                    ep.new_local_id(name.clone(), LocalId(id));
-                }
-                Ok(id)
-            }
-        }
-    }
-
-    pub fn register_sender<T>(&self, name: T) -> Result<SenderId>
-    where
-        T: Into<SenderName> + Clone,
-    {
-        let mut dispatcher = self.type_dispatcher.lock()?;
-        match dispatcher.register_sender(name.clone())? {
-            RegisterMapping::Found(id) => Ok(id),
-            RegisterMapping::NewMapping(id) => {
-                let mut endpoints = self.endpoints.lock()?;
-                for ep in endpoints.iter_mut().flatten() {
-                    ep.new_local_id(name.clone(), LocalId(id))?;
-                }
-                Ok(id)
-            }
-        }
-    }
-
-    pub fn add_handler(
-        &self,
-        handler: Box<dyn Handler>,
-        message_type: IdToHandle<TypeId>,
-        sender: IdToHandle<SenderId>,
-    ) -> Result<HandlerHandle> {
-        let mut dispatcher = self.type_dispatcher.lock()?;
-        dispatcher.add_handler(handler, message_type, sender)
-    }
-
-    pub fn add_typed_handler<T: 'static>(
-        &self,
-        handler: Box<T>,
-        sender: IdToHandle<SenderId>,
-    ) -> Result<HandlerHandle>
-    where
-        T: TypedHandler + Handler + Sized,
-    {
-        let message_type = match T::Item::MESSAGE_IDENTIFIER {
-            MessageTypeIdentifier::UserMessageName(name) => SomeId(self.register_type(name)?),
-            MessageTypeIdentifier::SystemMessageId(id) => SomeId(id),
-        };
-        self.add_handler(handler, message_type, sender)
-    }
-    pub fn remove_handler(&self, handler_handle: HandlerHandle) -> Result<()> {
-        let mut dispatcher = self.type_dispatcher.lock()?;
-        dispatcher.remove_handler(handler_handle)
-    }
-
-    pub fn pack_description<T>(&self, id: LocalId<T>) -> Result<()>
-    where
-        T: BaseTypeSafeId,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: MatchingTable<T>,
-    {
-        let mut endpoints = self.endpoints.lock()?;
-        for ep in endpoints.iter_mut().flatten() {
-            ep.pack_description(id)?;
-        }
-        Ok(())
-    }
-    pub fn pack_all_descriptions(&self) -> Result<()> {
-        let mut endpoints = self.endpoints.lock()?;
-        for ep in endpoints.iter_mut().flatten() {
-            ep.pack_all_descriptions()?;
-        }
-        Ok(())
-    }
-
-    fn poll_endpoints(&self) -> Poll<(), Error> {
-        let endpoints = Arc::clone(&self.endpoints);
-        let dispatcher = Arc::clone(&self.type_dispatcher);
+    pub fn poll_endpoints(&self) -> Poll<(), Error> {
+        eprintln!("in poll_endpoints");
+        let endpoints = self.endpoints();
+        let dispatcher = self.dispatcher();
         {
             let mut endpoints = endpoints.lock()?;
             let mut dispatcher = dispatcher.lock()?;
@@ -157,6 +56,7 @@ impl ConnectionIp {
             for ep in endpoints.iter_mut().flatten() {
                 match ep.poll_endpoint(&mut dispatcher)? {
                     Async::Ready(()) => {
+                        eprintln!("endpoint closed apparently");
                         // that endpoint closed.
                         // TODO Handle this
                     }
@@ -175,10 +75,21 @@ impl ConnectionIp {
     }
 }
 
+impl Connection for ConnectionIp {
+    type SpecificEndpoint = EndpointIp;
+    fn connection_core(&self) -> &ConnectionCore<Self::SpecificEndpoint> {
+        &self.core
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tracker::*, TypeSafeId, TypedHandler};
+    use crate::{
+        tracker::*, Message, SomeId, StaticSenderName, StaticTypeName, TypeSafeId, TypedHandler,
+    };
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
     #[derive(Debug)]
     struct TrackerHandler {
@@ -232,7 +143,7 @@ mod tests {
         let flag = Arc::new(Mutex::new(false));
 
         connect_tcp(addr)
-            .and_then(|stream| -> Result<()> {
+            .and_then(|stream| {
                 let conn = ConnectionIp::new_client(None, None, stream)?;
                 let tracker_message_id = conn
                     .register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))
@@ -240,19 +151,24 @@ mod tests {
                 let sender = conn
                     .register_sender(StaticSenderName(b"Tracker0"))
                     .expect("should be able to register sender");
-                let handler_handle = conn.add_handler(
+                conn.add_handler(
                     Box::new(TrackerHandler {
                         flag: Arc::clone(&flag),
                     }),
                     SomeId(tracker_message_id),
                     SomeId(sender),
                 )?;
+                conn.pack_all_descriptions()?;
                 for _ in 0..4 {
                     let _ = conn.poll_endpoints()?;
                 }
-                conn.remove_handler(handler_handle)
-                    .expect("should be able to remove handler");
                 Ok(())
+                // Ok(future::poll_fn(move || {
+                //     eprintln!("polling");
+                //     conn.poll_endpoints()
+                // })
+                // .timeout(Duration::from_secs(4))
+                // .map(|_| ()))
             })
             .wait()
             .unwrap();

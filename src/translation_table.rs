@@ -5,8 +5,8 @@
 use self::RangedId::*;
 use bytes::Bytes;
 use crate::{
-    determine_id_range, BaseTypeSafeId, Error, IdType, LocalId, RangedId, RemoteId, Result,
-    SenderId, TypeId, TypeSafeId,
+    determine_id_range, BaseTypeSafeId, Error, LocalId, RangedId, RemoteId, Result, SenderId,
+    TypeId, TypeSafeId,
 };
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]

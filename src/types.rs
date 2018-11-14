@@ -4,7 +4,7 @@
 
 use bytes::Bytes;
 use cgmath::{Quaternion, Vector3};
-use crate::{constants, prelude::*};
+use crate::constants;
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;

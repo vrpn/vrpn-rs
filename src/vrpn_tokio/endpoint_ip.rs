@@ -2,17 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::Bytes;
 use crate::types::*;
 use crate::{
-    descriptions::InnerDescription,
     endpoint::*,
     vrpn_tokio::{
         codec::{self, FramedMessageCodec},
         endpoint_channel::{poll_and_dispatch, EndpointChannel},
     },
-    Description, Error, GenericMessage, MatchingTable, Message, Result, TranslationTables,
-    TypeDispatcher, TypedMessageBody,
+    Error, GenericMessage, MatchingTable, Result, TranslationTables, TypeDispatcher,
 };
 use futures::sync::mpsc;
 use std::{
@@ -50,91 +47,18 @@ impl EndpointIp {
         }
     }
 
-    pub(crate) fn pack_description<T>(&mut self, local_id: LocalId<T>) -> Result<()>
-    where
-        T: BaseTypeSafeId,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: MatchingTable<T>,
-    {
-        let LocalId(id) = local_id;
-        let name = self
-            .translation
-            .find_by_local_id(local_id)
-            .ok_or_else(|| Error::InvalidId(id.get()))
-            .and_then(|entry| Ok(entry.name().clone()))?;
-        let desc_msg = Message::from(Description::new(id, name));
-        self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
-            .map(|_| ())
-    }
-
-    pub(crate) fn pack_all_descriptions(&mut self) -> Result<()> {
-        {
-            let mut messages = Vec::new();
-            for entry in self.translation.senders.iter() {
-                let desc_msg = Message::from(Description::new(
-                    entry.local_id().into_id(),
-                    entry.name().clone(),
-                ));
-                messages.push(desc_msg);
-            }
-            for msg in messages.into_iter() {
-                self.buffer_message(msg, ClassOfService::from(ServiceFlags::RELIABLE))?;
-            }
-        }
-        {
-            let mut messages = Vec::new();
-            for entry in self.translation.types.iter() {
-                let desc_msg = Message::from(Description::new(
-                    entry.local_id().into_id(),
-                    entry.name().clone(),
-                ));
-                messages.push(desc_msg);
-            }
-            for msg in messages.into_iter() {
-                self.buffer_message(msg, ClassOfService::from(ServiceFlags::RELIABLE))?;
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn clear_other_senders_and_types(&mut self) {
-        self.translation.clear();
-    }
-
-    /// Convert remote sender/type ID to local sender/type ID
-    pub(crate) fn map_to_local_id<T>(&self, remote_id: RemoteId<T>) -> Option<LocalId<T>>
-    where
-        T: BaseTypeSafeId,
-        TranslationTables: MatchingTable<T>,
-    {
-        match self.translation.map_to_local_id(remote_id) {
-            Ok(val) => val,
-            Err(_) => None,
-        }
-    }
-
-    pub(crate) fn new_local_id<T, U>(&mut self, name: U, local_id: LocalId<T>) -> Result<()>
-    where
-        T: BaseTypeSafeIdName + BaseTypeSafeId,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: MatchingTable<T>,
-        U: Into<<T as BaseTypeSafeIdName>::Name>,
-    {
-        let name: <T as BaseTypeSafeIdName>::Name = name.into();
-        let name: Bytes = name.into();
-        if self.translation.add_local_id(name, local_id) {
-            self.pack_description(local_id)
-        } else {
-            Ok(())
-        }
-    }
-
     pub(crate) fn poll_endpoint(&mut self, dispatcher: &mut TypeDispatcher) -> Poll<(), Error> {
+        eprintln!("Type translation table: \n{:#?}", self.translation.types);
         let channel_arc = Arc::clone(&self.reliable_channel);
         let mut channel = channel_arc
             .lock()
             .map_err(|e| Error::OtherMessage(e.to_string()))?;
-        let _ = channel.poll_complete()?;
+        let poll_complete_results = channel.poll_complete()?;
+        if poll_complete_results.is_ready() {
+            println!("poll_complete said it's ready");
+        } else {
+            println!("poll_complete says it's not ready");
+        }
         let closed = poll_and_dispatch(self, channel.deref_mut(), dispatcher)?.is_ready();
 
         // todo UDP here.
@@ -193,6 +117,14 @@ impl EndpointIp {
 }
 
 impl Endpoint for EndpointIp {
+    fn translation_tables(&self) -> &TranslationTables {
+        &self.translation
+    }
+
+    fn translation_tables_mut(&mut self) -> &mut TranslationTables {
+        &mut self.translation
+    }
+
     fn send_system_change(&self, message: SystemMessage) -> Result<()> {
         println!("send_system_change {:?}", message);
         self.system_tx

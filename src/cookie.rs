@@ -5,7 +5,6 @@
 use bytes::{BufMut, Bytes};
 use crate::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
-    prelude::*,
     unbuffer::check_expected,
     Buffer, ConstantBufferSize, EmptyResult, Error, LogFlags, LogMode, Result, Unbuffer,
 };
