@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Ryan Pavlik <ryan.pavlik@collabora.com>"]
 license = "BSL-1.0"
 edition = "2018"
+description = "A port of the VRPN (Virtual Reality Peripheral Network) protocol to async code in Rust"
+repository = "https://github.com/vrpn/vrpn-rs"
+readme = "README.md"
 
 [dependencies]
 bytes = "0.4.10"
