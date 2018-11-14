@@ -3,10 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    descriptions::InnerDescription, type_dispatcher::HandlerHandle, BaseTypeSafeId, Endpoint,
-    EndpointGeneric, Handler, IdToHandle, LocalId, LogFileNames, MatchingTable,
-    MessageTypeIdentifier, RegisterMapping, Result, SenderId, SenderName, SomeId,
-    TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,
+    descriptions::InnerDescription, type_dispatcher::HandlerHandle, BaseTypeSafeId, Buffer,
+    ClassOfService, Endpoint, EndpointGeneric, Handler, IdToHandle, LocalId, LogFileNames,
+    MatchingTable, Message, MessageTypeIdentifier, RegisterMapping, Result, SenderId, SenderName,
+    SomeId, TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,
 };
 use std::sync::{Arc, Mutex};
 
@@ -88,6 +88,19 @@ pub trait Connection {
     fn remove_handler(&self, handler_handle: HandlerHandle) -> Result<()> {
         let mut dispatcher = self.connection_core().type_dispatcher.lock()?;
         dispatcher.remove_handler(handler_handle)
+    }
+
+    fn pack_message<T>(&self, msg: Message<T>, class: ClassOfService) -> Result<()>
+    where
+        T: TypedMessageBody + Buffer,
+    {
+        let generic_msg = msg.try_into_generic()?;
+
+        let mut endpoints = self.connection_core().endpoints.lock()?;
+        for ep in endpoints.iter_mut().flatten() {
+            ep.buffer_generic_message(generic_msg.clone(), class)?;
+        }
+        Ok(())
     }
 
     fn pack_description<T>(&self, id: LocalId<T>) -> Result<()>

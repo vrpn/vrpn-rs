@@ -3,7 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{connection::*, vrpn_tokio::endpoint_ip::EndpointIp, Error, LogFileNames, Result};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 use tokio::{
     net::{TcpListener, TcpStream},
     prelude::*,
@@ -20,14 +23,14 @@ impl ConnectionIp {
     pub fn new_server(
         local_log_names: Option<LogFileNames>,
         addr: Option<SocketAddr>,
-    ) -> Result<ConnectionIp> {
+    ) -> Result<Arc<ConnectionIp>> {
         let addr =
             addr.unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
         let server_tcp = TcpListener::bind(&addr)?;
-        Ok(ConnectionIp {
+        Ok(Arc::new(ConnectionIp {
             core: ConnectionCore::new(Vec::new(), local_log_names, None),
             server_tcp: Some(server_tcp),
-        })
+        }))
     }
 
     /// Create a new ConnectionIp that is a client.
@@ -36,13 +39,13 @@ impl ConnectionIp {
         remote_log_names: Option<LogFileNames>,
         reliable_channel: TcpStream,
         // low_latency_channel: Option<MessageFramedUdp>,
-    ) -> Result<ConnectionIp> {
+    ) -> Result<Arc<ConnectionIp>> {
         let mut endpoints: Vec<Option<EndpointIp>> = Vec::new();
         endpoints.push(Some(EndpointIp::new(reliable_channel)));
-        Ok(ConnectionIp {
+        Ok(Arc::new(ConnectionIp {
             core: ConnectionCore::new(endpoints, local_log_names, remote_log_names),
             server_tcp: None,
-        })
+        }))
     }
 
     pub fn poll_endpoints(&self) -> Poll<(), Error> {

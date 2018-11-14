@@ -42,11 +42,12 @@ pub mod vrpn_tokio;
 
 pub use crate::{
     buffer::{BufMutExtras, Buffer, BytesMutExtras},
+    connection::Connection,
     cookie::{CookieData, Version},
     descriptions::{Description, UdpDescription},
     endpoint::*,
     error::*,
-    handler::{Handler, TypedHandler},
+    handler::{Handler, TypedBodylessHandler, TypedHandler},
     log::{LogFileNames, LogFlags, LogMode},
     message::{
         GenericBody, GenericMessage, Message, MessageBody, MessageHeader, MessageTypeIdentifier,
@@ -54,7 +55,7 @@ pub use crate::{
         TypedMessageBody,
     },
     primitives::*,
-    size::{BufferSize, ConstantBufferSize, WrappedConstantSize},
+    size::{BufferSize, ConstantBufferSize, EmptyMessage, WrappedConstantSize},
     time::TimeVal,
     type_dispatcher::{RegisterMapping, TypeDispatcher},
     types::*,

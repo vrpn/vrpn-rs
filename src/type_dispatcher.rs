@@ -12,6 +12,7 @@ use crate::{
 };
 use std::{
     collections::HashMap,
+    fmt,
     hash::{Hash, Hasher},
 };
 
@@ -51,11 +52,19 @@ pub struct HandlerHandle(IdToHandle<TypeId>, HandlerHandleInnerType);
 
 /// Type storing a boxed callback function, an optional sender ID filter,
 /// and the unique-per-CallbackCollection handle that can be used to unregister a handler.
-#[derive(Debug)]
 struct MsgCallbackEntry {
     handle: HandlerHandleInner,
     pub handler: Box<dyn Handler>,
     pub sender: IdToHandle<SenderId>,
+}
+
+impl fmt::Debug for MsgCallbackEntry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("MsgCallbackEntry")
+            .field("handle", &self.handle)
+            .field("sender", &self.sender)
+            .finish()
+    }
 }
 
 impl MsgCallbackEntry {

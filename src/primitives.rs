@@ -37,6 +37,20 @@ buffer_primitive!(u64, put_u64_be, get_u64_be);
 buffer_primitive!(f32, put_f32_be, get_f32_be);
 buffer_primitive!(f64, put_f64_be, get_f64_be);
 
+impl ConstantBufferSize for () {}
+
+impl Buffer for () {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
+        Ok(())
+    }
+}
+
+impl UnbufferConstantSize for () {
+    fn unbuffer_constant_size<T: Source>(buf: T) -> Result<Self> {
+        Ok(())
+    }
+}
+
 impl ConstantBufferSize for Vec3 {
     fn constant_buffer_size() -> usize {
         std::mem::size_of::<f64>() * 3
