@@ -130,3 +130,13 @@ This is wrapped in the normal message framing, with:
 - system message type `-4` (`vrpn_CONNECTION_LOG_DESCRIPTION`)
 - the remote log mode bitmask as the sender ID
 - with "reliable" class of service (on the TCP channel)
+
+---
+
+## Copyright and License for this Protocol.md file
+
+For this file only:
+
+> Initially written by Ryan Pavlik. Copyright 2018 Collabora, Ltd.
+>
+> SPDX-License-Identifier: CC-BY-4.0
