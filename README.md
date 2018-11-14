@@ -28,6 +28,21 @@ Right now, all the top-level APIs for connections/endpoints use [Tokio][] for as
 but most of the project is independent of Tokio, so an alternative IO integration
 could be created.
 
+## Testing
+
+There are numerous tests. The default batch can be run with
+
+    cargo test
+
+Some tests are ignored by default because they require a running VRPN server,
+exposing a "NULL Tracker" named `Tracker0`,
+on the local host and default port.
+If you have that, then you can run
+
+    cargo test -- --ignored
+
+to run every test.
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md)
