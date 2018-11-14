@@ -9,6 +9,8 @@ extern crate bytes;
 
 extern crate cgmath;
 
+extern crate chrono;
+
 #[macro_use]
 extern crate quick_error;
 
@@ -29,6 +31,7 @@ pub mod handler;
 pub mod length_prefixed;
 pub mod log;
 pub mod message;
+pub mod ping;
 pub mod prelude;
 pub mod primitives;
 pub mod size;
