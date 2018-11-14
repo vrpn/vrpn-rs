@@ -110,12 +110,14 @@ impl<T: Connection + 'static> Client<T> {
             }),
             SomeId(sender.into_id()),
         )?;
-        Ok(Client {
+        let client = Client {
             connection,
             inner,
             ping_type,
             sender: sender.into_id(),
-        })
+        };
+        client.initiate_ping_cycle();
+        Ok(client)
     }
     pub fn new_from_name(
         sender: impl Into<SenderName> + Clone,
