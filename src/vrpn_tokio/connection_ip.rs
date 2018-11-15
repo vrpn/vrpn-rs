@@ -131,6 +131,7 @@ impl Connection for ConnectionIp {
     }
 }
 
+#[derive(Debug)]
 pub struct ConnectionIpStream {
     connection: Arc<ConnectionIp>,
 }

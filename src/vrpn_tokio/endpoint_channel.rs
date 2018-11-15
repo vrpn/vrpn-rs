@@ -95,7 +95,6 @@ where
     for i in 0..MAX_PER_TICK {
         match stream.poll()? {
             Async::Ready(Some(msg)) => {
-                eprintln!("Received message {:?}", msg);
                 if msg.is_system_message() {
                     endpoint.handle_system_message(msg)?;
                 } else {

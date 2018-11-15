@@ -77,15 +77,10 @@ pub trait Endpoint: Downcast {
             let desc_msg = Message::from(Description::new(id.into_id(), name.0.clone()));
             messages.push(desc_msg.try_into_generic()?);
         }
-        eprintln!("Will send {} sender description messages", messages.len());
         for (id, name) in dispatcher.types_iter() {
             let desc_msg = Message::from(Description::new(id.into_id(), name.0.clone()));
             messages.push(desc_msg.try_into_generic()?);
         }
-        eprintln!(
-            "Will send {} total (sender and type) description messages",
-            messages.len()
-        );
         for msg in messages.into_iter() {
             self.buffer_generic_message(msg, ClassOfService::from(ServiceFlags::RELIABLE))?;
         }

@@ -53,12 +53,7 @@ impl EndpointIp {
         let mut channel = channel_arc
             .lock()
             .map_err(|e| Error::OtherMessage(e.to_string()))?;
-        let poll_complete_results = channel.poll_complete()?;
-        if poll_complete_results.is_ready() {
-            println!("poll_complete said it's ready");
-        } else {
-            println!("poll_complete says it's not ready");
-        }
+        let _ = channel.poll_complete()?;
         let closed = poll_and_dispatch(self, channel.deref_mut(), dispatcher)?.is_ready();
 
         // todo UDP here.

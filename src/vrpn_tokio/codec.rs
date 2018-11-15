@@ -39,9 +39,7 @@ impl Decoder for FramedMessageCodec {
         );
         let taken_buf = buf.split_to(size.padded_message_size());
         let mut temp_buf = taken_buf.clone().freeze();
-        println!("{:?}", temp_buf.as_ref().hex_dump());
         let unbuffered = SequencedGenericMessage::unbuffer_ref(&mut temp_buf);
-        eprintln!("{:?}", unbuffered);
         match unbuffered {
             Ok(v) => {
                 println!("Decoder::decode has message {:?}", v);
