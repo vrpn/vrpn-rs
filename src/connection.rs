@@ -4,9 +4,9 @@
 
 use crate::{
     descriptions::InnerDescription, type_dispatcher::HandlerHandle, BaseTypeSafeId, Buffer,
-    ClassOfService, Endpoint, EndpointGeneric, Handler, IdToHandle, LocalId, LogFileNames,
-    MatchingTable, Message, MessageTypeIdentifier, RegisterMapping, Result, SenderId, SenderName,
-    SomeId, TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,
+    ClassOfService, Endpoint, EndpointGeneric, Handler, LocalId, LogFileNames, MatchingTable,
+    Message, MessageTypeIdentifier, RegisterMapping, Result, SenderId, SenderName,
+    TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,
 };
 use std::sync::{Arc, Mutex};
 
@@ -21,7 +21,7 @@ pub trait Connection {
     /// This is the main required method for this trait.
     fn connection_core(&self) -> &ConnectionCore<Self::SpecificEndpoint>;
 
-    fn register_type<T>(&self, name: T) -> Result<TypeId>
+    fn register_type<T>(&self, name: T) -> Result<LocalId<TypeId>>
     where
         T: Into<TypeName> + Clone,
     {
@@ -36,14 +36,14 @@ pub trait Connection {
                 eprintln!("New mapping: {:?} -> {:?}", name.clone(), id);
                 let mut endpoints = self.connection_core().endpoints.lock()?;
                 for ep in endpoints.iter_mut().flatten() {
-                    ep.new_local_id(name.clone(), LocalId(id))?;
+                    ep.new_local_id(name.clone(), id)?;
                 }
                 Ok(id)
             }
         }
     }
 
-    fn register_sender<T>(&self, name: T) -> Result<SenderId>
+    fn register_sender<T>(&self, name: T) -> Result<LocalId<SenderId>>
     where
         T: Into<SenderName> + Clone,
     {
@@ -53,7 +53,7 @@ pub trait Connection {
             RegisterMapping::NewMapping(id) => {
                 let mut endpoints = self.connection_core().endpoints.lock()?;
                 for ep in endpoints.iter_mut().flatten() {
-                    ep.new_local_id(name.clone(), LocalId(id))?;
+                    ep.new_local_id(name.clone(), id)?;
                 }
                 Ok(id)
             }
@@ -63,26 +63,26 @@ pub trait Connection {
     fn add_handler(
         &self,
         handler: Box<dyn Handler>,
-        message_type: IdToHandle<TypeId>,
-        sender: IdToHandle<SenderId>,
+        message_type_filter: Option<LocalId<TypeId>>,
+        sender_filter: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandle> {
         let mut dispatcher = self.connection_core().type_dispatcher.lock()?;
-        dispatcher.add_handler(handler, message_type, sender)
+        dispatcher.add_handler(handler, message_type_filter, sender_filter)
     }
 
     fn add_typed_handler<T: 'static>(
         &self,
         handler: Box<T>,
-        sender: IdToHandle<SenderId>,
+        sender_filter: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandle>
     where
         T: TypedHandler + Handler + Sized,
     {
-        let message_type = match T::Item::MESSAGE_IDENTIFIER {
-            MessageTypeIdentifier::UserMessageName(name) => SomeId(self.register_type(name)?),
-            MessageTypeIdentifier::SystemMessageId(id) => SomeId(id),
+        let message_type_filter = match T::Item::MESSAGE_IDENTIFIER {
+            MessageTypeIdentifier::UserMessageName(name) => Some(self.register_type(name)?),
+            MessageTypeIdentifier::SystemMessageId(id) => Some(LocalId(id)),
         };
-        self.add_handler(handler, message_type, sender)
+        self.add_handler(handler, message_type_filter, sender_filter)
     }
 
     fn remove_handler(&self, handler_handle: HandlerHandle) -> Result<()> {

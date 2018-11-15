@@ -6,8 +6,8 @@ use crate::{
     descriptions::InnerDescription,
     type_dispatcher::{HandlerHandle, RegisterMapping},
     vrpn_tokio::endpoint_ip::EndpointIp,
-    BaseTypeSafeId, Error, Handler, IdToHandle, LocalId, LogFileNames, MatchingTable, Message,
-    MessageTypeIdentifier, Result, SenderId, SenderName, SomeId, StaticSenderName, StaticTypeName,
+    BaseTypeSafeId, Error, Handler, LocalId, LogFileNames, MatchingTable, Message,
+    MessageTypeIdentifier, Result, SenderId, SenderName, StaticSenderName, StaticTypeName,
     TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,
 };
 use std::{

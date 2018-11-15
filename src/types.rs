@@ -11,14 +11,15 @@ pub type IdType = i32;
 
 pub const MAX_VEC_USIZE: usize = (IdType::max_value() - 2) as usize;
 
-pub trait TypeSafeId: Clone + Eq + PartialEq + Ord + PartialOrd {
-    /// Base ID type. Self in the case of BaseTypeSafeId, otherwise the thing that's being wrapped.
-    type Id: BaseTypeSafeId;
+pub trait TypeSafeId: Copy + Clone + Eq + PartialEq + Ord + PartialOrd {
     fn get(&self) -> IdType;
     fn new(val: IdType) -> Self;
-    fn into_id(self) -> Self::Id;
 }
-
+pub trait IntoId: TypeSafeId {
+    /// Base ID type. Self in the case of BaseTypeSafeId, otherwise the thing that's being wrapped.
+    type BaseId: BaseTypeSafeId;
+    fn into_id(self) -> Self::BaseId;
+}
 pub trait BaseTypeSafeId:
     TypeSafeId + Clone + Copy + std::fmt::Debug + PartialEq + Eq + BaseTypeSafeIdName
 {
@@ -49,42 +50,48 @@ pub struct TypeId(pub IdType);
 pub struct SenderId(pub IdType);
 
 impl<T: BaseTypeSafeId> TypeSafeId for LocalId<T> {
-    type Id = T;
     fn get(&self) -> IdType {
         self.0.get()
     }
     fn new(val: IdType) -> LocalId<T> {
         LocalId(T::new(val))
     }
+}
 
-    fn into_id(self) -> Self::Id {
-        self.0
+impl<T: BaseTypeSafeId> IntoId for T {
+    type BaseId = T;
+    fn into_id(self) -> Self::BaseId {
+        self
     }
 }
 
+impl<T: BaseTypeSafeId> IntoId for LocalId<T> {
+    type BaseId = T;
+    fn into_id(self) -> Self::BaseId {
+        self.0
+    }
+}
+impl<T: BaseTypeSafeId> IntoId for RemoteId<T> {
+    type BaseId = T;
+    fn into_id(self) -> Self::BaseId {
+        self.0
+    }
+}
 impl<T: BaseTypeSafeId> TypeSafeId for RemoteId<T> {
-    type Id = T;
     fn get(&self) -> IdType {
         self.0.get()
     }
     fn new(val: IdType) -> RemoteId<T> {
         RemoteId(T::new(val))
     }
-    fn into_id(self) -> Self::Id {
-        self.0
-    }
 }
 
 impl TypeSafeId for TypeId {
-    type Id = TypeId;
     fn get(&self) -> IdType {
         self.0
     }
     fn new(val: IdType) -> TypeId {
         TypeId(val)
-    }
-    fn into_id(self) -> Self::Id {
-        self
     }
 }
 
@@ -108,15 +115,11 @@ impl BaseTypeSafeIdName for TypeId {
 }
 
 impl TypeSafeId for SenderId {
-    type Id = SenderId;
     fn get(&self) -> IdType {
         self.0
     }
     fn new(val: IdType) -> SenderId {
         SenderId(val)
-    }
-    fn into_id(self) -> Self::Id {
-        self
     }
 }
 
@@ -130,30 +133,15 @@ impl BaseTypeSafeIdName for SenderId {
     type Name = SenderName;
 }
 
-/// Wrapper for an id associated with a handler.
-///
-/// A bit like Option<T> but the "None" enumerant is called "AnyId" and Some is called SomeId
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub enum IdToHandle<T> {
-    /// Any ID
-    AnyId,
-    /// One specific ID
-    SomeId(T),
-}
-pub use self::IdToHandle::*;
-
-impl<T> IdToHandle<T>
+pub fn id_filter_matches<T>(filter: Option<T>, other: T) -> bool
 where
-    T: PartialEq + Copy,
+    T: TypeSafeId,
 {
-    pub fn matches(&self, other: &T) -> bool {
-        match self {
-            AnyId => true,
-            SomeId(i) => i == other,
-        }
+    match filter {
+        None => true,
+        Some(i) => i == other,
     }
 }
-
 bitmask! {
     pub mask ClassOfService : u32 where flags ServiceFlags {
         RELIABLE = (1 << 0),

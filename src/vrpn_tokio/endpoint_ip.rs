@@ -81,7 +81,7 @@ impl EndpointIp {
                     let _ = self.translation.add_remote_entry(
                         desc.name,
                         RemoteId(desc.which),
-                        LocalId(local_id),
+                        local_id,
                     )?;
                 }
                 SystemMessage::TypeDescription(desc) => {
@@ -93,7 +93,7 @@ impl EndpointIp {
                     let _ = self.translation.add_remote_entry(
                         desc.name,
                         RemoteId(desc.which),
-                        LocalId(local_id),
+                        local_id,
                     )?;
                 }
                 SystemMessage::UdpDescription(desc) => {
@@ -133,11 +133,7 @@ impl Endpoint for EndpointIp {
         Ok(())
     }
 
-    fn buffer_generic_message(
-        &mut self,
-        msg: GenericMessage,
-        class: ClassOfService,
-    ) -> Result<()> {
+    fn buffer_generic_message(&mut self, msg: GenericMessage, class: ClassOfService) -> Result<()> {
         if class.contains(ServiceFlags::RELIABLE) || self.low_latency_channel.is_none() {
             // We either need reliable, or don't have low-latency
             let mut channel = self

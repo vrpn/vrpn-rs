@@ -7,8 +7,8 @@ use crate::{
     constants,
     descriptions::{InnerDescription, UdpDescription, UdpInnerDescription},
     BaseTypeSafeId, BaseTypeSafeIdName, Buffer, ClassOfService, Description, Error, GenericMessage,
-    LocalId, LogFileNames, MatchingTable, Message, RemoteId, Result, SenderId, ServiceFlags,
-    TranslationTables, TypeDispatcher, TypeId, TypeSafeId, TypedMessageBody,
+    IntoId, LocalId, LogFileNames, MatchingTable, Message, RemoteId, Result, SenderId,
+    ServiceFlags, TranslationTables, TypeDispatcher, TypeId, TypeSafeId, TypedMessageBody,
 };
 use downcast_rs::Downcast;
 
@@ -105,6 +105,12 @@ pub trait EndpointGeneric: Endpoint {
     where
         T: Buffer + TypedMessageBody;
 
+    fn pack_description_impl<T>(&mut self, name: Bytes, local_id: LocalId<T>) -> Result<()>
+    where
+        T: BaseTypeSafeId,
+        InnerDescription<T>: TypedMessageBody,
+        TranslationTables: MatchingTable<T>;
+
     fn pack_description<T>(&mut self, local_id: LocalId<T>) -> Result<()>
     where
         T: BaseTypeSafeId,
@@ -134,21 +140,30 @@ where
         let generic_msg = msg.try_into_generic()?;
         self.buffer_generic_message(generic_msg, class)
     }
+    fn pack_description_impl<T>(&mut self, name: Bytes, local_id: LocalId<T>) -> Result<()>
+    where
+        T: BaseTypeSafeId,
+        InnerDescription<T>: TypedMessageBody,
+        TranslationTables: MatchingTable<T>,
+    {
+        let desc_msg = Message::from(Description::new(local_id.0, name));
+        self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
+            .map(|_| ())
+    }
+
     fn pack_description<T>(&mut self, local_id: LocalId<T>) -> Result<()>
     where
         T: BaseTypeSafeId,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
     {
-        let LocalId(id) = local_id;
         let name = self
             .translation_tables()
             .find_by_local_id(local_id)
-            .ok_or_else(|| Error::InvalidId(id.get()))
+            .ok_or_else(|| Error::InvalidId(local_id.get()))
             .and_then(|entry| Ok(entry.name().clone()))?;
-        let desc_msg = Message::from(Description::new(id, name));
-        self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
-            .map(|_| ())
+
+        self.pack_description_impl(name, local_id)
     }
 
     fn new_local_id<T, V>(&mut self, name: V, local_id: LocalId<T>) -> Result<()>
@@ -167,9 +182,7 @@ where
             "EndpointIp::new_local_id: this was new, packing: {:?} -> {:?}",
             name, local_id
         );
-        let desc_msg = Message::from(Description::new(local_id.into_id(), name));
-        self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::RELIABLE))
-            .map(|_| ())
+        self.pack_description_impl(name, local_id)
     }
 
     /// Convert remote sender/type ID to local sender/type ID

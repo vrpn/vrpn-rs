@@ -78,6 +78,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::{Bytes, BytesMut};
+    use crate::{
+        constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible, ConstantBufferSize,
+        CookieData, Unbuffer,
+    };
 
     #[test]
     fn basic_connect() {

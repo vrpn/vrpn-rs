@@ -5,8 +5,8 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use crate::prelude::*;
 use crate::{
-    constants::ALIGN, Buffer, BufferSize, BytesRequired, EmptyResult, Error, IdType, Result,
-    SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer,
+    constants::ALIGN, Buffer, BufferSize, BytesRequired, EmptyResult, Error, IdType, IntoId,
+    Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer,
 };
 use std::mem::size_of;
 
@@ -44,11 +44,15 @@ pub struct MessageHeader {
 }
 
 impl MessageHeader {
-    pub fn new(time: Option<TimeVal>, message_type: TypeId, sender: SenderId) -> MessageHeader {
+    pub fn new(
+        time: Option<TimeVal>,
+        message_type: impl IntoId<BaseId = TypeId>,
+        sender: impl IntoId<BaseId = SenderId>,
+    ) -> MessageHeader {
         MessageHeader {
             time: time.unwrap_or_else(|| TimeVal::get_time_of_day()),
-            message_type,
-            sender,
+            message_type: message_type.into_id(),
+            sender: sender.into_id(),
         }
     }
 }
@@ -65,8 +69,8 @@ pub type GenericMessage = Message<GenericBody>;
 impl<T: MessageBody> Message<T> {
     pub fn new(
         time: Option<TimeVal>,
-        message_type: TypeId,
-        sender: SenderId,
+        message_type: impl IntoId<BaseId = TypeId>,
+        sender: impl IntoId<BaseId = SenderId>,
         body: T,
     ) -> Message<T> {
         Message {

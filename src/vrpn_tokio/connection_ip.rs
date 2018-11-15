@@ -91,7 +91,7 @@ mod tests {
     use crate::{
         handler::{HandlerCode, TypedHandler},
         tracker::*,
-        Message, SomeId, StaticSenderName, StaticTypeName, TypeSafeId,
+        Message, StaticSenderName, StaticTypeName, TypeSafeId,
     };
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
@@ -127,7 +127,7 @@ mod tests {
                     Box::new(TrackerHandler {
                         flag: Arc::clone(&flag),
                     }),
-                    SomeId(sender),
+                    Some(sender),
                 )?;
                 conn.pack_all_descriptions()?;
                 for _ in 0..4 {
@@ -162,8 +162,8 @@ mod tests {
                     Box::new(TrackerHandler {
                         flag: Arc::clone(&flag),
                     }),
-                    SomeId(tracker_message_id),
-                    SomeId(sender),
+                    Some(tracker_message_id),
+                    Some(sender),
                 )?;
                 conn.pack_all_descriptions()?;
                 for _ in 0..4 {

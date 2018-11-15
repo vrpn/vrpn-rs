@@ -7,8 +7,8 @@ use crate::{
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
     BaseTypeSafeId, Buffer, BufferSize, BytesRequired, Connection, ConstantBufferSize,
     EmptyMessage, EmptyResult, Error, LocalId, Message, MessageHeader, MessageTypeIdentifier,
-    Result, SenderId, SenderName, ServiceFlags, SomeId, StaticTypeName, TypeId, TypeSafeId,
-    TypedHandler, TypedMessageBody, Unbuffer,
+    Result, SenderId, SenderName, ServiceFlags, StaticTypeName, TypeId, TypeSafeId, TypedHandler,
+    TypedMessageBody, Unbuffer,
 };
 use std::{
     fmt,
@@ -77,8 +77,8 @@ impl TypedBodylessHandler for PongHandler {
 pub struct Client<T: Connection + 'static> {
     connection: Arc<T>,
     inner: Arc<Mutex<ClientInner>>,
-    ping_type: TypeId,
-    sender: SenderId,
+    ping_type: LocalId<TypeId>,
+    sender: LocalId<SenderId>,
 }
 
 struct ClientInner {
@@ -108,15 +108,15 @@ impl<T: Connection + 'static> Client<T> {
             Box::new(PongHandler {
                 inner: Arc::downgrade(&inner),
             }),
-            SomeId(sender.into_id()),
+            Some(sender),
         )?;
         let client = Client {
             connection,
             inner,
             ping_type,
-            sender: sender.into_id(),
+            sender: sender,
         };
-        client.initiate_ping_cycle();
+        client.initiate_ping_cycle()?;
         Ok(client)
     }
     pub fn new_from_name(
@@ -124,7 +124,7 @@ impl<T: Connection + 'static> Client<T> {
         connection: Arc<T>,
     ) -> Result<Client<T>> {
         let sender_id = connection.register_sender(sender)?;
-        Self::new(LocalId(sender_id), connection)
+        Self::new(sender_id, connection)
     }
 
     pub fn initiate_ping_cycle(&self) -> Result<()> {
@@ -137,23 +137,26 @@ impl<T: Connection + 'static> Client<T> {
 
     /// Checks to see if we're due for another ping.
     ///
-    /// Returns the time stamp of the first unanswered ping,
+    /// Returns the duration since the first unanswered ping,
     /// or None if there are no unanswered pings.
-    pub fn check_ping_cycle(&self) -> Result<Option<DateTime<Utc>>> {
+    pub fn check_ping_cycle(&self) -> Result<Option<Duration>> {
         let mut inner = self.inner.lock()?;
         if let (Some(unanswered), Some(last_warning)) =
             (inner.unanswered_ping, &mut inner.last_warning)
         {
             let now = Utc::now();
+            let radio_silence = now.signed_duration_since(unanswered);
             if now.signed_duration_since(*last_warning) > Duration::seconds(1) {
                 *last_warning = now;
-                if now.signed_duration_since(unanswered) > Duration::seconds(10) {
+                if radio_silence > Duration::seconds(10) {
                     inner.flatlined = true;
                 }
                 self.send_ping()?;
             }
+            Ok(Some(radio_silence))
+        } else {
+            Ok(None)
         }
-        Ok(inner.unanswered_ping)
     }
 
     fn send_ping(&self) -> Result<()> {
@@ -167,8 +170,8 @@ impl<T: Connection + 'static> Client<T> {
 #[derive(Debug)]
 struct PingHandler<T: Connection> {
     connection: Weak<T>,
-    pong_type: TypeId,
-    sender: SenderId,
+    pong_type: LocalId<TypeId>,
+    sender: LocalId<SenderId>,
 }
 
 impl<T: Connection> TypedBodylessHandler for PingHandler<T> {
@@ -203,9 +206,9 @@ impl Server {
             Box::new(PingHandler {
                 connection: Arc::downgrade(&connection),
                 pong_type,
-                sender: sender.into_id(),
+                sender: sender,
             }),
-            SomeId(sender.into_id()),
+            Some(sender),
         )?;
         Ok(Server { handler })
     }
@@ -215,6 +218,6 @@ impl Server {
         connection: Arc<T>,
     ) -> Result<Server> {
         let sender_id = connection.register_sender(sender)?;
-        Self::new(LocalId(sender_id), connection)
+        Self::new(sender_id, connection)
     }
 }

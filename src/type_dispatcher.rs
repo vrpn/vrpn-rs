@@ -19,14 +19,14 @@ use std::{
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum RegisterMapping<T: BaseTypeSafeId> {
     /// This was an existing mapping with the given ID
-    Found(T),
+    Found(LocalId<T>),
     /// This was a new mapping, which has been registered and received the given ID
-    NewMapping(T),
+    NewMapping(LocalId<T>),
 }
 
 impl<T: BaseTypeSafeId> RegisterMapping<T> {
     /// Access the wrapped ID, no matter if it was new or not.
-    pub fn get(&self) -> T {
+    pub fn get(&self) -> LocalId<T> {
         match self {
             RegisterMapping::Found(v) => *v,
             RegisterMapping::NewMapping(v) => *v,
@@ -40,29 +40,29 @@ type HandlerHandleInnerType = types::IdType;
 struct HandlerHandleInner(HandlerHandleInnerType);
 
 impl HandlerHandleInner {
-    fn into_handler_handle(self, message_type: IdToHandle<TypeId>) -> HandlerHandle {
-        HandlerHandle(message_type, self.0)
+    fn into_handler_handle(self, message_type_filter: Option<LocalId<TypeId>>) -> HandlerHandle {
+        HandlerHandle(message_type_filter, self.0)
     }
 }
 
 /// A way to refer uniquely to a single added handler in a TypeDispatcher, in case
 /// you want to remove it in the future.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct HandlerHandle(IdToHandle<TypeId>, HandlerHandleInnerType);
+pub struct HandlerHandle(Option<LocalId<TypeId>>, HandlerHandleInnerType);
 
 /// Type storing a boxed callback function, an optional sender ID filter,
 /// and the unique-per-CallbackCollection handle that can be used to unregister a handler.
 struct MsgCallbackEntry {
     handle: HandlerHandleInner,
     pub handler: Box<dyn Handler>,
-    pub sender: IdToHandle<SenderId>,
+    pub sender_filter: Option<LocalId<SenderId>>,
 }
 
 impl fmt::Debug for MsgCallbackEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("MsgCallbackEntry")
             .field("handle", &self.handle)
-            .field("sender", &self.sender)
+            .field("sender_filter", &self.sender_filter)
             .finish()
     }
 }
@@ -71,18 +71,18 @@ impl MsgCallbackEntry {
     pub fn new(
         handle: HandlerHandleInner,
         handler: Box<dyn Handler>,
-        sender: IdToHandle<SenderId>,
+        sender_filter: Option<LocalId<SenderId>>,
     ) -> MsgCallbackEntry {
         MsgCallbackEntry {
             handle,
             handler,
-            sender,
+            sender_filter,
         }
     }
 
     /// Invokes the callback with the given msg, if the sender filter (if not None) matches.
     pub fn call<'a>(&mut self, msg: &'a GenericMessage) -> Result<HandlerCode> {
-        if self.sender.matches(&msg.header.sender) {
+        if id_filter_matches(self.sender_filter, LocalId(msg.header.sender)) {
             self.handler.handle(msg)
         } else {
             Ok(HandlerCode::ContinueProcessing)
@@ -113,7 +113,7 @@ impl CallbackCollection {
     fn add(
         &mut self,
         handler: Box<dyn Handler>,
-        sender: IdToHandle<SenderId>,
+        sender: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandleInner> {
         if self.callbacks.len() > types::MAX_VEC_USIZE {
             return Err(Error::TooManyHandlers);
@@ -218,53 +218,50 @@ impl TypeDispatcher {
     }
 
     /// Get a mutable borrow of the CallbackCollection associated with the supplied TypeId
-    /// (or the generic callbacks for AnyId)
+    /// (or the generic callbacks for None)
     fn get_type_callbacks_mut<'a>(
         &'a mut self,
-        type_id: IdToHandle<TypeId>,
+        type_id_filter: Option<LocalId<TypeId>>,
     ) -> Result<&'a mut CallbackCollection> {
-        match type_id {
-            SomeId(i) => {
-                let index = message_type_into_index(i, self.types.len())?;
+        match type_id_filter {
+            Some(i) => {
+                let index = message_type_into_index(i.into_id(), self.types.len())?;
                 Ok(&mut self.types[index])
             }
-            AnyId => Ok(&mut self.generic_callbacks),
+            None => Ok(&mut self.generic_callbacks),
         }
     }
 
-    fn add_type(&mut self, name: impl Into<TypeName>) -> Result<TypeId> {
+    fn add_type(&mut self, name: impl Into<TypeName>) -> Result<LocalId<TypeId>> {
         if self.types.len() > MAX_VEC_USIZE {
             return Err(Error::TooManyMappings);
         }
         let name = name.into();
         self.types.push(CallbackCollection::new(name.clone().0));
-        let id = TypeId((self.types.len() - 1) as IdType);
-        self.types_by_name.insert(Name(name.0), LocalId(id));
+        let id = LocalId(TypeId((self.types.len() - 1) as IdType));
+        self.types_by_name.insert(Name(name.0), id);
         Ok(id)
     }
 
-    fn add_sender(&mut self, name: impl Into<SenderName>) -> Result<SenderId> {
+    fn add_sender(&mut self, name: impl Into<SenderName>) -> Result<LocalId<SenderId>> {
         if self.senders.len() > (IdType::max_value() - 2) as usize {
             return Err(Error::TooManyMappings);
         }
         let name = name.into();
         self.senders.push(name.clone());
-        let id = SenderId((self.senders.len() - 1) as IdType);
-        self.senders_by_name.insert(Name(name.0), LocalId(id));
+        let id = LocalId(SenderId((self.senders.len() - 1) as IdType));
+        self.senders_by_name.insert(Name(name.0), id);
         Ok(id)
     }
 
     /// Returns the ID for the type name, if found.
-    pub fn get_type_id<T>(&self, name: T) -> Option<TypeId>
+    pub fn get_type_id<T>(&self, name: T) -> Option<LocalId<TypeId>>
     where
         T: Into<TypeName>,
     {
         let name: TypeName = name.into();
         let name: Bytes = name.into();
-        self.types_by_name
-            .get(&Name(name))
-            .cloned()
-            .map(|LocalId(id)| id)
+        self.types_by_name.get(&Name(name)).cloned()
     }
 
     /// Calls add_type if get_type_id() returns None.
@@ -290,38 +287,35 @@ impl TypeDispatcher {
     }
 
     /// Returns the ID for the sender name, if found.
-    pub fn get_sender_id(&self, name: impl Into<SenderName>) -> Option<SenderId> {
+    pub fn get_sender_id(&self, name: impl Into<SenderName>) -> Option<LocalId<SenderId>> {
         let name: SenderName = name.into();
         let name: Bytes = name.into();
-        self.senders_by_name
-            .get(&Name(name))
-            .cloned()
-            .map(|LocalId(id)| id)
+        self.senders_by_name.get(&Name(name)).cloned()
     }
 
     pub fn add_handler(
         &mut self,
         handler: Box<dyn Handler>,
-        message_type: IdToHandle<TypeId>,
-        sender: IdToHandle<SenderId>,
+        message_type_filter: Option<LocalId<TypeId>>,
+        sender_filter: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandle> {
-        self.get_type_callbacks_mut(message_type)?
-            .add(handler, sender)
-            .map(|h| h.into_handler_handle(message_type))
+        self.get_type_callbacks_mut(message_type_filter)?
+            .add(handler, sender_filter)
+            .map(|h| h.into_handler_handle(message_type_filter))
     }
     pub fn add_typed_handler<T: 'static>(
         &mut self,
         handler: Box<T>,
-        sender: IdToHandle<SenderId>,
+        sender_filter: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandle>
     where
         T: TypedHandler + Handler + Sized,
     {
         let message_type = match T::Item::MESSAGE_IDENTIFIER {
-            MessageTypeIdentifier::UserMessageName(name) => SomeId(self.register_type(name)?.get()),
-            MessageTypeIdentifier::SystemMessageId(id) => SomeId(id),
+            MessageTypeIdentifier::UserMessageName(name) => self.register_type(name)?.get(),
+            MessageTypeIdentifier::SystemMessageId(id) => LocalId(id),
         };
-        self.add_handler(handler, message_type, sender)
+        self.add_handler(handler, Some(message_type), sender_filter)
     }
 
     pub fn remove_handler(&mut self, handler_handle: HandlerHandle) -> Result<()> {
@@ -392,7 +386,7 @@ mod tests {
 
         let mut collection = CallbackCollection::new(Bytes::from_static(b"dummy"));
         let handler = collection
-            .add(Box::new(sample_callback.clone()), AnyId)
+            .add(Box::new(sample_callback.clone()), None)
             .unwrap();
         let msg = GenericMessage::new(
             Some(TimeVal::get_time_of_day()),
@@ -412,14 +406,14 @@ mod tests {
         assert_eq!(*val.lock().unwrap(), 5);
 
         let _ = collection
-            .add(Box::new(sample_callback2), SomeId(SenderId(0)))
+            .add(Box::new(sample_callback2), Some(LocalId(SenderId(0))))
             .unwrap();
         *val.lock().unwrap() = 5;
         collection.call(&msg).unwrap();
         assert_eq!(*val.lock().unwrap(), 15);
 
         // Check that later-registered callbacks get run later
-        let _ = collection.add(Box::new(sample_callback), AnyId).unwrap();
+        let _ = collection.add(Box::new(sample_callback), None).unwrap();
         *val.lock().unwrap() = 5;
         collection.call(&msg).unwrap();
         assert_eq!(*val.lock().unwrap(), 10);
@@ -442,7 +436,7 @@ mod tests {
 
         let mut dispatcher = TypeDispatcher::new();
         let handler = dispatcher
-            .add_handler(Box::new(sample_callback.clone()), AnyId, AnyId)
+            .add_handler(Box::new(sample_callback.clone()), None, None)
             .unwrap();
         let msg = GenericMessage::new(
             Some(TimeVal::get_time_of_day()),
@@ -462,7 +456,7 @@ mod tests {
         assert_eq!(*val.lock().unwrap(), 5);
 
         let _ = dispatcher
-            .add_handler(Box::new(sample_callback2), AnyId, SomeId(SenderId(0)))
+            .add_handler(Box::new(sample_callback2), None, Some(LocalId(SenderId(0))))
             .unwrap();
         *val.lock().unwrap() = 5;
         dispatcher.call(&msg).unwrap();
@@ -470,7 +464,7 @@ mod tests {
 
         // Check that later-registered callbacks get run later
         let _ = dispatcher
-            .add_handler(Box::new(sample_callback), AnyId, AnyId)
+            .add_handler(Box::new(sample_callback), None, None)
             .unwrap();
         *val.lock().unwrap() = 5;
         dispatcher.call(&msg).unwrap();

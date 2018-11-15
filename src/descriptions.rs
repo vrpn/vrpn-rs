@@ -44,7 +44,7 @@ where
     InnerDescription<T>: TypedMessageBody,
 {
     fn which(&self) -> T {
-        T::new(self.header.sender.get())
+        T::new(self.header.sender.0)
     }
 }
 
@@ -54,7 +54,8 @@ where
     InnerDescription<T>: TypedMessageBody,
 {
     fn from(v: Message<InnerDescription<T>>) -> Description<T> {
-        Description::new(v.which(), v.body.name)
+        let id: T = v.which();
+        Description::new(id, v.body.name)
     }
 }
 
@@ -71,7 +72,7 @@ pub struct Description<T: BaseTypeSafeId> {
 
 impl<T: BaseTypeSafeId> Description<T> {
     pub fn new(which: T, name: Bytes) -> Description<T> {
-        Description { which, name }
+        Description { which: which, name }
     }
 }
 
@@ -123,7 +124,7 @@ impl TypedMessageBody for UdpInnerDescription {
 
 impl Message<UdpInnerDescription> {
     fn port(&self) -> u16 {
-        self.header.sender.get() as u16
+        self.header.sender.0 as u16
     }
 }
 
