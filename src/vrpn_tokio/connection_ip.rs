@@ -5,7 +5,7 @@
 use crate::{
     connection::*,
     vrpn_tokio::{connect::incoming_handshake, endpoint_ip::EndpointIp},
-    Error, LogFileNames, Result,
+    Error, LogFileNames, Result, TypeSafeId,
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -100,6 +100,13 @@ impl ConnectionIp {
         {
             let mut endpoints = endpoints.lock()?;
             let mut dispatcher = dispatcher.lock()?;
+            // eprintln!("dispatcher:");
+            // for (id, name) in dispatcher.senders_iter() {
+            //     eprintln!("  sender {}: {:?}", id.get(), name.0);
+            // }
+            // for (id, name) in dispatcher.types_iter() {
+            //     eprintln!("  type {}: {:?}", id.get(), name.0);
+            // }
             let mut got_not_ready = false;
             for ep in endpoints.iter_mut().flatten() {
                 let poll_result = ep.poll_endpoint(&mut dispatcher)?;

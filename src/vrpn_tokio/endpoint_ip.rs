@@ -48,58 +48,65 @@ impl EndpointIp {
     }
 
     pub(crate) fn poll_endpoint(&mut self, dispatcher: &mut TypeDispatcher) -> Poll<(), Error> {
-        eprintln!("Type translation table: \n{:#?}", self.translation.types);
         let channel_arc = Arc::clone(&self.reliable_channel);
         let mut channel = channel_arc
             .lock()
             .map_err(|e| Error::OtherMessage(e.to_string()))?;
         let _ = channel.poll_complete()?;
-        let closed = poll_and_dispatch(self, channel.deref_mut(), dispatcher)?.is_ready();
+        let mut closed = poll_and_dispatch(self, channel.deref_mut(), dispatcher)?.is_ready();
 
         // todo UDP here.
 
         // Now, process the messages we sent ourself.
-        while let Async::Ready(Some(msg)) = self.system_rx.poll().map_err(|()| {
-            Error::OtherMessage(String::from(
-                "error when polling system change message channel",
-            ))
-        })? {
-            match msg {
-                SystemMessage::SenderDescription(desc) => {
-                    let local_id = dispatcher
-                        .register_sender(SenderName(desc.name.clone()))?
-                        .get();
-                    eprintln!(
-                        "Registering sender {:?}: local {:?} = remote {:?}",
-                        desc.name, local_id, desc.which
-                    );
-                    let _ = self.translation.add_remote_entry(
-                        desc.name,
-                        RemoteId(desc.which),
-                        local_id,
-                    )?;
+        loop {
+            let msg_poll = self.system_rx.poll().map_err(|()| {
+                Error::OtherMessage(String::from(
+                    "error when polling system change message channel",
+                ))
+            })?;
+            match msg_poll {
+                Async::Ready(None) => {
+                    closed = true;
+                    break;
                 }
-                SystemMessage::TypeDescription(desc) => {
-                    let local_id = dispatcher.register_type(TypeName(desc.name.clone()))?.get();
-                    eprintln!(
-                        "Registering type {:?}: local {:?} = remote {:?}",
-                        desc.name, local_id, desc.which
-                    );
-                    let _ = self.translation.add_remote_entry(
-                        desc.name,
-                        RemoteId(desc.which),
-                        local_id,
-                    )?;
-                }
-                SystemMessage::UdpDescription(desc) => {
-                    eprintln!("UdpDescription: {:?}", desc);
-                }
-                SystemMessage::LogDescription(desc) => {
-                    eprintln!("LogDescription: {:?}", desc);
-                }
-                SystemMessage::DisconnectMessage => {
-                    eprintln!("DesconnectMessage");
-                }
+                Async::Ready(Some(msg)) => match msg {
+                    SystemMessage::SenderDescription(desc) => {
+                        let local_id = dispatcher
+                            .register_sender(SenderName(desc.name.clone()))?
+                            .get();
+                        eprintln!(
+                            "Registering sender {:?}: local {:?} = remote {:?}",
+                            desc.name, local_id, desc.which
+                        );
+                        let _ = self.translation.add_remote_entry(
+                            desc.name,
+                            RemoteId(desc.which),
+                            local_id,
+                        )?;
+                    }
+                    SystemMessage::TypeDescription(desc) => {
+                        let local_id = dispatcher.register_type(TypeName(desc.name.clone()))?.get();
+                        eprintln!(
+                            "Registering type {:?}: local {:?} = remote {:?}",
+                            desc.name, local_id, desc.which
+                        );
+                        let _ = self.translation.add_remote_entry(
+                            desc.name,
+                            RemoteId(desc.which),
+                            local_id,
+                        )?;
+                    }
+                    SystemMessage::UdpDescription(desc) => {
+                        eprintln!("UdpDescription: {:?}", desc);
+                    }
+                    SystemMessage::LogDescription(desc) => {
+                        eprintln!("LogDescription: {:?}", desc);
+                    }
+                    SystemMessage::DisconnectMessage => {
+                        eprintln!("DesconnectMessage");
+                    }
+                },
+                Async::NotReady => break,
             }
         }
 

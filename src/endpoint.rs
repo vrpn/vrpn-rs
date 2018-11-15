@@ -172,11 +172,6 @@ where
         let name: Bytes = name.into();
         self.translation_tables_mut()
             .add_local_id(name.clone(), local_id);
-
-        eprintln!(
-            "EndpointIp::new_local_id: this was new, packing: {:?} -> {:?}",
-            name, local_id
-        );
         self.pack_description_impl(name, local_id)
     }
 

@@ -20,6 +20,7 @@ impl Decoder for FramedMessageCodec {
         let initial_len = buf.len();
         let size_len = u32::constant_buffer_size();
         if initial_len < size_len {
+            eprintln!("Not enough bytes for even the size field");
             return Ok(None);
         }
         let (combined_size, _) = buf
@@ -42,7 +43,8 @@ impl Decoder for FramedMessageCodec {
         let unbuffered = SequencedGenericMessage::unbuffer_ref(&mut temp_buf);
         match unbuffered {
             Ok(v) => {
-                println!("Decoder::decode has message {:?}", v);
+                // println!("Decoder::decode has message {:?}", v);
+                eprintln!("Buffer now has {:?} bytes", buf.len());
                 Ok(Some(v))
             }
             Err(Error::NeedMoreData(_)) => {
