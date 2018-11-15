@@ -19,7 +19,7 @@ pub enum HandlerCode {
 }
 
 /// A trait implemented by structs that can handle generic messages
-pub trait Handler {
+pub trait Handler: Send + Sync {
     fn handle(&mut self, msg: &GenericMessage) -> Result<HandlerCode>;
 }
 
@@ -29,7 +29,7 @@ pub trait Handler {
 /// so they can be treated the same. However, you probably want to use
 /// add_typed_handler() instead of add_handler() so you don't need to
 /// pointlessly look up/register the message type yourself.
-pub trait TypedHandler {
+pub trait TypedHandler: Send + Sync {
     type Item: TypedMessageBody + Unbuffer + fmt::Debug;
     fn handle_typed(&mut self, msg: &Message<Self::Item>) -> Result<HandlerCode>;
 }
@@ -50,7 +50,7 @@ where
 /// so they can be treated the same. However, you probably want to use
 /// add_typed_handler() instead of add_handler() so you don't need to
 /// pointlessly look up/register the message type yourself.
-pub trait TypedBodylessHandler {
+pub trait TypedBodylessHandler: Send + Sync {
     type Item: TypedMessageBody + EmptyMessage + Unbuffer + fmt::Debug;
     fn handle_typed_bodyless(&mut self, header: &MessageHeader) -> Result<HandlerCode>;
 }

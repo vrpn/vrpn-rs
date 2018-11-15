@@ -5,7 +5,7 @@
 use crate::{
     descriptions::InnerDescription, type_dispatcher::HandlerHandle, BaseTypeSafeId, Buffer,
     ClassOfService, Endpoint, EndpointGeneric, Handler, LocalId, LogFileNames, MatchingTable,
-    Message, MessageTypeIdentifier, RegisterMapping, Result, SenderId, SenderName,
+    Message, MessageTypeIdentifier, RegisterMapping, Result, SenderId, SenderName, TimeVal,
     TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,
 };
 use std::sync::{Arc, Mutex};
@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 pub type EndpointVec<EP> = Vec<Option<EP>>;
 pub type SharedEndpointVec<EP> = Arc<Mutex<EndpointVec<EP>>>;
 
-pub trait Connection {
+pub trait Connection: Send + Sync {
     type SpecificEndpoint: Endpoint + EndpointGeneric;
 
     /// Access the ConnectionCore nested struct.
@@ -28,10 +28,7 @@ pub trait Connection {
         let mut dispatcher = self.connection_core().type_dispatcher.lock()?;
         let name: TypeName = name.into();
         match dispatcher.register_type(name.clone())? {
-            RegisterMapping::Found(id) => {
-                eprintln!("Type already defined as {:?} -> {:?}", name.clone(), id);
-                Ok(id)
-            }
+            RegisterMapping::Found(id) => Ok(id),
             RegisterMapping::NewMapping(id) => {
                 eprintln!("New mapping: {:?} -> {:?}", name.clone(), id);
                 let mut endpoints = self.connection_core().endpoints.lock()?;
@@ -62,7 +59,7 @@ pub trait Connection {
 
     fn add_handler(
         &self,
-        handler: Box<dyn Handler>,
+        handler: Box<dyn Handler + Send>,
         message_type_filter: Option<LocalId<TypeId>>,
         sender_filter: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandle> {

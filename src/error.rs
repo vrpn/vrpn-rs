@@ -96,7 +96,7 @@ quick_error! {
                     "version mismatch: expected something compatible with {}, got {}",
                     expected, actual)
         }
-        Other(err: Box<dyn std::error::Error>) {
+        Other(err: Box<dyn std::error::Error + Send>) {
             cause(&**err)
             display("{}", err)
             cause(err)

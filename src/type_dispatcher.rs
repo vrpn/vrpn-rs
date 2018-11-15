@@ -54,7 +54,7 @@ pub struct HandlerHandle(Option<LocalId<TypeId>>, HandlerHandleInnerType);
 /// and the unique-per-CallbackCollection handle that can be used to unregister a handler.
 struct MsgCallbackEntry {
     handle: HandlerHandleInner,
-    pub handler: Box<dyn Handler>,
+    pub handler: Box<dyn Handler + Send>,
     pub sender_filter: Option<LocalId<SenderId>>,
 }
 
@@ -70,7 +70,7 @@ impl fmt::Debug for MsgCallbackEntry {
 impl MsgCallbackEntry {
     pub fn new(
         handle: HandlerHandleInner,
-        handler: Box<dyn Handler>,
+        handler: Box<dyn Handler + Send>,
         sender_filter: Option<LocalId<SenderId>>,
     ) -> MsgCallbackEntry {
         MsgCallbackEntry {
@@ -112,7 +112,7 @@ impl CallbackCollection {
     /// Add a callback with optional sender ID filter
     fn add(
         &mut self,
-        handler: Box<dyn Handler>,
+        handler: Box<dyn Handler + Send>,
         sender: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandleInner> {
         if self.callbacks.len() > types::MAX_VEC_USIZE {
@@ -295,7 +295,7 @@ impl TypeDispatcher {
 
     pub fn add_handler(
         &mut self,
-        handler: Box<dyn Handler>,
+        handler: Box<dyn Handler + Send>,
         message_type_filter: Option<LocalId<TypeId>>,
         sender_filter: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandle> {

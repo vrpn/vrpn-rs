@@ -5,10 +5,8 @@
 use chrono::{prelude::*, Duration};
 use crate::{
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
-    BaseTypeSafeId, Buffer, BufferSize, BytesRequired, Connection, ConstantBufferSize,
-    EmptyMessage, EmptyResult, Error, LocalId, Message, MessageHeader, MessageTypeIdentifier,
-    Result, SenderId, SenderName, ServiceFlags, StaticTypeName, TypeId, TypeSafeId, TypedHandler,
-    TypedMessageBody, Unbuffer,
+    Connection, EmptyMessage, LocalId, Message, MessageHeader, MessageTypeIdentifier, Result,
+    SenderId, SenderName, ServiceFlags, StaticTypeName, TypeId, TypeSafeId, TypedMessageBody,
 };
 use std::{
     fmt,
@@ -174,7 +172,7 @@ struct PingHandler<T: Connection> {
     sender: LocalId<SenderId>,
 }
 
-impl<T: Connection> TypedBodylessHandler for PingHandler<T> {
+impl<T: Connection + Send> TypedBodylessHandler for PingHandler<T> {
     type Item = Ping;
     fn handle_typed_bodyless(&mut self, _header: &MessageHeader) -> Result<HandlerCode> {
         // TODO use sender from header?
