@@ -20,6 +20,9 @@ extern crate downcast_rs;
 #[macro_use]
 extern crate tokio;
 
+#[macro_use]
+extern crate futures;
+
 pub mod buffer;
 pub mod connection;
 pub mod constants;

@@ -10,5 +10,10 @@ pub mod cookie;
 pub mod endpoint_channel;
 pub mod endpoint_file;
 pub mod endpoint_ip;
+pub mod ping;
 
-pub use self::{codec::apply_message_framing, connect::connect_tcp, connection_ip::ConnectionIp};
+pub use self::{
+    codec::apply_message_framing,
+    connect::connect_tcp,
+    connection_ip::{ConnectionIp, ConnectionIpStream},
+};

@@ -2,21 +2,32 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{connection::*, vrpn_tokio::endpoint_ip::EndpointIp, Error, LogFileNames, Result};
+use crate::{
+    connection::*,
+    vrpn_tokio::{connect::incoming_handshake, endpoint_ip::EndpointIp},
+    Error, LogFileNames, Result,
+};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
+    sync::{Arc, Mutex, Weak},
 };
 use tokio::{
-    net::{TcpListener, TcpStream},
+    net::{tcp::Incoming, TcpListener, TcpStream},
     prelude::*,
 };
+
+pub enum ConnectionSelectedStream {
+    Client(Arc<ConnectionIp>),
+    Server(Arc<ConnectionIp>),
+}
 
 #[derive(Debug)]
 pub struct ConnectionIp {
     core: ConnectionCore<EndpointIp>,
-    server_tcp: Option<TcpListener>,
+    // server_tcp: Option<Mutex<TcpListener>>,
+    server_acceptor: Arc<Mutex<Option<ConnectionIpAcceptor>>>,
 }
+const DEFAULT_PORT: u16 = 3883;
 
 impl ConnectionIp {
     /// Create a new ConnectionIp that is a server.
@@ -24,13 +35,17 @@ impl ConnectionIp {
         local_log_names: Option<LogFileNames>,
         addr: Option<SocketAddr>,
     ) -> Result<Arc<ConnectionIp>> {
-        let addr =
-            addr.unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
-        let server_tcp = TcpListener::bind(&addr)?;
-        Ok(Arc::new(ConnectionIp {
+        let mut conn = Arc::new(ConnectionIp {
             core: ConnectionCore::new(Vec::new(), local_log_names, None),
-            server_tcp: Some(server_tcp),
-        }))
+            server_acceptor: Arc::new(Mutex::new(None)),
+            // server_tcp: Some(Mutex::new(server_tcp)),
+        });
+        // {
+        //     let accepter = ConnectionIpAcceptor::new(Arc::downgrade(&conn), addr)?;
+        //     let mut locked_acceptor = conn.server_acceptor.lock()?;
+        //     *locked_acceptor = Some(accepter);
+        // }
+        Ok(conn)
     }
 
     /// Create a new ConnectionIp that is a client.
@@ -44,12 +59,47 @@ impl ConnectionIp {
         endpoints.push(Some(EndpointIp::new(reliable_channel)));
         Ok(Arc::new(ConnectionIp {
             core: ConnectionCore::new(endpoints, local_log_names, remote_log_names),
-            server_tcp: None,
+            server_acceptor: Arc::new(Mutex::new(None)),
         }))
     }
 
-    pub fn poll_endpoints(&self) -> Poll<(), Error> {
-        eprintln!("in poll_endpoints");
+    pub fn poll_endpoints(&self) -> Poll<Option<()>, Error> {
+        // eprintln!("in <ConnectionIp as Future>::poll");
+        // if let Some(listener_mutex) = &self.server_tcp {
+        //     let listener = listener_mutex.lock()?;
+        //     match listener.incoming().poll()? {
+        //         Async::Ready(Some(sock)) => {
+        //             // OK, we got a new one.
+        //             let endpoints = self.endpoints();
+        //             tokio::spawn(
+        //                 incoming_handshake(sock)
+        //                     .and_then(move |stream| {
+        //                         if let Ok(mut epoints) = endpoints.lock() {
+        //                             epoints.push(Some(EndpointIp::new(stream)));
+        //                         }
+        //                         Ok(())
+        //                     })
+        //                     .map_err(|e| {
+        //                         eprintln!("err: {:?}", e);
+        //                     }),
+        //             );
+        //         }
+        //         Async::Ready(None) => return Ok(Async::Ready(None)),
+        //         Async::NotReady => (),
+        //     }
+        // }
+        let mut acceptor = self.server_acceptor.lock()?;
+        match &mut (*acceptor) {
+            Some(a) => loop {
+                let poll_result = a.poll()?;
+                match poll_result {
+                    Async::NotReady => break,
+                    Async::Ready(Some(_)) => (),
+                    Async::Ready(None) => return Ok(Async::Ready(None)),
+                }
+            },
+            None => (),
+        }
         let endpoints = self.endpoints();
         let dispatcher = self.dispatcher();
         {
@@ -57,11 +107,12 @@ impl ConnectionIp {
             let mut dispatcher = dispatcher.lock()?;
             let mut got_not_ready = false;
             for ep in endpoints.iter_mut().flatten() {
-                match ep.poll_endpoint(&mut dispatcher)? {
+                let poll_result = ep.poll_endpoint(&mut dispatcher)?;
+                match poll_result {
                     Async::Ready(()) => {
                         eprintln!("endpoint closed apparently");
-                        // that endpoint closed.
-                        // TODO Handle this
+                        // TODO do we delete this?
+                        //return Ok(Async::Read);
                     }
                     Async::NotReady => {
                         got_not_ready = true;
@@ -72,7 +123,7 @@ impl ConnectionIp {
             if got_not_ready {
                 Ok(Async::NotReady)
             } else {
-                Ok(Async::Ready(()))
+                Ok(Async::Ready(Some(())))
             }
         }
     }
@@ -85,6 +136,81 @@ impl Connection for ConnectionIp {
     }
 }
 
+pub struct ConnectionIpStream {
+    connection: Arc<ConnectionIp>,
+}
+
+impl ConnectionIpStream {
+    pub fn new(connection: Arc<ConnectionIp>) -> ConnectionIpStream {
+        ConnectionIpStream { connection }
+    }
+}
+
+impl Stream for ConnectionIpStream {
+    type Item = ();
+    type Error = Error;
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        // eprintln!("in <ConnectionIpStream as Stream>::poll");
+        self.connection.poll_endpoints()
+    }
+}
+
+#[derive(Debug)]
+pub struct ConnectionIpAcceptor {
+    connection: Weak<ConnectionIp>,
+    server_tcp: Mutex<Incoming>,
+}
+impl ConnectionIpAcceptor {
+    pub fn new(
+        connection: Weak<ConnectionIp>,
+        addr: Option<SocketAddr>,
+    ) -> Result<ConnectionIpAcceptor> {
+        let addr = addr.unwrap_or_else(|| {
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), DEFAULT_PORT)
+        });
+        let server_tcp = Mutex::new(TcpListener::bind(&addr)?.incoming());
+        Ok(ConnectionIpAcceptor {
+            connection,
+            server_tcp,
+        })
+    }
+}
+impl Stream for ConnectionIpAcceptor {
+    type Item = ();
+    type Error = Error;
+    fn poll(&mut self) -> Poll<Option<()>, Error> {
+        let mut incoming = self.server_tcp.lock()?;
+        loop {
+            let connection = match self.connection.upgrade() {
+                Some(c) => c,
+                None => return Ok(Async::Ready(None)),
+            };
+            let socket = match try_ready!(incoming.poll()) {
+                Some(s) => s,
+                None => return Ok(Async::Ready(None)),
+            };
+            // OK, we got a new one.
+            let endpoints = connection.endpoints();
+            tokio::spawn(
+                incoming_handshake(socket)
+                    .and_then(move |stream| {
+                        if let Ok(peer) = stream.peer_addr() {
+                            eprintln!("Got connection from {:?}", peer);
+                        } else {
+                            eprintln!("Got connection from some peer we couldn't identify");
+                        }
+                        if let Ok(mut epoints) = endpoints.lock() {
+                            epoints.push(Some(EndpointIp::new(stream)));
+                        }
+                        Ok(())
+                    })
+                    .map_err(|e| {
+                        eprintln!("err: {:?}", e);
+                    }),
+            );
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
