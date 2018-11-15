@@ -100,6 +100,24 @@ pub trait Connection: Send + Sync {
         Ok(())
     }
 
+    fn pack_message_body<T: TypedMessageBody>(
+        &self,
+        timeval: Option<TimeVal>,
+        sender: LocalId<SenderId>,
+        body: T,
+        class: ClassOfService,
+    ) -> Result<()>
+    where
+        T: TypedMessageBody + Buffer,
+    {
+        let message_type = match T::MESSAGE_IDENTIFIER {
+            MessageTypeIdentifier::UserMessageName(name) => self.register_type(name)?,
+            MessageTypeIdentifier::SystemMessageId(id) => LocalId(id),
+        };
+        let message: Message<T> = Message::new(timeval, message_type, sender, body);
+        self.pack_message(message, class)
+    }
+
     fn pack_description<T>(&self, id: LocalId<T>) -> Result<()>
     where
         T: BaseTypeSafeId,
