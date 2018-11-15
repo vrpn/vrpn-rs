@@ -8,7 +8,7 @@ use crate::{
     Error,
 };
 use std::net::SocketAddr;
-use tokio::{io, net::TcpStream, prelude::*};
+use tokio::{io, net, net::TcpStream, prelude::*};
 
 fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
     use socket2::*;

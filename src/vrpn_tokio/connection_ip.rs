@@ -16,11 +16,6 @@ use tokio::{
     prelude::*,
 };
 
-pub enum ConnectionSelectedStream {
-    Client(Arc<ConnectionIp>),
-    Server(Arc<ConnectionIp>),
-}
-
 #[derive(Debug)]
 pub struct ConnectionIp {
     core: ConnectionCore<EndpointIp>,

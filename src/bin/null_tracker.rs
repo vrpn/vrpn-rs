@@ -18,13 +18,15 @@ use vrpn::{
     prelude::*,
     tracker::PoseReport,
     vrpn_tokio::{
-        connect_tcp, connection_ip::ConnectionIpAcceptor, ConnectionIp, ConnectionIpStream,
+        connect_tcp, connection_ip::ConnectionIpAcceptor, drain_poll_fn, ConnectionIp,
+        ConnectionIpStream, Drain, StreamExtras,
     },
     Error, LocalId, Message, Quat, Result, SenderId, Sensor, ServiceFlags, StaticSenderName, Vec3,
 };
 #[derive(Debug)]
 struct ConnectionAndServer {
     connection: Arc<ConnectionIp>,
+    // conn_stream: ConnectionIpStream,
     interval: Interval,
     sender: LocalId<SenderId>,
 }
@@ -32,8 +34,10 @@ struct ConnectionAndServer {
 impl ConnectionAndServer {
     fn new(connection: Arc<ConnectionIp>) -> Result<ConnectionAndServer> {
         let sender = connection.register_sender(StaticSenderName(b"Tracker0"))?;
+        // let conn_stream = ConnectionIpStream::new(Arc::clone(&connection));
         Ok(ConnectionAndServer {
             connection,
+            // conn_stream,
             interval: Interval::new_interval(Duration::from_millis(500)),
             sender,
         })
@@ -44,13 +48,8 @@ impl Future for ConnectionAndServer {
     type Item = ();
     type Error = Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match try_ready!(self.connection.poll_endpoints()) {
-            Some(()) => {
-                task::current().notify();
-            }
-            None => {
-                return Ok(Async::Ready(()));
-            }
+        if drain_poll_fn(|| self.connection.poll_endpoints())?.is_ready() {
+            return Ok(Async::Ready(()));
         }
         if self
             .interval
@@ -75,36 +74,6 @@ impl Future for ConnectionAndServer {
     }
 }
 
-#[derive(Debug)]
-struct BulkProcess<T>
-where
-    T: Stream,
-{
-    inner: T,
-}
-impl<T> BulkProcess<T>
-where
-    T: Stream,
-{
-    fn new(inner: T) -> BulkProcess<T> {
-        BulkProcess { inner }
-    }
-}
-impl<T> Future for BulkProcess<T>
-where
-    T: Stream,
-{
-    type Item = ();
-    type Error = T::Error;
-    fn poll(&mut self) -> Poll<(), Self::Error> {
-        loop {
-            match try_ready!(self.inner.poll()) {
-                Some(_) => (),
-                None => return Ok(Async::Ready(())),
-            }
-        }
-    }
-}
 fn main() -> Result<()> {
     // let addr = "127.0.0.1:3883".parse().unwrap();
     let connection = ConnectionIp::new_server(None, None)?;
@@ -112,7 +81,7 @@ fn main() -> Result<()> {
 
     tokio::run(
         ConnectionAndServer::new(connection).unwrap()
-            .select(BulkProcess::new(acceptor))
+            .select(acceptor.drain())
             .map(|((), _)| ())
             .map_err(|e| {
                 eprintln!("error {:?}", e);
