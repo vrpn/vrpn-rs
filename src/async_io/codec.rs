@@ -10,7 +10,7 @@ use tokio::{
     prelude::*,
 };
 
-fn peek_u32(buf: &Bytes) -> Result<Option<u32>> {
+pub fn peek_u32(buf: &Bytes) -> Result<Option<u32>> {
     let size_len = u32::constant_buffer_size();
     if buf.len() < size_len {
         eprintln!("Not enough remaining bytes for the size.");
