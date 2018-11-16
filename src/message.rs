@@ -211,7 +211,12 @@ impl WrappedConstantSize for TypeId {
 
 #[inline]
 fn compute_padding(len: usize) -> usize {
-    ALIGN - (len % ALIGN)
+    let remainder = len % ALIGN;
+    if remainder != 0 {
+        ALIGN - remainder
+    } else {
+        0
+    }
 }
 
 #[inline]
@@ -459,5 +464,64 @@ mod tests {
         assert_eq!(MessageSize::from_unpadded_body_size(17).length_field(), 41);
         assert_eq!(MessageSize::from_length_field(41).length_field(), 41);
         assert_eq!(MessageSize::from_length_field(41).unpadded_body_size(), 17);
+
+        // Based on the second message, which is closer to the edge and thus breaks things.
+        assert_eq!(
+            MessageSize::from_unpadded_body_size(13),
+            MessageSize::from_length_field(0x25)
+        );
+        assert_eq!(
+            MessageSize::from_unpadded_body_size(13).padded_body_size(),
+            16
+        );
+        assert_eq!(
+            MessageSize::from_unpadded_body_size(13).length_field(),
+            24 + 13
+        );
+        assert_eq!(MessageSize::from_length_field(37).length_field(), 37);
+
+        assert_eq!(MessageSize::from_length_field(37).padded_message_size(), 40);
+    }
+    quickcheck!{
+        fn length_field_matches(len: u32) -> bool {
+            let len = len as usize;
+            MessageSize::from_unpadded_body_size(len).length_field() ==
+            transcribed_padding_function(len).len_field
+        }
+        fn total_length_matches(len: u32) -> bool {
+            let len = len as usize;
+            MessageSize::from_unpadded_body_size(len).padded_message_size() ==
+            transcribed_padding_function(len).total_len
+        }
+
+        fn roundtrip(len: u32) -> bool {
+            MessageSize::from_length_field(len).length_field() == len
+        }
+    }
+
+    struct Lengths {
+        header_len: usize,
+        total_len: usize,
+        len_field: u32,
+    }
+
+    /// This is a relatively literal translation of the size computations in vrpn_Endpoint::marshall_message,
+    /// used as ground truth in testing.
+    fn transcribed_padding_function(len: usize) -> Lengths {
+        let mut ceil_len = len;
+        if (len % ALIGN) != 0 {
+            ceil_len += ALIGN - len % ALIGN;
+        }
+
+        let mut header_len = 5 * std::mem::size_of::<i32>();
+        if (header_len % ALIGN) != 0 {
+            header_len += ALIGN - header_len % ALIGN;
+        }
+        let total_len = header_len + ceil_len;
+        Lengths {
+            header_len,
+            total_len,
+            len_field: (header_len + len) as u32,
+        }
     }
 }

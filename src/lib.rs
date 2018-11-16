@@ -2,26 +2,31 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-#[macro_use]
-extern crate bitmask;
-
 extern crate bytes;
-
 extern crate cgmath;
-
 extern crate chrono;
 
+#[cfg(test)]
 #[macro_use]
-extern crate quick_error;
+extern crate quickcheck;
+#[cfg(test)]
+#[macro_use]
+extern crate hex_literal;
+
+#[macro_use]
+extern crate bitmask;
 
 #[macro_use]
 extern crate downcast_rs;
 
 #[macro_use]
-extern crate tokio;
+extern crate futures;
 
 #[macro_use]
-extern crate futures;
+extern crate quick_error;
+
+#[macro_use]
+extern crate tokio;
 
 pub mod buffer;
 pub mod connection;
