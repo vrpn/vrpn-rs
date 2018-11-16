@@ -24,7 +24,7 @@ pub(crate) struct EndpointChannel<T> {
 impl<T> EndpointChannel<T>
 where
     T: Sink<SinkItem = SequencedGenericMessage, SinkError = Error>
-        + Stream<Item = SequencedGenericMessage, Error = Error>,
+        + Stream<Item = Vec<SequencedGenericMessage>, Error = Error>,
 {
     pub(crate) fn new(framed_stream: T) -> Arc<Mutex<EndpointChannel<T>>> {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
@@ -40,23 +40,32 @@ where
 impl<T> Stream for EndpointChannel<T>
 where
     T: Sink<SinkItem = SequencedGenericMessage, SinkError = Error>
-        + Stream<Item = SequencedGenericMessage, Error = Error>,
+        + Stream<Item = Vec<SequencedGenericMessage>, Error = Error>,
 {
-    type Item = GenericMessage;
+    type Item = Vec<GenericMessage>;
     type Error = Error;
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         // treat errors like a closed connection
         self.rx
             .poll()
             // these nested maps are to get all the way inside the Ok(Async::Ready(Some(msg)))
-            .map(|a| a.map(|o| o.map(|msg| Message::from(msg))))
+            .map(|a| {
+                a.map(|o| {
+                    o.map(|messages| {
+                        messages
+                            .into_iter()
+                            .map(|msg| GenericMessage::from(msg))
+                            .collect()
+                    })
+                })
+            })
     }
 }
 
 impl<T> Sink for EndpointChannel<T>
 where
     T: Sink<SinkItem = SequencedGenericMessage, SinkError = Error>
-        + Stream<Item = SequencedGenericMessage, Error = Error>,
+        + Stream<Item = Vec<SequencedGenericMessage>, Error = Error>,
 {
     type SinkItem = GenericMessage;
     type SinkError = Error;
@@ -88,38 +97,42 @@ pub(crate) fn poll_and_dispatch<T>(
     dispatcher: &mut TypeDispatcher,
 ) -> Poll<(), Error>
 where
-    T: Stream<Item = GenericMessage, Error = Error>,
+    T: Stream<Item = Vec<GenericMessage>, Error = Error>,
 {
     const MAX_PER_TICK: usize = 10;
     let mut closed = false;
     for i in 0..MAX_PER_TICK {
         match stream.poll()? {
-            Async::Ready(Some(msg)) => {
-                if msg.is_system_message() {
-                    eprintln!("System message: {:?}", msg.header);
-                    endpoint.handle_system_message(msg).expect("this shouldn't fail");
-                } else {
-                    if let Some(LocalId(new_type)) =
-                        endpoint.map_to_local_id(RemoteId(msg.header.message_type))
-                    {
-                        if let Some(LocalId(new_sender)) =
-                            endpoint.map_to_local_id(RemoteId(msg.header.sender))
-                        {
-                            eprintln!("user message: {:?}", msg.header);
-                            let msg = Message::from_header_and_body(
-                                MessageHeader::new(
-                                    Some(msg.header.time.clone()),
-                                    new_type,
-                                    new_sender,
-                                ),
-                                msg.body,
-                            );
-                            dispatcher.call(&msg)?;
-                        } else {
-                            eprintln!("Could not map sender to local");
-                        }
+            Async::Ready(Some(messages)) => {
+                for msg in messages.into_iter() {
+                    if msg.is_system_message() {
+                        eprintln!("System message: {:?}", msg.header);
+                        endpoint
+                            .handle_system_message(msg)
+                            .expect("this shouldn't fail");
                     } else {
-                        eprintln!("Could not map type to local");
+                        if let Some(LocalId(new_type)) =
+                            endpoint.map_to_local_id(RemoteId(msg.header.message_type))
+                        {
+                            if let Some(LocalId(new_sender)) =
+                                endpoint.map_to_local_id(RemoteId(msg.header.sender))
+                            {
+                                eprintln!("user message: {:?}", msg.header);
+                                let msg = Message::from_header_and_body(
+                                    MessageHeader::new(
+                                        Some(msg.header.time.clone()),
+                                        new_type,
+                                        new_sender,
+                                    ),
+                                    msg.body,
+                                );
+                                dispatcher.call(&msg)?;
+                            } else {
+                                eprintln!("Could not map sender to local");
+                            }
+                        } else {
+                            eprintln!("Could not map type to local");
+                        }
                     }
                 }
             }
