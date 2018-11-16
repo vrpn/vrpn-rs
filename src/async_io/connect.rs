@@ -3,14 +3,14 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
+    async_io::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
     prelude::WrappedConstantSize,
-    vrpn_tokio::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
     Error,
 };
 use std::net::SocketAddr;
 use tokio::{io, net, net::TcpStream, prelude::*};
 
-fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
+pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
     use socket2::*;
     let domain = if addr.is_ipv4() {
         Domain::ipv4()

@@ -3,9 +3,9 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
+    async_io::endpoint_ip::EndpointIp,
     descriptions::InnerDescription,
     type_dispatcher::{HandlerHandle, RegisterMapping},
-    vrpn_tokio::endpoint_ip::EndpointIp,
     BaseTypeSafeId, Error, Handler, LocalId, LogFileNames, MatchingTable, Message,
     MessageTypeIdentifier, Result, SenderId, SenderName, StaticSenderName, StaticTypeName,
     TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,

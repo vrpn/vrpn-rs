@@ -5,7 +5,7 @@
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
 use crate::{
-    vrpn_tokio::endpoint_ip::EndpointIp, Endpoint, EndpointGeneric, Error, GenericMessage, LocalId,
+    async_io::endpoint_ip::EndpointIp, Endpoint, EndpointGeneric, Error, GenericMessage, LocalId,
     Message, MessageHeader, RemoteId, SequenceNumber, SequencedGenericMessage, TypeDispatcher,
 };
 use std::sync::{
@@ -157,7 +157,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vrpn_tokio::{apply_message_framing, connect_tcp};
+    use crate::async_io::{apply_message_framing, connect_tcp};
     #[test]
     fn make_endpoint_channel() {
         let addr = "127.0.0.1:3883".parse().unwrap();

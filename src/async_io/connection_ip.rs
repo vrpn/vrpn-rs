@@ -3,8 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
+    async_io::{connect::incoming_handshake, endpoint_ip::EndpointIp},
     connection::*,
-    vrpn_tokio::{connect::incoming_handshake, endpoint_ip::EndpointIp},
     Error, LogFileNames, Result, TypeSafeId,
 };
 use std::{
@@ -242,7 +242,7 @@ mod tests {
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker() {
-        use crate::vrpn_tokio::connect_tcp;
+        use crate::async_io::connect_tcp;
         let addr = "127.0.0.1:3883".parse().unwrap();
         let flag = Arc::new(Mutex::new(false));
 
@@ -274,7 +274,7 @@ mod tests {
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker_manual() {
-        use crate::vrpn_tokio::connect_tcp;
+        use crate::async_io::connect_tcp;
         let addr = "127.0.0.1:3883".parse().unwrap();
         let flag = Arc::new(Mutex::new(false));
 

@@ -4,11 +4,11 @@
 
 use crate::types::*;
 use crate::{
-    endpoint::*,
-    vrpn_tokio::{
+    async_io::{
         codec::{self, FramedMessageCodec},
         endpoint_channel::{poll_and_dispatch, EndpointChannel},
     },
+    endpoint::*,
     Error, GenericMessage, MatchingTable, Result, TranslationTables, TypeDispatcher,
 };
 use futures::sync::mpsc;
@@ -161,7 +161,7 @@ impl Endpoint for EndpointIp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vrpn_tokio::connect::connect_tcp;
+    use crate::async_io::connect::connect_tcp;
 
     #[ignore] // because it requires an external server to be running.
     #[test]

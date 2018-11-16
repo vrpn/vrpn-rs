@@ -13,13 +13,13 @@ extern crate futures;
 use std::{sync::Arc, time::Duration};
 use tokio::{prelude::*, timer::Interval};
 use vrpn::{
-    ping,
-    prelude::*,
-    tracker::PoseReport,
-    vrpn_tokio::{
+    async_io::{
         connection_ip::ConnectionIpAcceptor, drain_poll_fn, ConnectionIp, ConnectionIpStream,
         Drain, StreamExtras,
     },
+    ping,
+    prelude::*,
+    tracker::PoseReport,
     Error, LocalId, Message, Quat, Result, SenderId, Sensor, ServiceFlags, StaticSenderName, Vec3,
 };
 #[derive(Debug)]
@@ -125,10 +125,14 @@ fn main() -> Result<()> {
     let acceptor_stream = ConnectionIpAcceptor::new(Arc::downgrade(&connection), None)?;
 
     tokio::run(
-        Future::select(Stream::select(connection_stream, acceptor_stream).drain(), server).map(|_| ())
-            .map_err(|e| {
-                eprintln!("error {:?}", e);
-            })
+        Future::select(
+            Stream::select(connection_stream, acceptor_stream).drain(),
+            server,
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            eprintln!("error {:?}", e);
+        }),
     );
     Ok(())
 }

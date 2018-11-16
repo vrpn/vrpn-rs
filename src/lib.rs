@@ -28,6 +28,7 @@ extern crate quick_error;
 #[macro_use]
 extern crate tokio;
 
+pub mod async_io;
 pub mod buffer;
 pub mod connection;
 pub mod constants;
@@ -49,7 +50,6 @@ pub mod translation_table;
 pub mod type_dispatcher;
 pub mod types;
 pub mod unbuffer;
-pub mod vrpn_tokio;
 
 pub use crate::{
     buffer::{BufMutExtras, Buffer, BytesMutExtras},

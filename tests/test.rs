@@ -7,7 +7,7 @@ extern crate vrpn;
 use bytes::Bytes;
 use tokio::prelude::*;
 use vrpn::{
-    vrpn_tokio::{connect_tcp, ConnectionIp},
+    async_io::{connect_tcp, ConnectionIp},
     LocalId, RemoteId, SenderId,
 };
 
