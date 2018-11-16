@@ -48,21 +48,23 @@ fn decode_one(buf: &mut Bytes) -> Result<Option<SequencedGenericMessage>> {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FramedMessageCodec;
 impl Decoder for FramedMessageCodec {
-    type Item = Vec<SequencedGenericMessage>;
+    type Item = SequencedGenericMessage;
     type Error = Error;
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>> {
         let initial_len = buf.len();
-        let mut inner_buf = Bytes::from(buf.clone());
-        let mut messages = Vec::new();
-        while let Some(msg) = decode_one(&mut inner_buf)? {
-            messages.push(msg);
+        if initial_len == 0 {
+            // short-circuit if we have run out of stuff.
+            eprintln!("no data in the buffer to decode");
+            return Ok(None);
         }
-        if messages.is_empty() {
-            Ok(None)
-        } else {
-            let consumed = initial_len - inner_buf.len();
-            buf.advance(consumed);
-            Ok(Some(messages))
+        let mut inner_buf = Bytes::from(buf.clone());
+        match decode_one(&mut inner_buf)? {
+            Some(msg) => {
+                let consumed = initial_len - inner_buf.len();
+                buf.advance(consumed);
+                Ok(Some(msg))
+            }
+            None => Ok(None),
         }
     }
 }
@@ -120,8 +122,6 @@ mod tests {
             assert!(decoded.is_ok());
             let decoded = decoded.unwrap();
             assert!(decoded.is_some());
-            let decoded = decoded.unwrap();
-            assert_eq!(decoded.len(), 1);
             assert_eq!(data.remaining_mut(), 0);
         }
     }
@@ -133,13 +133,10 @@ mod tests {
             all_bytes.append(&mut msg_bytes.clone());
         }
         let mut data = BytesMut::from(&all_bytes[..]);
-        let decoded = FramedMessageCodec.decode(&mut data);
-        assert!(decoded.is_ok());
-        let decoded = decoded.unwrap();
-
-        assert!(decoded.is_some());
-        let decoded = decoded.unwrap();
-        assert_eq!(decoded.len(), 3);
+        let mut decoded = Vec::new();
+        decoded.push(FramedMessageCodec.decode(&mut data).unwrap().unwrap());
+        decoded.push(FramedMessageCodec.decode(&mut data).unwrap().unwrap());
+        decoded.push(FramedMessageCodec.decode(&mut data).unwrap().unwrap());
 
         assert_eq!(
             &to_sender_inner_desc(&decoded[0]).body.name[..],
