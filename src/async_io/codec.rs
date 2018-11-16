@@ -109,7 +109,7 @@ mod tests {
             assert!(decoded.is_ok());
             let decoded = decoded.unwrap();
             assert!(decoded.is_some());
-            let decoded = decoded.unwrap();
+            let _decoded = decoded.unwrap();
             assert_eq!(data.len(), 0);
         }
     }

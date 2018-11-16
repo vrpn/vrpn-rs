@@ -44,11 +44,15 @@ impl Endpoint for EndpointFile {
         &mut self.translation
     }
 
-    fn send_system_change(&self, message: SystemMessage) -> Result<()> {
-        Ok(())
+    fn send_system_change(&self, _message: SystemMessage) -> Result<()> {
+        unimplemented!()
     }
 
-    fn buffer_generic_message(&mut self, msg: GenericMessage, class: ClassOfService) -> Result<()> {
-        Ok(())
+    fn buffer_generic_message(
+        &mut self,
+        _msg: GenericMessage,
+        _class: ClassOfService,
+    ) -> Result<()> {
+        unimplemented!()
     }
 }

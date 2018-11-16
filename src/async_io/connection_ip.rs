@@ -28,9 +28,9 @@ impl ConnectionIp {
     /// Create a new ConnectionIp that is a server.
     pub fn new_server(
         local_log_names: Option<LogFileNames>,
-        addr: Option<SocketAddr>,
+        _addr: Option<SocketAddr>,
     ) -> Result<Arc<ConnectionIp>> {
-        let mut conn = Arc::new(ConnectionIp {
+        let conn = Arc::new(ConnectionIp {
             core: ConnectionCore::new(Vec::new(), local_log_names, None),
             server_acceptor: Arc::new(Mutex::new(None)),
             // server_tcp: Some(Mutex::new(server_tcp)),
