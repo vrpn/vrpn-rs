@@ -5,7 +5,6 @@
 use bytes::BytesMut;
 use crate::prelude::*;
 use crate::{message::MessageSize, Buffer, Error, Result, SequencedGenericMessage, Unbuffer};
-use pretty_hex::*;
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     prelude::*,
