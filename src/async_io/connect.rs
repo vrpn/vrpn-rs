@@ -4,11 +4,10 @@
 
 use crate::{
     async_io::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
-    prelude::WrappedConstantSize,
     Error,
 };
 use std::net::SocketAddr;
-use tokio::{io, net, net::TcpStream, prelude::*};
+use tokio::{io, net::TcpStream, prelude::*};
 
 pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
     use socket2::*;

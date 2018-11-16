@@ -24,7 +24,7 @@ struct TrackerHandler {}
 impl TypedHandler for TrackerHandler {
     type Item = PoseReport;
     fn handle_typed(&mut self, msg: &Message<PoseReport>) -> Result<HandlerCode> {
-        println!("{:?}", msg);
+        println!("{:?}\n   {:?}", msg.header, msg.body);
         Ok(HandlerCode::ContinueProcessing)
     }
 }

@@ -109,7 +109,7 @@ where
                         if let Some(LocalId(new_sender)) =
                             endpoint.map_to_local_id(RemoteId(msg.header.sender))
                         {
-                            eprintln!("user message: {:?}", msg.header);
+                            // eprintln!("user message: {:?}", msg.header);
                             let msg = Message::from_header_and_body(
                                 MessageHeader::new(
                                     Some(msg.header.time.clone()),
@@ -148,7 +148,7 @@ where
         eprintln!("poll_and_dispatch decided the channel was closed");
         Ok(Async::Ready(()))
     } else {
-        eprintln!("poll_and_dispatch decided that it's not ready");
+        // eprintln!("poll_and_dispatch decided that it's not ready");
         // task::current().notify();
         Ok(Async::NotReady)
     }

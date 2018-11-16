@@ -54,7 +54,6 @@ impl Decoder for FramedMessageCodec {
         let initial_len = buf.len();
         if initial_len == 0 {
             // short-circuit if we have run out of stuff.
-            eprintln!("no data in the buffer to decode");
             return Ok(None);
         }
         let mut inner_buf = Bytes::from(buf.clone());
