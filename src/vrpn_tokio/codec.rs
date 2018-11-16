@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Bytes, BytesMut};
+use bytes::{Buf, Bytes, BytesMut, IntoBuf};
 use crate::prelude::*;
 use crate::{message::MessageSize, Buffer, Error, Result, SequencedGenericMessage, Unbuffer};
 use tokio::{
@@ -10,43 +10,41 @@ use tokio::{
     prelude::*,
 };
 
-fn decode_one(buf: &mut Bytes) -> Result<Option<SequencedGenericMessage>> {
-    let initial_len = buf.len();
+fn peek_u32(buf: &Bytes) -> Result<Option<u32>> {
     let size_len = u32::constant_buffer_size();
-    if initial_len < size_len {
+    if buf.len() < size_len {
         eprintln!("Not enough remaining bytes for the size.");
         return Ok(None);
     }
-    let mut inner_buf = buf.clone();
-    let (combined_size, _) = inner_buf
-        .clone()
-        .split_to(u32::constant_buffer_size())
-        .unbuffer::<u32>()
-        .map_exactly_err_to_at_least()?;
-    let size = MessageSize::from_unpadded_message_size(combined_size as usize);
-    if initial_len < size.padded_message_size() {
-        eprintln!(
-            "Not enough remaining bytes for the message: have {}, need {}.",
-            initial_len,
-            size.padded_message_size()
-        );
-        return Ok(None);
-    }
-    let mut taken_buf = inner_buf.split_to(size.padded_message_size());
-    let unbuffered = SequencedGenericMessage::unbuffer_ref(&mut taken_buf);
-    match unbuffered {
-        Ok(v) => {
-            // println!("Decoder::decode has message {:?}", v);
-            eprintln!("Buffer now has {:?} bytes", buf.len());
-            buf.advance(size.padded_message_size());
-            Ok(Some(v))
+    let peeked = buf[..size_len].into_buf().get_u32_be();
+    Ok(Some(peeked))
+}
+
+fn decode_one(buf: &mut Bytes) -> Result<Option<SequencedGenericMessage>> {
+    let initial_len = buf.len();
+    if let Some(combined_size) = peek_u32(buf)? {
+        let mut inner_buf = buf.clone();
+        let size = MessageSize::from_length_field(combined_size);
+        if initial_len < size.padded_message_size() {
+            return Ok(None);
         }
-        Err(Error::NeedMoreData(_)) => {
-            unreachable!();
+        let mut taken_buf = inner_buf.split_to(size.padded_message_size());
+        let unbuffered = SequencedGenericMessage::unbuffer_ref(&mut taken_buf);
+        match unbuffered {
+            Ok(v) => {
+                buf.advance(size.padded_message_size());
+                Ok(Some(v))
+            }
+            Err(Error::NeedMoreData(_)) => {
+                unreachable!();
+            }
+            Err(e) => Err(e),
         }
-        Err(e) => Err(e),
+    } else {
+        Ok(None)
     }
 }
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FramedMessageCodec;
 impl Decoder for FramedMessageCodec {
@@ -63,11 +61,6 @@ impl Decoder for FramedMessageCodec {
             Ok(None)
         } else {
             let consumed = initial_len - inner_buf.len();
-            eprintln!(
-                "Consumed {} bytes for {} messages",
-                consumed,
-                messages.len()
-            );
             buf.advance(consumed);
             Ok(Some(messages))
         }
@@ -78,12 +71,6 @@ impl Encoder for FramedMessageCodec {
     type Error = Error;
     type Item = SequencedGenericMessage;
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<()> {
-        // for msg in item.into_iter() {
-        //     dst.reserve(msg.required_buffer_size());
-        //     msg.buffer_ref(dst)?;
-        // }
-        // Ok(())
-
         dst.reserve(item.required_buffer_size());
         item.buffer_ref(dst)
     }
@@ -93,4 +80,79 @@ pub type MessageFramed<T> = Framed<T, FramedMessageCodec>;
 
 pub fn apply_message_framing<T: AsyncRead + AsyncWrite>(stream: T) -> MessageFramed<T> {
     Decoder::framed(FramedMessageCodec {}, stream)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::BufMut;
+    use crate::{descriptions::InnerDescription, Message, SenderId};
+    type SenderInnerDesc = Message<InnerDescription<SenderId>>;
+
+    fn to_sender_inner_desc(msg: &SequencedGenericMessage) -> SenderInnerDesc {
+        let msg = Message::from(msg.clone());
+        SenderInnerDesc::try_from_generic(&msg).unwrap()
+    }
+    fn get_test_messages() -> Vec<Vec<u8>> {
+        vec![
+            Vec::from(&hex!("00 00 00 29 5b eb 33 2e 00 0c 58 b1 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 0d 56 52 50 4e 20 43 6f 6e 74 72 6f 6c 00 00 00 00 00 00 00 00")[..]),
+            Vec::from(&hex!("00 00 00 25 5b eb 33 2e 00 0c 58 b1 00 00 00 01 ff ff ff ff 00 00 00 01 00 00 00 09 54 72 61 63 6b 65 72 30 00 00 00 00")[..]),
+            Vec::from(&hex!("00 00 00 41 5b eb 33 2e 00 0c 58 b2 00 00 00 00 ff ff ff fe 00 00 00 02 00 00 00 25 56 52 50 4e 5f 43 6f 6e 6e 65 63 74 69 6f 6e 5f 47 6f 74 5f 46 69 72 73 74 5f 43 6f 6e 6e 65 63 74 69 6f 6e 00 00 00 00 00 00 00 00")[..])
+        ]
+    }
+    #[test]
+    fn individual_decode_one() {
+        for msg_bytes in &get_test_messages() {
+            let mut data = Bytes::from(&msg_bytes[..]);
+            let decoded = decode_one(&mut data);
+            assert!(decoded.is_ok());
+            let decoded = decoded.unwrap();
+            assert!(decoded.is_some());
+            let decoded = decoded.unwrap();
+            assert_eq!(data.len(), 0);
+        }
+    }
+    #[test]
+    fn individual_decode() {
+        for msg_bytes in &get_test_messages() {
+            let mut data = BytesMut::from(&msg_bytes[..]);
+            let decoded = FramedMessageCodec.decode(&mut data);
+            assert!(decoded.is_ok());
+            let decoded = decoded.unwrap();
+            assert!(decoded.is_some());
+            let decoded = decoded.unwrap();
+            assert_eq!(decoded.len(), 1);
+            assert_eq!(data.remaining_mut(), 0);
+        }
+    }
+
+    #[test]
+    fn decode_multiple() {
+        let mut all_bytes = Vec::new();
+        for msg_bytes in get_test_messages() {
+            all_bytes.append(&mut msg_bytes.clone());
+        }
+        let mut data = BytesMut::from(&all_bytes[..]);
+        let decoded = FramedMessageCodec.decode(&mut data);
+        assert!(decoded.is_ok());
+        let decoded = decoded.unwrap();
+
+        assert!(decoded.is_some());
+        let decoded = decoded.unwrap();
+        assert_eq!(decoded.len(), 3);
+
+        assert_eq!(
+            &to_sender_inner_desc(&decoded[0]).body.name[..],
+            &b"VRPN Control"[..]
+        );
+        assert_eq!(
+            &to_sender_inner_desc(&decoded[1]).body.name[..],
+            &b"Tracker0"[..]
+        );
+
+        assert_eq!(
+            &to_sender_inner_desc(&decoded[2]).body.name[..],
+            &b"VRPN_Connection_Got_First_Connection"[..]
+        );
+    }
 }
