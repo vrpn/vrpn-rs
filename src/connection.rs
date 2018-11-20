@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 pub type EndpointVec<EP> = Vec<Option<EP>>;
 pub type SharedEndpointVec<EP> = Arc<Mutex<EndpointVec<EP>>>;
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ConnectionStatus {
     /// This is a client connection that is attempting to connect.
     ClientConnecting,
@@ -21,6 +22,7 @@ pub enum ConnectionStatus {
     /// This is a server connection, the number of connected endpoints is provided
     Server(usize),
 }
+
 pub trait Connection: Send + Sync {
     type SpecificEndpoint: Endpoint + EndpointGeneric;
 

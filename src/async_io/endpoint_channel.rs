@@ -160,7 +160,7 @@ mod tests {
     use crate::{
         async_io::{
             apply_message_framing,
-            create::{Connect, ConnectResults},
+            connect::{Connect, ConnectResults},
         },
         ServerInfo,
     };

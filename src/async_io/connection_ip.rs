@@ -5,8 +5,7 @@
 use crate::{
     async_io::{
         codec::FramedMessageCodec,
-        connect::incoming_handshake,
-        create::{ClientInfo, Connect},
+        connect::{incoming_handshake, Connect, ConnectionIpInfo},
         endpoint_ip::{EndpointIp, MessageFramedUdp},
     },
     connection::*,
@@ -26,7 +25,7 @@ pub struct ConnectionIp {
     core: ConnectionCore<EndpointIp>,
     // server_tcp: Option<Mutex<TcpListener>>,
     server_acceptor: Arc<Mutex<Option<ConnectionIpAcceptor>>>,
-    client_info: Mutex<ClientInfo>,
+    client_info: Mutex<ConnectionIpInfo>,
 }
 
 const DEFAULT_PORT: u16 = 3883;
@@ -41,7 +40,7 @@ impl ConnectionIp {
             core: ConnectionCore::new(Vec::new(), local_log_names, None),
             server_acceptor: Arc::new(Mutex::new(None)),
             // server_tcp: Some(Mutex::new(server_tcp)),
-            client_info: Mutex::new(ClientInfo::Server),
+            client_info: Mutex::new(ConnectionIpInfo::Server),
         });
         // {
         //     let accepter = ConnectionIpAcceptor::new(Arc::downgrade(&conn), addr)?;
@@ -62,7 +61,7 @@ impl ConnectionIp {
         let mut ret = Arc::new(ConnectionIp {
             core: ConnectionCore::new(endpoints, local_log_names, remote_log_names),
             server_acceptor: Arc::new(Mutex::new(None)),
-            client_info: Mutex::new(ClientInfo::ConnectionSetupFuture(connect)),
+            client_info: Mutex::new(ConnectionIpInfo::ConnectionSetupFuture(connect)),
         });
         ret.pack_all_descriptions()?;
         Ok(ret)
@@ -279,55 +278,102 @@ mod tests {
 
     #[ignore] // because it requires an external server to be running.
     #[test]
-    fn tracker() -> Result<()> {
-        let server = "127.0.0.1:3883".parse::<ServerInfo>().unwrap();
+    fn tracker_tcp() {
         let flag = Arc::new(Mutex::new(false));
-
-        let conn = ConnectionIp::new_client(server, None, None)?;
-        let sender = conn
-            .register_sender(StaticSenderName(b"Tracker0"))
-            .expect("should be able to register sender");
-        let handler_handle = conn.add_typed_handler(
-            Box::new(TrackerHandler {
-                flag: Arc::clone(&flag),
-            }),
-            Some(sender),
-        )?;
-        conn.pack_all_descriptions()?;
-        for _ in 0..4 {
-            let _ = conn.poll_endpoints()?;
-        }
-        conn.remove_handler(handler_handle)
-            .expect("should be able to remove handler");
+        let _ = "tcp://127.0.0.1:3883"
+            .parse::<ServerInfo>()
+            .into_future()
+            .and_then(|server| {
+                let conn = ConnectionIp::new_client(server, None, None)?;
+                let sender = conn
+                    .register_sender(StaticSenderName(b"Tracker0"))
+                    .expect("should be able to register sender");
+                let handler_handle = conn.add_typed_handler(
+                    Box::new(TrackerHandler {
+                        flag: Arc::clone(&flag),
+                    }),
+                    Some(sender),
+                )?;
+                conn.pack_all_descriptions()?;
+                for _ in 0..4 {
+                    let _ = conn.poll_endpoints()?;
+                }
+                conn.remove_handler(handler_handle)
+                    .expect("should be able to remove handler");
+                Ok(Async::Ready(()))
+            })
+            .wait()
+            .unwrap();
 
         assert!(*flag.lock().unwrap() == true);
-        Ok(())
     }
 
     #[ignore] // because it requires an external server to be running.
     #[test]
-    fn tracker_manual() -> Result<()> {
-        let server = "127.0.0.1:3883".parse::<ServerInfo>().unwrap();
+    fn tracker() {
         let flag = Arc::new(Mutex::new(false));
 
-        let conn = ConnectionIp::new_client(server, None, None)?;
-        let tracker_message_id = conn
-            .register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))
-            .expect("should be able to register type");
-        let sender = conn
-            .register_sender(StaticSenderName(b"Tracker0"))
-            .expect("should be able to register sender");
-        conn.add_handler(
-            Box::new(TrackerHandler {
-                flag: Arc::clone(&flag),
-            }),
-            Some(tracker_message_id),
-            Some(sender),
-        )?;
-        for _ in 0..4 {
-            let _ = conn.poll_endpoints()?;
-        }
+        let _ = "127.0.0.1:3883"
+            .parse::<ServerInfo>()
+            .into_future()
+            .and_then(|server| {
+                let conn = ConnectionIp::new_client(server, None, None)?;
+                let sender = conn
+                    .register_sender(StaticSenderName(b"Tracker0"))
+                    .expect("should be able to register sender");
+                let handler_handle = conn.add_typed_handler(
+                    Box::new(TrackerHandler {
+                        flag: Arc::clone(&flag),
+                    }),
+                    Some(sender),
+                )?;
+                while conn.status() == ConnectionStatus::ClientConnecting {
+                    let _ = conn.poll_endpoints()?;
+                }
+                for _ in 0..4 {
+                    let _ = conn.poll_endpoints()?;
+                }
+                conn.remove_handler(handler_handle)
+                    .expect("should be able to remove handler");
+                Ok(Async::Ready(()))
+            })
+            .wait()
+            .unwrap();
         assert!(*flag.lock().unwrap() == true);
-        Ok(())
+    }
+    #[ignore] // because it requires an external server to be running.
+    #[test]
+    fn tracker_manual() {
+        let flag = Arc::new(Mutex::new(false));
+
+        let server = "tcp://127.0.0.1:3883"
+            .parse::<ServerInfo>()
+            .into_future()
+            .and_then(|server| {
+                let conn = ConnectionIp::new_client(server, None, None)?;
+                let tracker_message_id = conn
+                    .register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))
+                    .expect("should be able to register type");
+                let sender = conn
+                    .register_sender(StaticSenderName(b"Tracker0"))
+                    .expect("should be able to register sender");
+                conn.add_handler(
+                    Box::new(TrackerHandler {
+                        flag: Arc::clone(&flag),
+                    }),
+                    Some(tracker_message_id),
+                    Some(sender),
+                )?;
+                while conn.status() == ConnectionStatus::ClientConnecting {
+                    let _ = conn.poll_endpoints()?;
+                }
+                for _ in 0..4 {
+                    let _ = conn.poll_endpoints()?;
+                }
+                Ok(Async::Ready(()))
+            })
+            .wait()
+            .unwrap();
+        assert!(*flag.lock().unwrap() == true);
     }
 }

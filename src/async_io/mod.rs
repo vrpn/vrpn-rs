@@ -7,7 +7,6 @@ pub mod connect;
 pub mod connection_file;
 pub mod connection_ip;
 pub mod cookie;
-pub mod create;
 pub mod endpoint_channel;
 pub mod endpoint_file;
 pub mod endpoint_ip;
