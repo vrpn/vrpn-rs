@@ -255,88 +255,6 @@ impl Connect {
             }
         }
     }
-
-    fn poll_one(&mut self) -> Poll<ConnectPollOutput, Error> {
-        let state = self.state.as_mut().unwrap();
-        match state {
-            State::Lobbing(tcp_listener, ip) => {
-                if let Some(udp_connect) = self.udp_connect.as_mut() {
-                    try_ready!(udp_connect
-                        .udp
-                        .poll_send_to(&udp_connect.lobbed_buf, &self.server.socket_addr));
-                    //if we don't return immediately, then we're OK.
-                    *state = State::WaitingForConnection(WaitForConnect::new(
-                        *ip,
-                        tcp_listener.take().unwrap(),
-                    ));
-                    return Ok(Async::Ready(ConnectPollOutput::NotConnected));
-                } else {
-                    return Err(Error::OtherMessage(String::from("no udp socket found?")));
-                }
-            }
-            State::Connecting(conn_future) => match conn_future.poll() {
-                Err(e) => {
-                    eprintln!("Error connecting: {}. Will retry after a delay.", e);
-                    set_delay(&mut self.delay);
-                    *state = State::DelayBeforeConnectionRetry;
-                    return Ok(Async::Ready(ConnectPollOutput::NotConnected));
-                }
-                Ok(Async::Ready(stream)) => {
-                    self.stream = Some(stream);
-                    *state = State::SendingHandshake;
-                }
-                Ok(Async::NotReady) => {
-                    return Ok(Async::NotReady);
-                }
-            },
-
-            State::DelayBeforeConnectionRetry => {
-                let _ = try_ready!(self
-                    .delay
-                    .as_mut()
-                    .unwrap()
-                    .poll()
-                    .map_err(|e| Error::OtherMessage(e.to_string())));
-                if let Ok(connect_future) = outgoing_tcp_connect(self.server.socket_addr.clone()) {
-                    eprintln!("Delay completed, and we were able to connect.");
-                    *state = State::Connecting(connect_future);
-                } else {
-                    eprintln!("Delay completed but still could not connect to server.");
-                    set_delay(&mut self.delay);
-                }
-            }
-            State::WaitingForConnection(conn_stream) => {
-                let stream = try_ready!(conn_stream
-                    .poll()
-                    .map_err(|_e| Error::OtherMessage(String::from(""))));
-                self.stream = Some(stream);
-                *state = State::SendingHandshake;
-            }
-            State::SendingHandshake => {
-                while self.cookie_buf.has_remaining() {
-                    try_ready!(self
-                        .stream
-                        .as_mut()
-                        .unwrap()
-                        .write_buf(&mut self.cookie_buf));
-                }
-                let cookie_size = CookieData::constant_buffer_size();
-                let mut buf = BytesMut::with_capacity(cookie_size);
-                *state = State::ReceivingHandshake(buf);
-            }
-            State::ReceivingHandshake(buf) => {
-                while buf.len() < CookieData::constant_buffer_size() {
-                    let _ = try_ready!(self.stream.as_mut().unwrap().read_buf(buf));
-                }
-                let mut buf = buf.clone().freeze();
-                let cookie = CookieData::unbuffer_ref(&mut buf)?;
-                check_ver_nonfile_compatible(cookie.version)?;
-                return Ok(Async::Ready(ConnectPollOutput::Connected));
-            }
-        };
-
-        return Ok(Async::Ready(ConnectPollOutput::NotConnected));
-    }
 }
 
 impl Future for Connect {
@@ -344,10 +262,84 @@ impl Future for Connect {
     type Error = Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
-            match self.poll_one()? {
-                Async::NotReady => return Ok(Async::NotReady),
-                Async::Ready(ConnectPollOutput::NotConnected) => {}
-                Async::Ready(ConnectPollOutput::Connected) => {
+            let state = self.state.as_mut().unwrap();
+            match state {
+                State::Lobbing(tcp_listener, ip) => {
+                    if let Some(udp_connect) = self.udp_connect.as_mut() {
+                        try_ready!(udp_connect
+                            .udp
+                            .poll_send_to(&udp_connect.lobbed_buf, &self.server.socket_addr));
+                        //if we don't return immediately, then we're OK.
+                        *state = State::WaitingForConnection(WaitForConnect::new(
+                            *ip,
+                            tcp_listener.take().unwrap(),
+                        ));
+                    } else {
+                        return Err(Error::OtherMessage(String::from("no udp socket found?")));
+                    }
+                }
+
+                State::Connecting(conn_future) => match conn_future.poll() {
+                    Err(e) => {
+                        eprintln!("Error connecting: {}. Will retry after a delay.", e);
+                        set_delay(&mut self.delay);
+                        *state = State::DelayBeforeConnectionRetry;
+                    }
+                    Ok(Async::Ready(stream)) => {
+                        self.stream = Some(stream);
+                        *state = State::SendingHandshake;
+                    }
+                    Ok(Async::NotReady) => {
+                        return Ok(Async::NotReady);
+                    }
+                },
+
+                State::DelayBeforeConnectionRetry => {
+                    let _ = try_ready!(self
+                        .delay
+                        .as_mut()
+                        .unwrap()
+                        .poll()
+                        .map_err(|e| Error::OtherMessage(e.to_string())));
+                    if let Ok(connect_future) =
+                        outgoing_tcp_connect(self.server.socket_addr.clone())
+                    {
+                        eprintln!("Delay completed, and we were able to connect.");
+                        *state = State::Connecting(connect_future);
+                    } else {
+                        eprintln!("Delay completed but still could not connect to server.");
+                        set_delay(&mut self.delay);
+                    }
+                }
+
+                State::WaitingForConnection(conn_stream) => {
+                    let stream = try_ready!(conn_stream
+                        .poll()
+                        .map_err(|_e| Error::OtherMessage(String::from(""))));
+                    self.stream = Some(stream);
+                    *state = State::SendingHandshake;
+                }
+
+                State::SendingHandshake => {
+                    while self.cookie_buf.has_remaining() {
+                        try_ready!(self
+                            .stream
+                            .as_mut()
+                            .unwrap()
+                            .write_buf(&mut self.cookie_buf));
+                    }
+                    let cookie_size = CookieData::constant_buffer_size();
+                    let buf = BytesMut::with_capacity(cookie_size);
+                    *state = State::ReceivingHandshake(buf);
+                }
+
+                State::ReceivingHandshake(buf) => {
+                    while buf.len() < CookieData::constant_buffer_size() {
+                        let _ = try_ready!(self.stream.as_mut().unwrap().read_buf(buf));
+                    }
+                    let mut buf = buf.clone().freeze();
+                    let cookie = CookieData::unbuffer_ref(&mut buf)?;
+                    check_ver_nonfile_compatible(cookie.version)?;
                     let udp = self.udp_connect.take().map(|udp_connect| udp_connect.udp);
 
                     return Ok(Async::Ready(ConnectResults {
@@ -355,7 +347,7 @@ impl Future for Connect {
                         udp,
                     }));
                 }
-            }
+            };
         }
     }
 }
