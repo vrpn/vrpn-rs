@@ -17,8 +17,8 @@ use crate::{
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::{
     fmt::{self, Debug},
-    net::{self, IpAddr, SocketAddr, SocketAddrV4, ToSocketAddrs},
-    time::Duration,
+    net::{self, IpAddr, SocketAddr, ToSocketAddrs},
+    time::{Duration, Instant},
 };
 use tk_listen::{ListenExt, SleepOnError};
 use tokio::prelude::*;
@@ -28,7 +28,7 @@ use tokio::{
         tcp::{ConnectFuture, Incoming, TcpListener},
         TcpStream, UdpSocket,
     },
-    prelude::*,
+    timer::Delay,
 };
 
 pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<net::TcpStream> {
@@ -150,10 +150,17 @@ impl Future for WaitForConnect {
 /// The steps of establishing a connection
 #[derive(Debug)]
 enum State {
+    /// Sending the initial UDP datagram with our "call-back" address and port
     Lobbing(Option<TcpListener>, IpAddr),
+    /// Follows after Lobbing.
     WaitingForConnection(WaitForConnect),
+    /// Making the connection for a TCP-only setup.
     Connecting(ConnectFuture),
+    /// Reached from Connecting in case of error.
+    DelayBeforeConnectionRetry,
+    /// Transmitting the magic cookie - used by both modes.
     SendingHandshake,
+    /// Receiving and checking the magic cookie - used by both modes.
     ReceivingHandshake(BytesMut),
 }
 
@@ -169,6 +176,11 @@ struct UdpConnect {
     lobbed_buf: Bytes,
 }
 
+enum ConnectPollOutput {
+    Connected,
+    NotConnected,
+}
+
 /// A future that handles the connection and handshake process.
 #[derive(Debug)]
 pub(crate) struct Connect {
@@ -177,8 +189,21 @@ pub(crate) struct Connect {
     stream: Option<TcpStream>,
     udp_connect: Option<UdpConnect>,
     cookie_buf: <Bytes as IntoBuf>::Buf,
+    delay: Option<Delay>,
 }
+const MILLIS_BETWEEN_ATTEMPTS: u64 = 500;
 
+fn set_delay(delay: &mut Option<Delay>) {
+    let deadline = Instant::now() + Duration::from_millis(MILLIS_BETWEEN_ATTEMPTS);
+    match delay.as_mut() {
+        Some(d) => {
+            d.reset(deadline);
+        }
+        None => {
+            *delay = Some(Delay::new(deadline));
+        }
+    };
+}
 impl Connect {
     /// Create a future for establishing a connection.
     pub(crate) fn new(server: ServerInfo) -> Result<Connect> {
@@ -213,6 +238,7 @@ impl Connect {
                     state: Some(State::Lobbing(Some(tcp_listener), ip)),
                     cookie_buf,
                     stream: None,
+                    delay: None,
                 })
             }
             Scheme::TcpOnly => {
@@ -224,38 +250,67 @@ impl Connect {
                     state: Some(State::Connecting(connect_future)),
                     cookie_buf,
                     stream: None,
+                    delay: None,
                 })
             }
         }
     }
 
-    fn poll_one(&mut self, state: &mut State) -> Poll<Option<State>, Error> {
+    fn poll_one(&mut self) -> Poll<ConnectPollOutput, Error> {
+        let state = self.state.as_mut().unwrap();
         match state {
             State::Lobbing(tcp_listener, ip) => {
-                if let Some(udp_connect) = &mut self.udp_connect {
+                if let Some(udp_connect) = self.udp_connect.as_mut() {
                     try_ready!(udp_connect
                         .udp
                         .poll_send_to(&udp_connect.lobbed_buf, &self.server.socket_addr));
                     //if we don't return immediately, then we're OK.
-
-                    return Ok(Async::Ready(Some(State::WaitingForConnection(
-                        WaitForConnect::new(*ip, tcp_listener.take().unwrap()),
-                    ))));
+                    *state = State::WaitingForConnection(WaitForConnect::new(
+                        *ip,
+                        tcp_listener.take().unwrap(),
+                    ));
+                    return Ok(Async::Ready(ConnectPollOutput::NotConnected));
                 } else {
                     return Err(Error::OtherMessage(String::from("no udp socket found?")));
                 }
             }
-            State::Connecting(conn_future) => {
-                let stream = try_ready!(conn_future.poll());
-                self.stream = Some(stream);
-                return Ok(Async::Ready(Some(State::SendingHandshake)));
+            State::Connecting(conn_future) => match conn_future.poll() {
+                Err(e) => {
+                    eprintln!("Error connecting: {}. Will retry after a delay.", e);
+                    set_delay(&mut self.delay);
+                    *state = State::DelayBeforeConnectionRetry;
+                    return Ok(Async::Ready(ConnectPollOutput::NotConnected));
+                }
+                Ok(Async::Ready(stream)) => {
+                    self.stream = Some(stream);
+                    *state = State::SendingHandshake;
+                }
+                Ok(Async::NotReady) => {
+                    return Ok(Async::NotReady);
+                }
+            },
+
+            State::DelayBeforeConnectionRetry => {
+                let _ = try_ready!(self
+                    .delay
+                    .as_mut()
+                    .unwrap()
+                    .poll()
+                    .map_err(|e| Error::OtherMessage(e.to_string())));
+                if let Ok(connect_future) = outgoing_tcp_connect(self.server.socket_addr.clone()) {
+                    eprintln!("Delay completed, and we were able to connect.");
+                    *state = State::Connecting(connect_future);
+                } else {
+                    eprintln!("Delay completed but still could not connect to server.");
+                    set_delay(&mut self.delay);
+                }
             }
             State::WaitingForConnection(conn_stream) => {
                 let stream = try_ready!(conn_stream
                     .poll()
-                    .map_err(|e| Error::OtherMessage(String::from(""))));
+                    .map_err(|_e| Error::OtherMessage(String::from(""))));
                 self.stream = Some(stream);
-                return Ok(Async::Ready(Some(State::SendingHandshake)));
+                *state = State::SendingHandshake;
             }
             State::SendingHandshake => {
                 while self.cookie_buf.has_remaining() {
@@ -267,7 +322,7 @@ impl Connect {
                 }
                 let cookie_size = CookieData::constant_buffer_size();
                 let mut buf = BytesMut::with_capacity(cookie_size);
-                return Ok(Async::Ready(Some(State::ReceivingHandshake(buf))));
+                *state = State::ReceivingHandshake(buf);
             }
             State::ReceivingHandshake(buf) => {
                 while buf.len() < CookieData::constant_buffer_size() {
@@ -276,9 +331,11 @@ impl Connect {
                 let mut buf = buf.clone().freeze();
                 let cookie = CookieData::unbuffer_ref(&mut buf)?;
                 check_ver_nonfile_compatible(cookie.version)?;
-                return Ok(Async::Ready(None));
+                return Ok(Async::Ready(ConnectPollOutput::Connected));
             }
         };
+
+        return Ok(Async::Ready(ConnectPollOutput::NotConnected));
     }
 }
 
@@ -287,11 +344,10 @@ impl Future for Connect {
     type Error = Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
-            let mut old_state = self.state.take();
-            match self.poll_one(old_state.as_mut().unwrap()) {
-                Ok(Async::NotReady) => self.state = old_state,
-                Ok(Async::Ready(Some(s))) => self.state = Some(s),
-                Ok(Async::Ready(None)) => {
+            match self.poll_one()? {
+                Async::NotReady => return Ok(Async::NotReady),
+                Async::Ready(ConnectPollOutput::NotConnected) => {}
+                Async::Ready(ConnectPollOutput::Connected) => {
                     let udp = self.udp_connect.take().map(|udp_connect| udp_connect.udp);
 
                     return Ok(Async::Ready(ConnectResults {
@@ -299,7 +355,6 @@ impl Future for Connect {
                         udp,
                     }));
                 }
-                Err(e) => Err(e)?,
             }
         }
     }
@@ -332,6 +387,7 @@ impl ConnectionIpInfo {
                 }
                 ConnectionIpInfo::Info(info) => {
                     if num_endpoints == 0 {
+                        eprintln!("No endpoints, despite claims we've already connected. Re-starting connection process.");
                         *self = ConnectionIpInfo::new_client(info.clone())?;
                     } else {
                         return Ok(Async::Ready(None));

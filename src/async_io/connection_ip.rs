@@ -92,6 +92,8 @@ impl ConnectionIp {
         //         Async::NotReady => (),
         //     }
         // }
+
+        // Connect/reconnect if needed.
         {
             let mut client_info = self.client_info.lock()?;
             let ep_arc = self.endpoints();
@@ -129,28 +131,26 @@ impl ConnectionIp {
         {
             let mut endpoints = endpoints.lock()?;
             let mut dispatcher = dispatcher.lock()?;
-            // eprintln!("dispatcher:");
-            // for (id, name) in dispatcher.senders_iter() {
-            //     eprintln!("  sender {}: {:?}", id.get(), name.0);
-            // }
-            // for (id, name) in dispatcher.types_iter() {
-            //     eprintln!("  type {}: {:?}", id.get(), name.0);
-            // }
             let mut got_not_ready = false;
-            for ep in endpoints.iter_mut().flatten() {
-                let poll_result = ep.poll_endpoint(&mut dispatcher)?;
-                match poll_result {
-                    Async::Ready(()) => {
-                        eprintln!("endpoint closed apparently");
-                        // TODO do we delete this?
-                        //return Ok(Async::Read);
-                    }
-                    Async::NotReady => {
-                        got_not_ready = true;
-                        // this is normal.
-                    }
+            // Go through and poll each endpoint, "taking" the ones that are closed.
+            for ep in endpoints.iter_mut() {
+                let ready = if let Some(endpoint) = ep {
+                    endpoint
+                        .poll_endpoint(&mut dispatcher)
+                        .map(|result| result.is_ready())
+                        .unwrap_or_else(|_| true)
+                } else {
+                    true
+                };
+                if ready {
+                    let _ = ep.take();
+                } else {
+                    got_not_ready = true;
                 }
             }
+            // Now, retain only the non-taken endpoints in the vector.
+            endpoints.retain(|ep| ep.is_some());
+
             if got_not_ready {
                 Ok(Async::NotReady)
             } else {

@@ -32,7 +32,7 @@ impl TypedHandler for TrackerHandler {
 // type Selected = Drain<stream::Select<ConnectionIpStream, ping::Client<ConnectionIp>>>;
 
 fn main() {
-    let server = "127.0.0.1:3883".parse::<ServerInfo>().unwrap();
+    let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
 
     let connection =
         ConnectionIp::new_client(server, None, None).expect("should be able to create client");
