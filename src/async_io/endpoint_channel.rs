@@ -157,13 +157,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::async_io::{apply_message_framing, connect_tcp};
+    use crate::{
+        async_io::{
+            apply_message_framing,
+            create::{Connect, ConnectResults},
+        },
+        ServerInfo,
+    };
     #[test]
     fn make_endpoint_channel() {
-        let addr = "127.0.0.1:3883".parse().unwrap();
-        let _ = connect_tcp(addr)
-            .and_then(|stream| {
-                let chan = EndpointChannel::new(apply_message_framing(stream));
+        let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
+        let connector = Connect::new(server).expect("should be able to create connection future");
+
+        let _ = connector
+            .and_then(|ConnectResults { tcp, udp }| {
+                let chan = EndpointChannel::new(apply_message_framing(tcp.unwrap()));
                 for _i in 0..4 {
                     let _ = chan.lock().unwrap().poll().unwrap().map(|msg| {
                         eprintln!("Received message {:?}", msg);

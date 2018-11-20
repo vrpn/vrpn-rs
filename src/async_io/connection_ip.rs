@@ -3,16 +3,21 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    async_io::{connect::incoming_handshake, endpoint_ip::EndpointIp},
+    async_io::{
+        codec::FramedMessageCodec,
+        connect::incoming_handshake,
+        create::{ClientInfo, Connect},
+        endpoint_ip::{EndpointIp, MessageFramedUdp},
+    },
     connection::*,
-    Error, LogFileNames, Result, TypeSafeId,
+    Error, LogFileNames, Result, ServerInfo, TypeSafeId,
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex, Weak},
 };
 use tokio::{
-    net::{tcp::Incoming, TcpListener, TcpStream},
+    net::{tcp::Incoming, TcpListener, TcpStream, UdpFramed, UdpSocket},
     prelude::*,
 };
 
@@ -21,7 +26,9 @@ pub struct ConnectionIp {
     core: ConnectionCore<EndpointIp>,
     // server_tcp: Option<Mutex<TcpListener>>,
     server_acceptor: Arc<Mutex<Option<ConnectionIpAcceptor>>>,
+    client_info: Mutex<ClientInfo>,
 }
+
 const DEFAULT_PORT: u16 = 3883;
 
 impl ConnectionIp {
@@ -34,6 +41,7 @@ impl ConnectionIp {
             core: ConnectionCore::new(Vec::new(), local_log_names, None),
             server_acceptor: Arc::new(Mutex::new(None)),
             // server_tcp: Some(Mutex::new(server_tcp)),
+            client_info: Mutex::new(ClientInfo::Server),
         });
         // {
         //     let accepter = ConnectionIpAcceptor::new(Arc::downgrade(&conn), addr)?;
@@ -45,17 +53,19 @@ impl ConnectionIp {
 
     /// Create a new ConnectionIp that is a client.
     pub fn new_client(
+        server: ServerInfo,
         local_log_names: Option<LogFileNames>,
         remote_log_names: Option<LogFileNames>,
-        reliable_channel: TcpStream,
-        // low_latency_channel: Option<MessageFramedUdp>,
     ) -> Result<Arc<ConnectionIp>> {
         let mut endpoints: Vec<Option<EndpointIp>> = Vec::new();
-        endpoints.push(Some(EndpointIp::new(reliable_channel)));
-        Ok(Arc::new(ConnectionIp {
+        let connect = Connect::new(server)?;
+        let mut ret = Arc::new(ConnectionIp {
             core: ConnectionCore::new(endpoints, local_log_names, remote_log_names),
             server_acceptor: Arc::new(Mutex::new(None)),
-        }))
+            client_info: Mutex::new(ClientInfo::ConnectionSetupFuture(connect)),
+        });
+        ret.pack_all_descriptions()?;
+        Ok(ret)
     }
 
     pub fn poll_endpoints(&self) -> Poll<Option<()>, Error> {
@@ -83,6 +93,26 @@ impl ConnectionIp {
         //         Async::NotReady => (),
         //     }
         // }
+        {
+            let mut client_info = self.client_info.lock()?;
+            let ep_arc = self.endpoints();
+            let mut endpoints = ep_arc.lock()?;
+            let num_endpoints = endpoints.len();
+            match client_info.poll(num_endpoints)? {
+                Async::Ready(Some(results)) => {
+                    // OK, we finished a connection setup.
+                    endpoints.push(Some(EndpointIp::new(
+                        results.tcp.unwrap(),
+                        results
+                            .udp
+                            .map(|sock| UdpFramed::new(sock, FramedMessageCodec)),
+                    )));
+                }
+                // Nothing to do in other cases
+                _ => {}
+            };
+        }
+
         let mut acceptor = self.server_acceptor.lock()?;
         match &mut (*acceptor) {
             Some(a) => loop {
@@ -135,6 +165,13 @@ impl Connection for ConnectionIp {
     type SpecificEndpoint = EndpointIp;
     fn connection_core(&self) -> &ConnectionCore<Self::SpecificEndpoint> {
         &self.core
+    }
+
+    fn status(&self) -> ConnectionStatus {
+        let ep = self.endpoints();
+        let endpoints = ep.lock().unwrap();
+        let info = self.client_info.lock().unwrap();
+        info.status(endpoints.len())
     }
 }
 
@@ -203,7 +240,8 @@ impl Stream for ConnectionIpAcceptor {
                             eprintln!("Got connection from some peer we couldn't identify");
                         }
                         if let Ok(mut epoints) = endpoints.lock() {
-                            epoints.push(Some(EndpointIp::new(stream)));
+                            // TODO set up udp
+                            epoints.push(Some(EndpointIp::new(stream, None)));
                         }
                         Ok(())
                     })
@@ -241,73 +279,55 @@ mod tests {
 
     #[ignore] // because it requires an external server to be running.
     #[test]
-    fn tracker() {
-        use crate::async_io::connect_tcp;
-        let addr = "127.0.0.1:3883".parse().unwrap();
+    fn tracker() -> Result<()> {
+        let server = "127.0.0.1:3883".parse::<ServerInfo>().unwrap();
         let flag = Arc::new(Mutex::new(false));
 
-        connect_tcp(addr)
-            .and_then(|stream| -> Result<()> {
-                let conn = ConnectionIp::new_client(None, None, stream)?;
-                let sender = conn
-                    .register_sender(StaticSenderName(b"Tracker0"))
-                    .expect("should be able to register sender");
-                let handler_handle = conn.add_typed_handler(
-                    Box::new(TrackerHandler {
-                        flag: Arc::clone(&flag),
-                    }),
-                    Some(sender),
-                )?;
-                conn.pack_all_descriptions()?;
-                for _ in 0..4 {
-                    let _ = conn.poll_endpoints()?;
-                }
-                conn.remove_handler(handler_handle)
-                    .expect("should be able to remove handler");
-                Ok(())
-            })
-            .wait()
-            .unwrap();
+        let conn = ConnectionIp::new_client(server, None, None)?;
+        let sender = conn
+            .register_sender(StaticSenderName(b"Tracker0"))
+            .expect("should be able to register sender");
+        let handler_handle = conn.add_typed_handler(
+            Box::new(TrackerHandler {
+                flag: Arc::clone(&flag),
+            }),
+            Some(sender),
+        )?;
+        conn.pack_all_descriptions()?;
+        for _ in 0..4 {
+            let _ = conn.poll_endpoints()?;
+        }
+        conn.remove_handler(handler_handle)
+            .expect("should be able to remove handler");
+
         assert!(*flag.lock().unwrap() == true);
+        Ok(())
     }
 
     #[ignore] // because it requires an external server to be running.
     #[test]
-    fn tracker_manual() {
-        use crate::async_io::connect_tcp;
-        let addr = "127.0.0.1:3883".parse().unwrap();
+    fn tracker_manual() -> Result<()> {
+        let server = "127.0.0.1:3883".parse::<ServerInfo>().unwrap();
         let flag = Arc::new(Mutex::new(false));
 
-        connect_tcp(addr)
-            .and_then(|stream| {
-                let conn = ConnectionIp::new_client(None, None, stream)?;
-                let tracker_message_id = conn
-                    .register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))
-                    .expect("should be able to register type");
-                let sender = conn
-                    .register_sender(StaticSenderName(b"Tracker0"))
-                    .expect("should be able to register sender");
-                conn.add_handler(
-                    Box::new(TrackerHandler {
-                        flag: Arc::clone(&flag),
-                    }),
-                    Some(tracker_message_id),
-                    Some(sender),
-                )?;
-                conn.pack_all_descriptions()?;
-                for _ in 0..4 {
-                    let _ = conn.poll_endpoints()?;
-                }
-                Ok(())
-                // Ok(future::poll_fn(move || {
-                //     eprintln!("polling");
-                //     conn.poll_endpoints()
-                // })
-                // .timeout(Duration::from_secs(4))
-                // .map(|_| ()))
-            })
-            .wait()
-            .unwrap();
+        let conn = ConnectionIp::new_client(server, None, None)?;
+        let tracker_message_id = conn
+            .register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))
+            .expect("should be able to register type");
+        let sender = conn
+            .register_sender(StaticSenderName(b"Tracker0"))
+            .expect("should be able to register sender");
+        conn.add_handler(
+            Box::new(TrackerHandler {
+                flag: Arc::clone(&flag),
+            }),
+            Some(tracker_message_id),
+            Some(sender),
+        )?;
+        for _ in 0..4 {
+            let _ = conn.poll_endpoints()?;
+        }
         assert!(*flag.lock().unwrap() == true);
+        Ok(())
     }
 }

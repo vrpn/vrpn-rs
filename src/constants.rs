@@ -33,6 +33,9 @@ pub const UDP_BUFLEN: usize = 1472;
 /// "length of names in VRPN"
 pub const CNAME_LEN: usize = 100;
 
+/// default port to use
+pub const DEFAULT_PORT: u16 = 3883;
+
 pub const MAGIC_PREFIX: &[u8] = b"vrpn: ver. ";
 pub const MAGICLEN: usize = 16; // Must be a multiple of vrpn_ALIGN bytes!
 pub const ALIGN: usize = 8;

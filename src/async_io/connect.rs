@@ -4,12 +4,17 @@
 
 use crate::{
     async_io::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
-    Error,
+    Error, Result,
 };
-use std::net::SocketAddr;
-use tokio::{io, net::TcpStream, prelude::*};
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+use std::net::{self, IpAddr, SocketAddr, SocketAddrV4};
+use tokio::{
+    io,
+    net::{tcp::ConnectFuture, TcpStream, UdpSocket},
+    prelude::*,
+};
 
-pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
+pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<net::TcpStream> {
     use socket2::*;
     let domain = if addr.is_ipv4() {
         Domain::ipv4()
@@ -33,17 +38,29 @@ pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
     Ok(sock.into_tcp_stream())
 }
 
-fn outgoing_tcp_connect(
-    addr: std::net::SocketAddr,
-) -> impl Future<Item = tokio::net::TcpStream, Error = Error> {
-    make_tcp_socket(addr)
-        .map_err(|e| Error::from(e))
-        .into_future()
-        .and_then(move |sock| {
-            let addr = addr.clone();
-            TcpStream::connect_std(sock, &addr, &tokio::reactor::Handle::default())
-                .map_err(|e| Error::from(e))
-        })
+pub fn make_udp_socket() -> io::Result<UdpSocket> {
+    let domain = Domain::ipv4();
+    let sock = Socket::new(domain, Type::dgram(), Some(Protocol::udp()))?;
+    sock.set_nonblocking(true)?;
+    sock.set_nodelay(true)?;
+
+    let any = std::net::Ipv4Addr::new(0, 0, 0, 0);
+    let addr = SocketAddr::new(IpAddr::V4(any), 0);
+    sock.bind(&SockAddr::from(addr))?;
+    sock.set_reuse_address(true)?;
+    let tokio_socket =
+        UdpSocket::from_std(sock.into_udp_socket(), &tokio::reactor::Handle::default())?;
+    Ok(tokio_socket)
+}
+
+pub fn outgoing_tcp_connect(addr: std::net::SocketAddr) -> Result<ConnectFuture> {
+    let sock = make_tcp_socket(addr).map_err(|e| Error::from(e))?;
+
+    Ok(TcpStream::connect_std(
+        sock,
+        &addr,
+        &tokio::reactor::Handle::default(),
+    ))
 }
 
 pub fn outgoing_handshake<T>(socket: T) -> impl Future<Item = T, Error = Error>
@@ -55,13 +72,15 @@ where
     // TODO if we have permission to use UDP, open an incoming socket and notify the other end about it here.
 }
 
-pub fn connect_tcp(
-    addr: std::net::SocketAddr,
-) -> impl Future<Item = tokio::net::TcpStream, Error = Error> {
-    outgoing_tcp_connect(addr).and_then(outgoing_handshake)
-    // TODO can pack log description here if we're enabling remote logging.
-    // TODO if we have permission to use UDP, open an incoming socket and notify the other end about it here.
-}
+// pub fn connect_tcp(
+//     addr: std::net::SocketAddr,
+// ) -> impl Future<Item = tokio::net::TcpStream, Error = Error> {
+//     outgoing_tcp_connect(addr)
+//         .into_future()
+//         .and_then(outgoing_handshake)
+//     // TODO can pack log description here if we're enabling remote logging.
+//     // TODO if we have permission to use UDP, open an incoming socket and notify the other end about it here.
+// }
 
 pub fn incoming_handshake<T>(socket: T) -> impl Future<Item = T, Error = Error>
 where
@@ -83,11 +102,11 @@ mod tests {
         CookieData, Unbuffer,
     };
 
-    #[test]
-    fn basic_connect() {
-        let addr = "127.0.0.1:3883".parse().unwrap();
-        connect_tcp(addr).wait().unwrap();
-    }
+    // #[test]
+    // fn basic_connect() {
+    //     let addr = "127.0.0.1:3883".parse().unwrap();
+    //     connect_tcp(addr).wait().unwrap();
+    // }
 
     #[test]
     fn sync_connect() {

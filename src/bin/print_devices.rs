@@ -12,11 +12,11 @@ extern crate vrpn;
 use std::sync::Arc;
 use tokio::prelude::*;
 use vrpn::{
-    async_io::{connect_tcp, ping, ConnectionIp, ConnectionIpStream, Drain, StreamExtras},
+    async_io::{ping, ConnectionIp, ConnectionIpStream, Drain, StreamExtras},
     handler::{HandlerCode, TypedHandler},
     prelude::*,
     tracker::PoseReport,
-    Message, Result, StaticSenderName,
+    Message, Result, ServerInfo, StaticSenderName,
 };
 
 #[derive(Debug)]
@@ -29,30 +29,29 @@ impl TypedHandler for TrackerHandler {
     }
 }
 
-type Selected = Drain<stream::Select<ConnectionIpStream, ping::Client<ConnectionIp>>>;
+// type Selected = Drain<stream::Select<ConnectionIpStream, ping::Client<ConnectionIp>>>;
 
 fn main() {
-    let addr = "127.0.0.1:3883".parse().unwrap();
-    let connection_future = connect_tcp(addr)
-        .and_then(|stream| {
-            let connection = ConnectionIp::new_client(None, None, stream)?;
-            let sender = connection
-                .register_sender(StaticSenderName(b"Tracker0"))
-                .expect("should be able to register sender");
-            let _ = connection.add_typed_handler(Box::new(TrackerHandler {}), Some(sender))?;
-            connection.pack_all_descriptions()?;
-            let ping_client = ping::Client::new(sender, Arc::clone(&connection))?;
+    let server = "127.0.0.1:3883".parse::<ServerInfo>().unwrap();
 
-            let selected: Selected = ConnectionIpStream::new(Arc::clone(&connection))
-                .select(ping_client)
-                .drain();
-            Ok(selected)
-        })
-        .flatten()
+    let connection =
+        ConnectionIp::new_client(server, None, None).expect("should be able to create client");
+    let sender = connection
+        .register_sender(StaticSenderName(b"Tracker0"))
+        .expect("should be able to register sender");
+    let _ = connection
+        .add_typed_handler(Box::new(TrackerHandler {}), Some(sender))
+        .expect("should be able to add handler");
+    let ping_client = ping::Client::new(sender, Arc::clone(&connection))
+        .expect("should be able to create ping client");
+
+    let selected = ConnectionIpStream::new(Arc::clone(&connection))
+        .select(ping_client)
         .map_err(|e| {
-            eprintln!("Error: {}", e);
+            eprintln!("error: {}", e);
             ()
-        });
+        })
+        .drain();
 
-    tokio::run(connection_future);
+    tokio::run(selected);
 }

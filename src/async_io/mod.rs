@@ -7,6 +7,7 @@ pub mod connect;
 pub mod connection_file;
 pub mod connection_ip;
 pub mod cookie;
+pub mod create;
 pub mod endpoint_channel;
 pub mod endpoint_file;
 pub mod endpoint_ip;
@@ -15,7 +16,6 @@ pub mod util;
 
 pub use self::{
     codec::apply_message_framing,
-    connect::connect_tcp,
     connection_ip::{ConnectionIp, ConnectionIpStream},
     util::*,
 };

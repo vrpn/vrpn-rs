@@ -13,6 +13,14 @@ use std::sync::{Arc, Mutex};
 pub type EndpointVec<EP> = Vec<Option<EP>>;
 pub type SharedEndpointVec<EP> = Arc<Mutex<EndpointVec<EP>>>;
 
+pub enum ConnectionStatus {
+    /// This is a client connection that is attempting to connect.
+    ClientConnecting,
+    /// This is a client connection that is successfully connected.
+    ClientConnected,
+    /// This is a server connection, the number of connected endpoints is provided
+    Server(usize),
+}
 pub trait Connection: Send + Sync {
     type SpecificEndpoint: Endpoint + EndpointGeneric;
 
@@ -21,6 +29,12 @@ pub trait Connection: Send + Sync {
     /// This is the main required method for this trait.
     fn connection_core(&self) -> &ConnectionCore<Self::SpecificEndpoint>;
 
+    /// Get the status of this connection
+    fn status(&self) -> ConnectionStatus;
+
+    /// Register a message type name string and get a local ID for it.
+    ///
+    /// If the string is already registered, the returned ID will be the previously-assigned one.
     fn register_type<T>(&self, name: T) -> Result<LocalId<TypeId>>
     where
         T: Into<TypeName> + Clone,
@@ -44,6 +58,9 @@ pub trait Connection: Send + Sync {
         }
     }
 
+    /// Register a sender name string and get a local ID for it.
+    ///
+    /// If the string is already registered, the returned ID will be the previously-assigned one.
     fn register_sender<T>(&self, name: T) -> Result<LocalId<SenderId>>
     where
         T: Into<SenderName> + Clone,
@@ -61,6 +78,9 @@ pub trait Connection: Send + Sync {
         }
     }
 
+    /// Add a generic handler, with optional filters on message type and sender.
+    ///
+    /// Returns a struct usable to remove the handler later.
     fn add_handler(
         &self,
         handler: Box<dyn Handler + Send>,
@@ -71,6 +91,11 @@ pub trait Connection: Send + Sync {
         dispatcher.add_handler(handler, message_type_filter, sender_filter)
     }
 
+    /// Add a "typed" handler, with optional filters on sender.
+    ///
+    /// The message type filter is automatically populated based on the TypedHandler trait.
+    ///
+    /// Returns a struct usable to remove the handler later.
     fn add_typed_handler<T: 'static>(
         &self,
         handler: Box<T>,
@@ -86,11 +111,15 @@ pub trait Connection: Send + Sync {
         self.add_handler(handler, message_type_filter, sender_filter)
     }
 
+    /// Remove a handler previously added with add_handler() or add_typed_handler()
     fn remove_handler(&self, handler_handle: HandlerHandle) -> Result<()> {
         let mut dispatcher = self.connection_core().type_dispatcher.lock()?;
         dispatcher.remove_handler(handler_handle)
     }
 
+    /// Pack a message to send to all connected endpoints.
+    ///
+    /// May not actually send immediately, might need to poll the connection somehow.
     fn pack_message<T>(&self, msg: Message<T>, class: ClassOfService) -> Result<()>
     where
         T: TypedMessageBody + Buffer,
@@ -104,6 +133,12 @@ pub trait Connection: Send + Sync {
         Ok(())
     }
 
+    /// Pack a message body to send to all connected endpoints.
+    ///
+    /// Generates the header automatically from the supplied parameters as well as
+    /// the MESSAGE_IDENTIFIER constant in the TypedMessageBody implementation.
+    ///
+    /// May not actually send immediately, might need to poll the connection somehow.
     fn pack_message_body<T: TypedMessageBody>(
         &self,
         timeval: Option<TimeVal>,
@@ -122,6 +157,9 @@ pub trait Connection: Send + Sync {
         self.pack_message(message, class)
     }
 
+    /// Pack an ID description (either message type or sender) on all endpoints.
+    ///
+    /// May not actually send immediately, might need to poll the connection somehow.
     fn pack_description<T>(&self, id: LocalId<T>) -> Result<()>
     where
         T: BaseTypeSafeId,
@@ -135,6 +173,9 @@ pub trait Connection: Send + Sync {
         Ok(())
     }
 
+    /// Pack all message type and sender descriptions on all endpoints.
+    ///
+    /// May not actually send immediately, might need to poll the connection somehow.
     fn pack_all_descriptions(&self) -> Result<()> {
         let mut endpoints = self.connection_core().endpoints.lock()?;
         let dispatcher = self.connection_core().type_dispatcher.lock()?;
@@ -144,10 +185,12 @@ pub trait Connection: Send + Sync {
         Ok(())
     }
 
+    /// Gets a reference-counted handle to the mutex-protected endpoint vector.
     fn endpoints(&self) -> SharedEndpointVec<Self::SpecificEndpoint> {
         Arc::clone(&self.connection_core().endpoints)
     }
 
+    /// Gets a reference-counted handle to the mutex-protected type dispatcher.
     fn dispatcher(&self) -> Arc<Mutex<TypeDispatcher>> {
         Arc::clone(&self.connection_core().type_dispatcher)
     }

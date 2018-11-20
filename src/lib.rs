@@ -5,6 +5,8 @@
 extern crate bytes;
 extern crate cgmath;
 extern crate chrono;
+extern crate tk_listen;
+extern crate url;
 
 #[cfg(test)]
 #[macro_use]
@@ -40,6 +42,7 @@ pub mod handler;
 pub mod length_prefixed;
 pub mod log;
 pub mod message;
+mod parse_name;
 pub mod ping;
 pub mod prelude;
 pub mod primitives;
@@ -53,7 +56,7 @@ pub mod unbuffer;
 
 pub use crate::{
     buffer::{BufMutExtras, Buffer, BytesMutExtras},
-    connection::Connection,
+    connection::{Connection, ConnectionStatus},
     cookie::{CookieData, Version},
     descriptions::{Description, UdpDescription},
     endpoint::*,
@@ -65,6 +68,7 @@ pub use crate::{
         MessageTypeIdentifier::UserMessageName, SequencedGenericMessage, SequencedMessage,
         TypedMessageBody,
     },
+    parse_name::{Scheme, ServerInfo},
     primitives::*,
     size::{BufferSize, ConstantBufferSize, EmptyMessage, WrappedConstantSize},
     time::TimeVal,

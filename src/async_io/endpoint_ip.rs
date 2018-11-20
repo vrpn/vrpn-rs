@@ -28,20 +28,21 @@ pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
 pub struct EndpointIp {
     translation: TranslationTables,
     reliable_channel: Arc<Mutex<EndpointChannel<MessageFramed>>>,
-    low_latency_channel: Option<()>,
+    low_latency_channel: Option<MessageFramedUdp>,
     system_rx: mpsc::UnboundedReceiver<SystemMessage>,
     system_tx: mpsc::UnboundedSender<SystemMessage>,
 }
 impl EndpointIp {
     pub(crate) fn new(
-        reliable_stream: TcpStream //low_latency_channel: Option<MessageFramedUdp>
+        reliable_stream: TcpStream,
+        low_latency_channel: Option<MessageFramedUdp>,
     ) -> EndpointIp {
         let framed = codec::apply_message_framing(reliable_stream);
         let (system_tx, system_rx) = mpsc::unbounded();
         EndpointIp {
             translation: TranslationTables::new(),
             reliable_channel: EndpointChannel::new(framed),
-            low_latency_channel: None,
+            low_latency_channel,
             system_tx,
             system_rx,
         }
@@ -161,15 +162,23 @@ impl Endpoint for EndpointIp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::async_io::connect::connect_tcp;
+    use crate::{
+        async_io::{
+            apply_message_framing,
+            create::{Connect, ConnectResults},
+        },
+        ServerInfo,
+    };
 
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn make_endpoint() {
-        let addr = "127.0.0.1:3883".parse().unwrap();
-        let _ = connect_tcp(addr)
-            .and_then(|stream| {
-                let ep = EndpointIp::new(stream);
+        let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
+        let connector = Connect::new(server).expect("should be able to create connection future");
+
+        let _ = connector
+            .and_then(|ConnectResults { tcp, udp }| {
+                let ep = EndpointIp::new(tcp.unwrap(), None);
                 for _i in 0..4 {
                     let _ = ep
                         .reliable_channel
@@ -191,10 +200,12 @@ mod tests {
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn run_endpoint() {
-        let addr = "127.0.0.1:3883".parse().unwrap();
-        let _ = connect_tcp(addr)
-            .and_then(|stream| {
-                let mut ep = EndpointIp::new(stream);
+        let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
+        let connector = Connect::new(server).expect("should be able to create connection future");
+
+        let _ = connector
+            .and_then(|ConnectResults { tcp, udp }| {
+                let mut ep = EndpointIp::new(tcp.unwrap(), None);
                 let mut disp = TypeDispatcher::new();
                 for _i in 0..4 {
                     let _ = ep.poll_endpoint(&mut disp).unwrap();
