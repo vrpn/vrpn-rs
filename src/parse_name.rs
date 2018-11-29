@@ -144,6 +144,12 @@ impl FromStr for DeviceInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    fn to_addr<T: ToSocketAddrs>(v: T) -> SocketAddr {
+        v.to_socket_addrs().unwrap().next().unwrap()
+    }
+
     #[test]
     fn parsing() {
         let _ = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
@@ -153,25 +159,15 @@ mod tests {
         assert!("127.0.0.1:3883".parse::<ServerInfo>().is_ok());
         assert_eq!(
             "127.0.0.1:3883".parse::<ServerInfo>().unwrap(),
-            ServerInfo::new(
-                "127.0.0.1:3883".to_socket_addrs().unwrap().next().unwrap(),
-                Scheme::UdpAndTcp
-            )
+            ServerInfo::new(to_addr("127.0.0.1:3883"), Scheme::UdpAndTcp)
         );
         assert_eq!(
             "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap(),
-            ServerInfo::new(
-                "127.0.0.1:3883".to_socket_addrs().unwrap().next().unwrap(),
-                Scheme::TcpOnly
-            )
+            ServerInfo::new(to_addr("127.0.0.1:3883"), Scheme::TcpOnly)
         );
         assert_eq!(
             "tcp://127.0.0.1:3883".parse::<DeviceInfo>().unwrap(),
-            DeviceInfo::new(
-                None,
-                "127.0.0.1:3883".to_socket_addrs().unwrap().next().unwrap(),
-                Scheme::TcpOnly
-            )
+            DeviceInfo::new(None, to_addr("127.0.0.1:3883"), Scheme::TcpOnly)
         );
         assert_eq!(
             "127.0.0.1:3883".parse::<ServerInfo>().unwrap(),
@@ -192,4 +188,53 @@ mod tests {
             )
         );
     }
+    fn ip_insides(
+        o0: u8,
+        o1: u8,
+        o2: u8,
+        o3: u8,
+        port: u16,
+        proto: &str,
+        scheme: Scheme,
+    ) -> std::result::Result<(), TestCaseError> {
+        let ip_string = format!("{}.{}.{}.{}:{}", o0, o1, o2, o3, port);
+        // println!("{}", ip_string);
+        let ip = to_addr(ip_string.clone());
+
+        let addr_string = format!("{}{}", proto, ip_string);
+        // println!("{}", addr_string);
+        let parsed = addr_string.parse::<ServerInfo>();
+        prop_assert!(parsed.is_ok(), "input string: {}", addr_string);
+        let parsed = parsed.unwrap();
+        
+        prop_assert_eq!(
+            parsed.socket_addr,
+            ip,
+            "input string: {}",
+            addr_string
+        );
+        prop_assert_eq!(
+            parsed.scheme,
+            scheme,
+            "input string: {}",
+            addr_string
+        );
+        Ok(())
+    }
+    proptest! {
+        #[test]
+        fn noncrash(ref s in "\\PC*") {
+            let _ = s.parse::<DeviceInfo>();
+        }
+
+
+        #[test]
+        fn ip(o0 in 1u8..255, o1 in 1u8..255, o2 in 1u8..255, o3 in 1u8..255, port in 1u16..10000) {
+
+            ip_insides(o0, o1, o2, o3, port, "", Scheme::UdpAndTcp)?;
+            ip_insides(o0, o1, o2, o3, port, "x-vrpn:", Scheme::UdpAndTcp)?;
+            ip_insides(o0, o1, o2, o3, port, "tcp:", Scheme::TcpOnly)?;
+        }
+    }
+
 }
