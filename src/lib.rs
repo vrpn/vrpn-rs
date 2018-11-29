@@ -10,10 +10,10 @@ extern crate url;
 
 #[cfg(test)]
 #[macro_use]
-extern crate quickcheck;
+extern crate hex_literal;
 #[cfg(test)]
 #[macro_use]
-extern crate hex_literal;
+extern crate proptest;
 
 #[macro_use]
 extern crate bitmask;

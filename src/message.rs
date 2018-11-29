@@ -482,19 +482,25 @@ mod tests {
 
         assert_eq!(MessageSize::from_length_field(37).padded_message_size(), 40);
     }
-    quickcheck!{
-        fn length_field_matches(len: u32) -> bool {
+    proptest! {
+        #[test]
+        fn length_field_matches(len in 0u32..10000) {
             let len = len as usize;
-            MessageSize::from_unpadded_body_size(len).length_field() ==
-            transcribed_padding_function(len).len_field
-        }
-        fn total_length_matches(len: u32) -> bool {
-            let len = len as usize;
-            MessageSize::from_unpadded_body_size(len).padded_message_size() ==
-            transcribed_padding_function(len).total_len
+            prop_assert_eq!(
+            MessageSize::from_unpadded_body_size(len).length_field(),
+            transcribed_padding_function(len).len_field);
         }
 
-        fn roundtrip(len: u32) -> bool {
+        #[test]
+        fn total_length_matches(len in 0u32..10000) {
+            let len = len as usize;
+            prop_assert_eq!(
+            MessageSize::from_unpadded_body_size(len).padded_message_size(),
+            transcribed_padding_function(len).total_len);
+        }
+
+        #[test]
+        fn roundtrip(len in 20u32..10000)  {
             MessageSize::from_length_field(len).length_field() == len
         }
     }
