@@ -189,20 +189,25 @@ pub(crate) struct Connect {
     stream: Option<TcpStream>,
     udp_connect: Option<UdpConnect>,
     cookie_buf: <Bytes as IntoBuf>::Buf,
-    delay: Option<Delay>,
+    delay: Delay,
 }
 const MILLIS_BETWEEN_ATTEMPTS: u64 = 500;
 
-fn set_delay(delay: &mut Option<Delay>) {
+// fn set_delay(delay: &mut Option<Delay>) {
+//     let deadline = Instant::now() + Duration::from_millis(MILLIS_BETWEEN_ATTEMPTS);
+//     match delay.as_mut() {
+//         Some(d) => {
+//             d.reset(deadline);
+//         }
+//         None => {
+//             *delay = Some(Delay::new(deadline));
+//         }
+//     };
+// }
+
+fn set_delay(delay: &mut Delay) {
     let deadline = Instant::now() + Duration::from_millis(MILLIS_BETWEEN_ATTEMPTS);
-    match delay.as_mut() {
-        Some(d) => {
-            d.reset(deadline);
-        }
-        None => {
-            *delay = Some(Delay::new(deadline));
-        }
-    };
+    delay.reset(deadline);
 }
 impl Connect {
     /// Create a future for establishing a connection.
@@ -238,7 +243,7 @@ impl Connect {
                     state: Some(State::Lobbing(Some(tcp_listener), ip)),
                     cookie_buf,
                     stream: None,
-                    delay: None,
+                    delay: Delay::new(Instant::now()),
                 })
             }
             Scheme::TcpOnly => {
@@ -250,7 +255,7 @@ impl Connect {
                     state: Some(State::Connecting(connect_future)),
                     cookie_buf,
                     stream: None,
-                    delay: None,
+                    delay: Delay::new(Instant::now()),
                 })
             }
         }
@@ -261,7 +266,9 @@ impl Future for Connect {
     type Item = ConnectResults;
     type Error = Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        // Loop until we succeed, error, or hit NotReady
         loop {
+            // Handle each different state.
             let state = self.state.as_mut().unwrap();
             match state {
                 State::Lobbing(tcp_listener, ip) => {
@@ -295,12 +302,12 @@ impl Future for Connect {
                 },
 
                 State::DelayBeforeConnectionRetry => {
-                    let _ = try_ready!(self
-                        .delay
-                        .as_mut()
-                        .unwrap()
-                        .poll()
-                        .map_err(|e| Error::OtherMessage(e.to_string())));
+                    if self.delay.poll().unwrap().is_not_ready() {
+                        return Ok(Async::NotReady);
+                    };
+                    // .map_err(|e| {
+                    //         Error::OtherMessage(format!("error polling delay: {}", e))
+                    //     }));
                     if let Ok(connect_future) =
                         outgoing_tcp_connect(self.server.socket_addr.clone())
                     {
