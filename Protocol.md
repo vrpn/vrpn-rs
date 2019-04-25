@@ -197,6 +197,30 @@ where 1 is incoming and 2 is outgoing
 Note the two spaces between the version number and the logging mode.
 Additionally, this is packed out to 24 bytes.
 
+## Sender description message
+
+Message fields are as follows:
+
+- The sender ID contains the sender ID being described.
+- The message type ID is `-1` (`vrpn_CONNECTION_SENDER_DESCRIPTION`)
+
+The message body contains the following fields:
+
+- `length` of incoming sender identifier (`u32`) - this includes the null terminator.
+- The incoming sender identifier, plus a null-terminator byte.
+
+## Message type description message
+
+Message fields are as follows:
+
+- The sender ID contains the message type ID being described.
+- The message type ID is `-2` (`vrpn_CONNECTION_TYPE_DESCRIPTION`)
+
+The message body contains the following fields:
+
+- `length` of incoming message type identifier (`u32`) - this includes the null terminator.
+- The incoming message type identifier, plus a null-terminator byte.
+
 ## UDP description message
 
 In the UDP+TCP connection mode,
