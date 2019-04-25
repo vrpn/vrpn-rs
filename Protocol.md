@@ -11,6 +11,11 @@ General notes:
 - A single datagram/packet may contain multiple messages.
 - Many, though not all, fields are padded to a multiple of `vrpn_ALIGN` (8) bytes.
   Whether this padding is included in field-length values varies.
+- Sender IDs and message type IDs are dynamically allocated.
+  They can be different on each side of the connection,
+  or between different connections.
+  They map to corresponding unique and stable string identifiers,
+  which are communicated via `SENDER_DESCRIPTION` and `TYPE_DESCRIPTION` messages, respectively.
 
 ## Common message framing
 
