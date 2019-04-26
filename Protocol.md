@@ -11,6 +11,11 @@ General notes:
 - A single datagram/packet may contain multiple messages.
 - Many, though not all, fields are padded to a multiple of `vrpn_ALIGN` (8) bytes.
   Whether this padding is included in field-length values varies.
+- Sender IDs and message type IDs are dynamically allocated.
+  They can be different on each side of the connection,
+  or between different connections.
+  They map to corresponding unique and stable string identifiers,
+  which are communicated via `SENDER_DESCRIPTION` and `TYPE_DESCRIPTION` messages, respectively.
 
 ## Common message framing
 
@@ -45,6 +50,102 @@ The body is padded out (typically with 0) to a multiple of `vrpn_ALIGN` (8).
 Additionally, messages may have a "class of service" specified.
 The main usage for this is distinguishing "reliable" (send via TCP) and
 "low-latency" (send via UDP) when a UDP+TCP connection is available.
+
+## Common message payloads
+
+The payload format of the message body is defined by the message type identifier,
+which maps to the dynamically allocated message type ID.
+The following is an incomplete list of a few common message types,
+in alphabetical order of the message type identifier string:
+
+### "vrpn_Analog Channel"
+
+This message contains readings for a number of analog channels.
+The message body consists of a number of 64-bit floating point values.
+The first value contains the number of channels that follow.
+The remaining values represent one analog channel each:
+
+- `num_channels` (`f64`)
+- `channel[0]` (`f64`)
+- ...
+- `channel[num_channels - 1]` (`f64`)
+
+The number and actual meaning of these values depends on the sender.
+
+### "vrpn_Button Change"
+
+This message contains new button states for a subset of the buttons on the sender.
+The message body consists of a number of 32-bit signed integer values.
+The first value contains the number of button changes that follow.
+The remaining values are pairs of button id and button state:
+
+- `num_buttons` (`i32`)
+- `button_id[0]` (`i32`)
+- `button_state[button_id[0]]` (`i32`)
+- ...
+- `button_id[num_buttons - 1]` (`i32`)
+- `button_state[button_id[num_buttons - 1]]` (`i32`)
+
+The `button_id`s correspond to the positions in the "vrpn_Button States"
+message.
+
+### "vrpn_Button States"
+
+This message contains current button states for all buttons on the sender.
+The message body consists of a number of 32-bit signed integer values.
+The first value contains the number of button states that follow.
+The remaining values each represent the state of a button on the sender:
+
+- `num_buttons` (`i32`)
+- `button_state[0]` (`i32`)
+- ...
+- `button_state[num_buttons - 1]` (`i32`)
+
+The number of buttons and their order depends on the sender.
+
+### "vrpn_Tracker Acceleration"
+
+This message contains the current linear and angular acceleration of a single
+sensor on the tracker.
+The message body consists of a 32-bit signed integer representing the sensor id,
+followed by 32-bit padding without meaning,
+three 64-bit floating point values representing linear acceleration,
+four 64-bit floating point values representing angular acceleration in quaternion form,
+and a final 64-bit floating point representing the update time interval:
+
+- `sensor` id (`i32`)
+- padding (`i32`)
+- `acc` (`[f64; 3]`)
+- `acc_quat` (`[f64; 4]`)
+- `acc_quat_dt` (`f64`)
+
+### "vrpn_Tracker Pos_Quat"
+
+This message contains the current position and orientation of a single sensor
+on the tracker.
+The message body consists of a 32-bit signed integer representing the sensor id,
+followed by 32-bit padding without meaning,
+three 64-bit floating point values representing position,
+and four 64-bit floating point values representing orientation in quaternion form:
+
+- `sensor` id (`i32`)
+- padding (`i32`)
+- `pos` (`[f64; 3]`)
+- `quat` (`[f64; 4]`)
+
+### "vrpn_Tracker Velocity"
+
+This message contains the current linear and angular velocity of a single
+sensor on the tracker.
+The message body consists of a 32-bit signed integer representing the sensor id,
+followed by 32-bit padding without meaning,
+three 64-bit floating point values representing linear velocity,
+and four 64-bit floating point values representing angular velocity in quaternion form:
+
+- `sensor` id (`i32`)
+- padding (`i32`)
+- `vel` (`[f64; 3]`)
+- `vel_quat` (`[f64; 4]`)
 
 ## Connection establishment modes
 
@@ -95,6 +196,30 @@ where 1 is incoming and 2 is outgoing
 
 Note the two spaces between the version number and the logging mode.
 Additionally, this is packed out to 24 bytes.
+
+## Sender description message
+
+Message fields are as follows:
+
+- The sender ID contains the sender ID being described.
+- The message type ID is `-1` (`vrpn_CONNECTION_SENDER_DESCRIPTION`)
+
+The message body contains the following fields:
+
+- `length` of incoming sender identifier (`u32`) - this includes the null terminator.
+- The incoming sender identifier, plus a null-terminator byte.
+
+## Message type description message
+
+Message fields are as follows:
+
+- The sender ID contains the message type ID being described.
+- The message type ID is `-2` (`vrpn_CONNECTION_TYPE_DESCRIPTION`)
+
+The message body contains the following fields:
+
+- `length` of incoming message type identifier (`u32`) - this includes the null terminator.
+- The incoming message type identifier, plus a null-terminator byte.
 
 ## UDP description message
 
