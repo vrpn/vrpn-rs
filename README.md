@@ -5,6 +5,9 @@ An async-capable port of the [VRPN][] protocol to [Rust][].
 Maintained at <https://github.com/vrpn/vrpn-rs>
 
 Currently **highly experimental** and not entirely operational.
+Contributions welcome, but this is probably not ready for production.
+If you want production-ready VRPN, simply use the [original implementation][VRPN],
+which has been widely deployed for over a decade without a protocol-breaking change.
 
 ## Usage
 
