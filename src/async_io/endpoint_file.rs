@@ -4,7 +4,7 @@
 
 use crate::async_io::codec::*;
 use crate::async_io::cookie::*;
-use crate::{ClassOfService, Endpoint, GenericMessage, Result, SystemMessage, TranslationTables};
+use crate::{ClassOfService, Endpoint, GenericMessage, Result, SystemCommand, TranslationTables};
 use futures::sync::mpsc;
 use std::fs;
 use tokio::{
@@ -16,8 +16,8 @@ use tokio::{
 pub struct EndpointFile {
     translation: TranslationTables,
     file: Framed<File, FramedMessageCodec>,
-    system_rx: mpsc::UnboundedReceiver<SystemMessage>,
-    system_tx: mpsc::UnboundedSender<SystemMessage>,
+    system_rx: mpsc::UnboundedReceiver<SystemCommand>,
+    system_tx: mpsc::UnboundedSender<SystemCommand>,
 }
 
 impl EndpointFile {
@@ -41,7 +41,7 @@ impl Endpoint for EndpointFile {
         &mut self.translation
     }
 
-    fn send_system_change(&self, _message: SystemMessage) -> Result<()> {
+    fn send_system_change(&self, _message: SystemCommand) -> Result<()> {
         unimplemented!()
     }
 

@@ -29,8 +29,8 @@ pub struct EndpointIp {
     translation: TranslationTables,
     reliable_channel: Arc<Mutex<EndpointChannel<MessageFramed>>>,
     low_latency_channel: Option<MessageFramedUdp>,
-    system_rx: mpsc::UnboundedReceiver<SystemMessage>,
-    system_tx: mpsc::UnboundedSender<SystemMessage>,
+    system_rx: mpsc::UnboundedReceiver<SystemCommand>,
+    system_tx: mpsc::UnboundedSender<SystemCommand>,
 }
 impl EndpointIp {
     pub(crate) fn new(
@@ -48,7 +48,7 @@ impl EndpointIp {
         }
     }
 
-    pub(crate) fn poll_endpoint(&mut self, dispatcher: &mut TypeDispatcher) -> Poll<(), Error> {
+    pub(crate) fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Poll<(), Error> {
         let channel_arc = Arc::clone(&self.reliable_channel);
         let mut channel = channel_arc
             .lock()
@@ -60,53 +60,31 @@ impl EndpointIp {
 
         // Now, process the messages we sent ourself.
         loop {
-            let msg_poll = self.system_rx.poll().map_err(|()| {
+            let cmd_poll = self.system_rx.poll().map_err(|()| {
                 Error::OtherMessage(String::from(
                     "error when polling system change message channel",
                 ))
             })?;
-            match msg_poll {
+            match cmd_poll {
                 Async::Ready(None) => {
                     closed = true;
                     break;
                 }
-                Async::Ready(Some(msg)) => match msg {
-                    SystemMessage::SenderDescription(desc) => {
-                        let local_id = dispatcher
-                            .register_sender(SenderName(desc.name.clone()))?
-                            .get();
-                        eprintln!(
-                            "Registering sender {:?}: local {:?} = remote {:?}",
-                            desc.name, local_id, desc.which
-                        );
-                        let _ = self.translation.add_remote_entry(
-                            desc.name,
-                            RemoteId(desc.which),
-                            local_id,
-                        )?;
+                Async::Ready(Some(cmd)) => {
+                    if let Some(cmd) = self.handle_system_command(&mut dispatcher, cmd)? {
+                        match cmd {
+                            ExtendedSystemCommand::UdpDescription(desc) => {
+                                eprintln!("UdpDescription: {:?}", desc);
+                            }
+                            ExtendedSystemCommand::LogDescription(desc) => {
+                                eprintln!("LogDescription: {:?}", desc);
+                            }
+                            ExtendedSystemCommand::DisconnectMessage => {
+                                eprintln!("DisconnectMessage");
+                            }
+                        }
                     }
-                    SystemMessage::TypeDescription(desc) => {
-                        let local_id = dispatcher.register_type(TypeName(desc.name.clone()))?.get();
-                        eprintln!(
-                            "Registering type {:?}: local {:?} = remote {:?}",
-                            desc.name, local_id, desc.which
-                        );
-                        let _ = self.translation.add_remote_entry(
-                            desc.name,
-                            RemoteId(desc.which),
-                            local_id,
-                        )?;
-                    }
-                    SystemMessage::UdpDescription(desc) => {
-                        eprintln!("UdpDescription: {:?}", desc);
-                    }
-                    SystemMessage::LogDescription(desc) => {
-                        eprintln!("LogDescription: {:?}", desc);
-                    }
-                    SystemMessage::DisconnectMessage => {
-                        eprintln!("DisconnectMessage");
-                    }
-                },
+                }
                 Async::NotReady => break,
             }
         }
@@ -128,7 +106,7 @@ impl Endpoint for EndpointIp {
         &mut self.translation
     }
 
-    fn send_system_change(&self, message: SystemMessage) -> Result<()> {
+    fn send_system_change(&self, message: SystemCommand) -> Result<()> {
         println!("send_system_change {:?}", message);
         self.system_tx
             .unbounded_send(message)

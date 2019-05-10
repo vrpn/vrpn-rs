@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{codec::decode_one, Buffer, Error, Result, SequencedGenericMessage};
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 use tokio::{
     codec::{Decoder, Encoder, Framed},
     prelude::*,

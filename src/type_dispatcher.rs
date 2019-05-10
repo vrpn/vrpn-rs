@@ -175,7 +175,7 @@ impl Hash for Name {
 /// Unlike in the mainline C++ code, this does **not** handle "system" message types.
 /// The main reason is that they are easiest hard-coded and need to access the endpoint
 /// they're operating on, which can be a struggle to get past the borrow checker.
-/// Thus, a hard-coded setup simply turns system messages into SystemMessage enum values,
+/// Thus, a hard-coded setup simply turns system messages into SystemCommand enum values,
 /// which get queued through the Endpoint trait using interior mutability (e.g. with something like mpsc)type_dispatcher
 #[derive(Debug)]
 pub struct TypeDispatcher {
@@ -303,6 +303,7 @@ impl TypeDispatcher {
             .add(handler, sender_filter)
             .map(|h| h.into_handler_handle(message_type_filter))
     }
+
     pub fn add_typed_handler<T: 'static>(
         &mut self,
         handler: Box<T>,

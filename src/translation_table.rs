@@ -5,7 +5,7 @@
 use self::RangedId::*;
 use crate::{
     determine_id_range, BaseTypeSafeId, Error, IntoId, LocalId, RangedId, RemoteId, Result,
-    SenderId, TypeId, TypeSafeId,
+    SenderId, TypeId,
 };
 use bytes::Bytes;
 

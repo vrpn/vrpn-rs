@@ -47,6 +47,7 @@ pub mod ping;
 pub mod prelude;
 pub mod primitives;
 pub mod size;
+pub mod sync_io;
 pub mod time;
 pub mod tracker;
 pub mod translation_table;

@@ -3,9 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::prelude::*;
-use crate::{message::MessageSize, Buffer, Error, Result, SequencedGenericMessage, Unbuffer};
-use bytes::{Buf, Bytes, BytesMut, IntoBuf};
-
+use crate::{message::MessageSize, Error, Result, SequencedGenericMessage, Unbuffer};
+use bytes::{Buf, Bytes, IntoBuf};
 
 pub fn peek_u32(buf: &Bytes) -> Result<Option<u32>> {
     let size_len = u32::constant_buffer_size();
@@ -46,13 +45,6 @@ pub(crate) fn decode_one(buf: &mut Bytes) -> Result<Option<SequencedGenericMessa
 mod tests {
     use super::*;
     use crate::{descriptions::InnerDescription, Message, SenderId};
-    use bytes::BufMut;
-    type SenderInnerDesc = Message<InnerDescription<SenderId>>;
-
-    fn to_sender_inner_desc(msg: &SequencedGenericMessage) -> SenderInnerDesc {
-        let msg = Message::from(msg.clone());
-        SenderInnerDesc::try_from_generic(&msg).unwrap()
-    }
     fn get_test_messages() -> Vec<Vec<u8>> {
         vec![
             Vec::from(&hex!("00 00 00 29 5b eb 33 2e 00 0c 58 b1 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 0d 56 52 50 4e 20 43 6f 6e 74 72 6f 6c 00 00 00 00 00 00 00 00")[..]),
