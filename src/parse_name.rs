@@ -1,4 +1,4 @@
-// Copyright 2018, Collabora, Ltd.
+// Copyright 2018-2019, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
@@ -188,52 +188,36 @@ mod tests {
             )
         );
     }
-    fn ip_insides(
-        o0: u8,
-        o1: u8,
-        o2: u8,
-        o3: u8,
-        port: u16,
-        proto: &str,
-        scheme: Scheme,
-    ) -> std::result::Result<(), TestCaseError> {
-        let ip_string = format!("{}.{}.{}.{}:{}", o0, o1, o2, o3, port);
-        // println!("{}", ip_string);
-        let ip = to_addr(ip_string.clone());
-
-        let addr_string = format!("{}{}", proto, ip_string);
-        // println!("{}", addr_string);
-        let parsed = addr_string.parse::<ServerInfo>();
-        prop_assert!(parsed.is_ok(), "input string: {}", addr_string);
-        let parsed = parsed.unwrap();
-        
-        prop_assert_eq!(
-            parsed.socket_addr,
-            ip,
-            "input string: {}",
-            addr_string
-        );
-        prop_assert_eq!(
-            parsed.scheme,
-            scheme,
-            "input string: {}",
-            addr_string
-        );
-        Ok(())
-    }
     proptest! {
         #[test]
-        fn noncrash(ref s in "\\PC*") {
+        fn noncrash_weird_server(ref s in "\\PC*") {
             let _ = s.parse::<DeviceInfo>();
         }
 
 
         #[test]
-        fn ip(o0 in 1u8..255, o1 in 1u8..255, o2 in 1u8..255, o3 in 1u8..255, port in 1u16..10000) {
+        fn generated_ip(o0 in 1u8..255, o1 in 1u8..255, o2 in 1u8..255, o3 in 1u8..255, port in 1u16..10000) {
+            let proto_and_scheme = [
+                ("", Scheme::UdpAndTcp),
+                ("x-vrpn:", Scheme::UdpAndTcp),
+                ("tcp:", Scheme::TcpOnly)
+            ];
 
-            ip_insides(o0, o1, o2, o3, port, "", Scheme::UdpAndTcp)?;
-            ip_insides(o0, o1, o2, o3, port, "x-vrpn:", Scheme::UdpAndTcp)?;
-            ip_insides(o0, o1, o2, o3, port, "tcp:", Scheme::TcpOnly)?;
+            for (proto, scheme) in proto_and_scheme.iter() {
+
+                let ip_string = format!("{}.{}.{}.{}:{}", o0, o1, o2, o3, port);
+                // println!("{}", ip_string);
+                let ip = to_addr(ip_string.clone());
+
+                let addr_string = format!("{}{}", proto, ip_string);
+                // println!("{}", addr_string);
+                let parsed = addr_string.parse::<ServerInfo>();
+                prop_assert!(parsed.is_ok(), "input string: {}", addr_string);
+                let parsed = parsed.unwrap();
+
+                prop_assert_eq!(parsed.socket_addr, ip, "input string: {}", addr_string);
+                prop_assert_eq!(parsed.scheme, *scheme, "input string: {}", addr_string);
+            }
         }
     }
 
