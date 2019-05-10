@@ -31,6 +31,11 @@ Right now, all the top-level APIs for connections/endpoints use [Tokio][] for as
 but most of the project is independent of Tokio, so an alternative IO integration
 could be created.
 
+Since this isn't really ready for widespread usage,
+and the API is still evolving,
+there is not much in the way of docs.
+However, the files in `src/bin/` can be used as examples.
+
 ## Testing
 
 There are numerous tests. The default batch can be run with
@@ -82,7 +87,6 @@ SPDX tags.
   useful particularly but not exclusively in immersive computing.
 - Thanks to PurpleBooth's excellent template/advice for structuring a
   [README](https://gist.github.com/PurpleBooth/109311bb0361f32d87a2)
-
 
 [VRPN]: https://github.com/vrpn/vrpn
 [Rust]: https://rust-lang.org
