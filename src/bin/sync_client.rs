@@ -13,7 +13,7 @@ use std::{
     net::{SocketAddr, TcpStream},
 };
 use vrpn::{
-    async_io::codec::peek_u32, constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible,
+    codec::peek_u32, constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible,
     message::MessageSize, prelude::*, ConstantBufferSize, CookieData, Message, Result,
     SequencedGenericMessage, Unbuffer,
 };

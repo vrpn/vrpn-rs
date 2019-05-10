@@ -53,6 +53,7 @@ pub mod translation_table;
 pub mod type_dispatcher;
 pub mod types;
 pub mod unbuffer;
+pub mod codec;
 
 pub use crate::{
     buffer::{BufMutExtras, Buffer, BytesMutExtras},
