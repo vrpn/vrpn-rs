@@ -4,15 +4,12 @@
 
 use crate::async_io::codec::*;
 use crate::async_io::cookie::*;
-use crate::{
-    ClassOfService, Endpoint, EndpointGeneric, GenericMessage, Result, SystemMessage,
-    TranslationTables,
-};
+use crate::{ClassOfService, Endpoint, GenericMessage, Result, SystemMessage, TranslationTables};
 use futures::sync::mpsc;
-use std::{fs, path::Path};
+use std::fs;
 use tokio::{
     codec::{Decoder, Framed},
-    fs::{file::OpenFuture, File},
+    fs::File,
     prelude::*,
 };
 

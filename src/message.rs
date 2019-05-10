@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{BufMut, Bytes, BytesMut};
 use crate::prelude::*;
 use crate::{
     constants::ALIGN, Buffer, BufferSize, BytesRequired, EmptyResult, Error, IdType, IntoId,
     Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer,
 };
+use bytes::{BufMut, Bytes, BytesMut};
 use std::mem::size_of;
 
 /// Empty trait used to indicate types that can be placed in a message body.

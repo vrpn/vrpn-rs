@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Buf, BufMut, Bytes};
 use crate::{
     unbuffer::Source, unbuffer::UnbufferConstantSize, Buffer, BytesRequired, ConstantBufferSize,
     EmptyResult, Error, Quat, Result, Sensor, Unbuffer, Vec3, WrappedConstantSize,
 };
+use bytes::{Buf, BufMut, Bytes};
 
 macro_rules! buffer_primitive {
     ($t:ty, $put:ident, $get:ident) => {

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{buf::IntoBuf, Buf, BufMut, Bytes, BytesMut};
 use crate::prelude::*;
 use crate::{
     async_io::{
@@ -14,6 +13,7 @@ use crate::{
     cookie::check_ver_nonfile_compatible,
     ConnectionStatus, CookieData, Error, Result, Scheme, ServerInfo, Unbuffer,
 };
+use bytes::{buf::IntoBuf, Buf, BufMut, Bytes, BytesMut};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::{
     fmt::{self, Debug},
@@ -401,11 +401,11 @@ impl ConnectionIpInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bytes::{Bytes, BytesMut};
     use crate::{
         constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible, ConstantBufferSize,
         CookieData, ServerInfo, Unbuffer,
     };
+    use bytes::{Bytes, BytesMut};
 
     #[test]
     fn basic_connect_tcp() {

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Bytes, BytesMut, IntoBuf};
 use crate::{BytesRequired, ConstantBufferSize, Error, Result, WrappedConstantSize};
+use bytes::{Bytes, BytesMut, IntoBuf};
 
 /// Unifying trait over things we can unbuffer from (Bytes and BytesMut)
 pub trait Source:

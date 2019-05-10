@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{BufMut, Bytes};
 use crate::prelude::*;
 use crate::{
     constants, length_prefixed, BaseTypeSafeId, Buffer, BufferSize, EmptyResult, Error, IdType,
     Message, MessageTypeIdentifier, Result, SenderId, TypeId, TypedMessageBody, Unbuffer,
 };
+use bytes::{BufMut, Bytes};
 use std::{
     marker::PhantomData,
     net::{IpAddr, SocketAddr},

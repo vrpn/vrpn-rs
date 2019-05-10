@@ -6,7 +6,7 @@ use crate::{
     async_io::{
         codec::FramedMessageCodec,
         connect::{incoming_handshake, Connect, ConnectionIpInfo},
-        endpoint_ip::{EndpointIp, MessageFramedUdp},
+        endpoint_ip::EndpointIp,
     },
     connection::*,
     Error, LogFileNames, Result, ServerInfo, TypeSafeId,
@@ -56,12 +56,12 @@ impl ConnectionIp {
         local_log_names: Option<LogFileNames>,
         remote_log_names: Option<LogFileNames>,
     ) -> Result<Arc<ConnectionIp>> {
-        let mut endpoints: Vec<Option<EndpointIp>> = Vec::new();
-        let connect = Connect::new(server)?;
-        let mut ret = Arc::new(ConnectionIp {
+        let endpoints: Vec<Option<EndpointIp>> = Vec::new();
+        // let connect = Connect::new(server)?;
+        let ret = Arc::new(ConnectionIp {
             core: ConnectionCore::new(endpoints, local_log_names, remote_log_names),
             server_acceptor: Arc::new(Mutex::new(None)),
-            client_info: Mutex::new(ConnectionIpInfo::ConnectionSetupFuture(connect)),
+            client_info: Mutex::new(ConnectionIpInfo::new_client(server)?),
         });
         ret.pack_all_descriptions()?;
         Ok(ret)

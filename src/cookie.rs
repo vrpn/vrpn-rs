@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{BufMut, Bytes};
 use crate::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
     unbuffer::check_expected,
     Buffer, ConstantBufferSize, EmptyResult, Error, LogFlags, LogMode, Result, Unbuffer,
 };
+use bytes::{BufMut, Bytes};
 use std::fmt::{self, Display, Formatter};
 
 const COOKIE_PADDING: &[u8] = b"\0\0\0\0\0";
@@ -86,11 +86,11 @@ fn dec_digits(buf: &mut Bytes, n: usize) -> Result<u8> {
 
 fn u8_to_log_mode(v: u8) -> LogMode {
     let mut mode = LogMode::none();
-    if (v & *LogFlags::INCOMING) != 0 {
-        mode.set(LogFlags::INCOMING);
+    if (v & *LogFlags::Incoming) != 0 {
+        mode.set(LogFlags::Incoming);
     }
-    if (v & *LogFlags::OUTGOING) != 0 {
-        mode.set(LogFlags::OUTGOING);
+    if (v & *LogFlags::Outgoing) != 0 {
+        mode.set(LogFlags::Outgoing);
     }
     mode
 }
@@ -141,9 +141,9 @@ impl Display for LogMode {
             write!(f, "no logging")
         } else if self.is_all() {
             write!(f, "incoming and outgoing logging")
-        } else if self.contains(LogFlags::INCOMING) {
+        } else if self.contains(LogFlags::Incoming) {
             write!(f, "incoming logging")
-        } else if self.contains(LogFlags::OUTGOING) {
+        } else if self.contains(LogFlags::Outgoing) {
             write!(f, "outgoing logging")
         } else {
             write!(f, "unrecognized logging")
@@ -183,9 +183,9 @@ pub fn check_ver_file_compatible(ver: Version) -> EmptyResult {
 mod tests {
     use super::*;
     use super::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData};
-    use bytes::BytesMut;
     use crate::constants::{FILE_MAGIC_DATA, MAGICLEN, MAGIC_DATA, MAGIC_PREFIX};
     use crate::prelude::*;
+    use bytes::BytesMut;
 
     #[test]
     fn formatting() {

@@ -3,11 +3,11 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use self::RangedId::*;
-use bytes::Bytes;
 use crate::{
     determine_id_range, BaseTypeSafeId, Error, IntoId, LocalId, RangedId, RemoteId, Result,
     SenderId, TypeId, TypeSafeId,
 };
+use bytes::Bytes;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Entry<T: BaseTypeSafeId> {

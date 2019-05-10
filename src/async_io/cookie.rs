@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Bytes, BytesMut};
 use crate::{
     constants::{FILE_MAGIC_DATA, MAGIC_DATA},
     cookie::{check_ver_file_compatible, check_ver_nonfile_compatible},
     prelude::{BytesMutExtras, WrappedConstantSize},
     ConstantBufferSize, CookieData, Error, Unbuffer,
 };
+use bytes::{Bytes, BytesMut};
 use tokio::{io, prelude::*};
 
 /// Writes the supplied cookie to a stream.

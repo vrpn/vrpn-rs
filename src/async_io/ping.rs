@@ -3,12 +3,9 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{ping::Client as RawClient, Connection, Error, LocalId, Result, SenderId, SenderName};
-use std::{
-    sync::{Arc, Weak},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 use tokio::prelude::*;
-use tokio::{net::TcpStream, timer::Interval};
+use tokio::timer::Interval;
 
 pub struct Client<T: Connection + 'static> {
     client: RawClient<T>,

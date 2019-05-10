@@ -3,13 +3,13 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use self::RangedId::*;
-use bytes::Bytes;
 use crate::handler::*;
 use crate::types::*;
 use crate::{
     constants, determine_id_range, types, Error, GenericMessage, MessageTypeIdentifier, RangedId,
     Result, TypedMessageBody,
 };
+use bytes::Bytes;
 use std::{
     collections::HashMap,
     fmt,

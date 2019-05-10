@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use crate::constants;
 use bytes::Bytes;
 use cgmath::{Quaternion, Vector3};
-use crate::constants;
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
@@ -144,11 +144,11 @@ where
 }
 bitmask! {
     pub mask ClassOfService : u32 where flags ServiceFlags {
-        RELIABLE = (1 << 0),
-        FIXED_LATENCY = (1 << 1),
-        LOW_LATENCY = (1 << 2),
-        FIXED_THROUGHPUT = (1 << 3),
-        HIGH_THROUGHPUT = (1 << 4),
+        Reliable = (1 << 0),
+        FixedLatency = (1 << 1),
+        LowLatency = (1 << 2),
+        FixedThroughput = (1 << 3),
+        HighThroughput = (1 << 4),
     }
 }
 

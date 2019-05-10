@@ -66,7 +66,7 @@ impl Future for ConnectionAndServer {
                 None,
                 self.sender,
                 pose,
-                ServiceFlags::LOW_LATENCY.into(),
+                ServiceFlags::LowLatency.into(),
             )?;
         }
         Ok(Async::NotReady)
@@ -111,7 +111,7 @@ impl Future for NullTracker {
                 None,
                 self.sender,
                 pose,
-                ServiceFlags::LOW_LATENCY.into(),
+                ServiceFlags::LowLatency.into(),
             )?;
         }
         Ok(Async::NotReady)

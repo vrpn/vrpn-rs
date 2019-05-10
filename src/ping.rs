@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use chrono::{prelude::*, Duration};
 use crate::{
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
     Connection, EmptyMessage, LocalId, Message, MessageHeader, MessageTypeIdentifier, Result,
     SenderId, SenderName, ServiceFlags, StaticTypeName, TypeId, TypeSafeId, TypedMessageBody,
 };
+use chrono::{prelude::*, Duration};
 use std::{
     fmt,
     sync::{Arc, Mutex, Weak},
@@ -160,7 +160,7 @@ impl<T: Connection + 'static> Client<T> {
     fn send_ping(&self) -> Result<()> {
         let msg = Message::new(None, self.ping_type, self.sender, Pong::default());
         self.connection
-            .pack_message(msg, ServiceFlags::RELIABLE.into())?;
+            .pack_message(msg, ServiceFlags::Reliable.into())?;
         Ok(())
     }
 }
@@ -179,7 +179,7 @@ impl<T: Connection + Send> TypedBodylessHandler for PingHandler<T> {
         match self.connection.upgrade() {
             Some(connection) => {
                 let msg = Message::new(None, self.pong_type, self.sender, Pong::default());
-                connection.pack_message(msg, ServiceFlags::RELIABLE.into())?;
+                connection.pack_message(msg, ServiceFlags::Reliable.into())?;
                 Ok(HandlerCode::ContinueProcessing)
             }
             None => Ok(HandlerCode::RemoveThisHandler),

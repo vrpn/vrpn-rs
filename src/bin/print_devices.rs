@@ -12,7 +12,7 @@ extern crate vrpn;
 use std::sync::Arc;
 use tokio::prelude::*;
 use vrpn::{
-    async_io::{ping, ConnectionIp, ConnectionIpStream, Drain, StreamExtras},
+    async_io::{ping, ConnectionIp, ConnectionIpStream, StreamExtras},
     handler::{HandlerCode, TypedHandler},
     prelude::*,
     tracker::PoseReport,

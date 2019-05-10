@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::Bytes;
 use crate::{IdType, Version};
+use bytes::Bytes;
 use std::{
     fmt::{self, Display},
     ops::Add,
 };
 
+/// Expresses how many more bytes we require/expect when parsing a message.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BytesRequired {
     Exactly(usize),
@@ -17,6 +18,9 @@ pub enum BytesRequired {
 }
 
 impl BytesRequired {
+    /// Compares a byte requirement to available bytes in a buffer.
+    ///
+    /// Note that in this case, Exactly(c) is satisfied by c or anything larger.
     pub fn satisfied_by(&self, buf_size: usize) -> Option<bool> {
         match *self {
             BytesRequired::Exactly(c) => Some(c <= buf_size),
@@ -52,6 +56,7 @@ impl Display for BytesRequired {
 }
 
 quick_error! {
+    /// Error type for the main VRPN crate
     #[derive(Debug)]
     pub enum Error {
         InvalidId(id: IdType) {
@@ -85,7 +90,7 @@ quick_error! {
             display("handler returned an error")
         }
         NotSystemMessage {
-            display("a non-system message was forwarded to Endpoint::handle_system_message()")
+            display("a non-system message was forwarded to Endpoint::handle_message_as_system()")
         }
         UnrecognizedSystemMessage(id: IdType) {
             display("un-recognized system message id {}", id)
@@ -130,6 +135,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub type EmptyResult = Result<()>;
 
+/// Combine a result with an error.
+///
+/// If the result already is an error, the new error gets appended.
 pub fn append_error(old: Result<()>, new_err: Error) -> Result<()> {
     match old {
         Err(old_e) => Err(old_e.append(new_err)),

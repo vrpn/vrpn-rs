@@ -104,7 +104,7 @@ impl EndpointIp {
                         eprintln!("LogDescription: {:?}", desc);
                     }
                     SystemMessage::DisconnectMessage => {
-                        eprintln!("DesconnectMessage");
+                        eprintln!("DisconnectMessage");
                     }
                 },
                 Async::NotReady => break,
@@ -137,7 +137,7 @@ impl Endpoint for EndpointIp {
     }
 
     fn buffer_generic_message(&mut self, msg: GenericMessage, class: ClassOfService) -> Result<()> {
-        if class.contains(ServiceFlags::RELIABLE) || self.low_latency_channel.is_none() {
+        if class.contains(ServiceFlags::Reliable) || self.low_latency_channel.is_none() {
             // We either need reliable, or don't have low-latency
             let mut channel = self
                 .reliable_channel

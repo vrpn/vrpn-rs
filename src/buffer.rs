@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{BufMut, BytesMut};
 use crate::{BufferSize, EmptyResult, Result, WrappedConstantSize};
+use bytes::{BufMut, BytesMut};
 
 pub trait BufMutExtras
 where

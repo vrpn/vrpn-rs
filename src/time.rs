@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{BufMut, Bytes};
 use crate::{error::*, prelude::*, Buffer, ConstantBufferSize, Unbuffer, WrappedConstantSize};
+use bytes::{BufMut, Bytes};
 use std::time::{Duration, SystemTime};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]

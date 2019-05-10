@@ -2,22 +2,23 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{BufMut, Bytes};
 use crate::{
     constants::LOG_DESCRIPTION, unbuffer::check_expected, Buffer, BufferSize, BytesRequired,
     ConstantBufferSize, EmptyResult, Error, MessageTypeIdentifier, Result, TypedMessageBody,
     Unbuffer,
 };
+use bytes::{BufMut, Bytes};
 
-bitmask!{
+bitmask! {
     pub mask LogMode: u8 where flags LogFlags {
-        NONE = 0,
-        INCOMING = (1 << 0),
-        OUTGOING = (1 << 1),
-        INCOMING_OUTGOING = (1 << 0)|(1 << 1)
+        None = 0,
+        Incoming = (1 << 0),
+        Outgoing = (1 << 1),
+        IncomingOutgoing = (1 << 0)|(1 << 1)
     }
 }
 
+/// Stores an optional byte string for log file name, one for in, one for out.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct LogFileNames {
     in_log_file: Option<Bytes>,
@@ -68,14 +69,14 @@ impl LogFileNames {
 
     pub fn log_mode(&self) -> LogMode {
         let in_mode = if self.in_log_file.is_some() {
-            LogFlags::INCOMING
+            LogFlags::Incoming
         } else {
-            LogFlags::NONE
+            LogFlags::None
         };
         let out_mode = if self.out_log_file.is_some() {
-            LogFlags::OUTGOING
+            LogFlags::Outgoing
         } else {
-            LogFlags::NONE
+            LogFlags::None
         };
         in_mode | out_mode
     }
@@ -221,15 +222,15 @@ mod tests {
         assert_eq!(LogFileNames::new().log_mode(), LogMode::none());
         assert_eq!(
             LogFileNames::from_names(Some(&b"a"[..]), None).log_mode(),
-            LogMode::from(LogFlags::INCOMING)
+            LogMode::from(LogFlags::Incoming)
         );
         assert_eq!(
             LogFileNames::from_names(None, Some(&b"a"[..])).log_mode(),
-            LogMode::from(LogFlags::OUTGOING)
+            LogMode::from(LogFlags::Outgoing)
         );
         assert_eq!(
             LogFileNames::from_names(Some(&b"a"[..]), Some(&b"a"[..])).log_mode(),
-            LogMode::from(LogFlags::INCOMING_OUTGOING)
+            LogMode::from(LogFlags::IncomingOutgoing)
         );
     }
 }
