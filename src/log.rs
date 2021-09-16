@@ -162,7 +162,7 @@ impl Buffer for LogFileNames {
         }
         for filename in self.filenames_iter() {
             if let Some(name) = filename {
-                buf.put(name);
+                buf.put_slice(name);
             }
             buf.put_u8(0);
         }

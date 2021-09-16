@@ -7,7 +7,7 @@ use crate::{
     constants, length_prefixed, BaseTypeSafeId, Buffer, BufferSize, EmptyResult, Error, IdType,
     Message, MessageTypeIdentifier, Result, SenderId, TypeId, TypedMessageBody, Unbuffer,
 };
-use bytes::{BufMut, Bytes};
+use bytes::{Buf, BufMut, Bytes};
 use std::{
     marker::PhantomData,
     net::{IpAddr, SocketAddr},
@@ -197,7 +197,7 @@ impl Buffer for UdpInnerDescription {
         if buf.remaining_mut() < (addr_str.len() + 1) {
             return Err(Error::OutOfBuffer);
         }
-        buf.put(addr_str);
+        buf.put(addr_str.as_bytes());
         buf.put_u8(0);
         Ok(())
     }

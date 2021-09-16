@@ -3,12 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{BytesRequired, ConstantBufferSize, Error, Result, WrappedConstantSize};
-use bytes::{Bytes, BytesMut, IntoBuf};
+use bytes::{Buf, Bytes, BytesMut};
 
 /// Unifying trait over things we can unbuffer from (Bytes and BytesMut)
-pub trait Source:
-    Sized + std::ops::Deref<Target = [u8]> + PartialEq<[u8]> + IntoBuf + Clone
-{
+pub trait Source: Sized + std::ops::Deref<Target = [u8]> + PartialEq<[u8]> + Clone {
     fn split_to(&mut self, n: usize) -> Self;
     fn len(&self) -> usize;
     fn advance(&mut self, n: usize);
@@ -23,27 +21,27 @@ impl Source for Bytes {
         Bytes::len(self)
     }
     fn advance(&mut self, n: usize) {
-        Bytes::advance(self, n)
+        Buf::advance(self, n)
     }
     fn is_empty(&self) -> bool {
         self.is_empty()
     }
 }
 
-impl Source for BytesMut {
-    fn split_to(&mut self, n: usize) -> Self {
-        BytesMut::split_to(self, n)
-    }
-    fn len(&self) -> usize {
-        BytesMut::len(self)
-    }
-    fn advance(&mut self, n: usize) {
-        BytesMut::advance(self, n)
-    }
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
+// impl Source for BytesMut {
+//     fn split_to(&mut self, n: usize) -> Self {
+//         BytesMut::split_to(self, n)
+//     }
+//     fn len(&self) -> usize {
+//         BytesMut::len(self)
+//     }
+//     fn advance(&mut self, n: usize) {
+//         BytesMut::advance(self, n)
+//     }
+//     fn is_empty(&self) -> bool {
+//         self.is_empty()
+//     }
+// }
 
 /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
 pub trait Unbuffer: Sized {
@@ -74,24 +72,23 @@ pub fn unbuffer_from<T: Unbuffer>(buf: Bytes) -> Result<(T, Bytes)> {
 /// used by the blanket implementation of Unbuffer.
 pub trait UnbufferConstantSize: Sized + ConstantBufferSize {
     /// Perform the unbuffering: only called with at least as many bytes as needed.
-    fn unbuffer_constant_size<T: Source>(buf: T) -> Result<Self>;
+    fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> Result<Self>;
 }
 
-/// Blanket impl for types ipmlementing UnbufferConstantSize.
+/// Blanket impl for types implementing UnbufferConstantSize.
 impl<T: UnbufferConstantSize> Unbuffer for T {
     fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
         let len = Self::constant_buffer_size();
         if buf.len() < len {
             Err(Error::NeedMoreData(BytesRequired::Exactly(buf.len() - len)))
         } else {
-            let my_buf = buf.split_to(len);
-            Self::unbuffer_constant_size(my_buf)
+            Self::unbuffer_constant_size(&mut buf.split_to(len))
         }
     }
 }
 
 impl<T: WrappedConstantSize> UnbufferConstantSize for T {
-    fn unbuffer_constant_size<U: Source>(buf: U) -> Result<Self> {
+    fn unbuffer_constant_size<U: Buf>(buf: &mut U) -> Result<Self> {
         T::WrappedType::unbuffer_constant_size(buf).map(T::new)
     }
 }

@@ -7,7 +7,7 @@ use crate::{
     constants::ALIGN, Buffer, BufferSize, BytesRequired, EmptyResult, Error, IdType, IntoId,
     Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer,
 };
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::mem::size_of;
 
 /// Empty trait used to indicate types that can be placed in a message body.
@@ -322,7 +322,7 @@ impl Buffer for SequencedMessage<GenericBody> {
         self.message.header.message_type.buffer_ref(buf)?;
         self.sequence_number.buffer_ref(buf)?;
 
-        buf.put(&self.message.body.inner);
+        buf.put_slice(&self.message.body.inner);
         for _ in 0..size.body_padding() {
             buf.put_u8(0);
         }

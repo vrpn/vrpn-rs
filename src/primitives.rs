@@ -20,22 +20,22 @@ macro_rules! buffer_primitive {
         }
 
         impl UnbufferConstantSize for $t {
-            fn unbuffer_constant_size<T: Source>(buf: T) -> Result<Self> {
-                Ok(buf.into_buf().$get())
+            fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> Result<Self> {
+                Ok(buf.$get())
             }
         }
     };
 }
 
 buffer_primitive!(i8, put_i8, get_i8);
-buffer_primitive!(i16, put_i16_be, get_i16_be);
-buffer_primitive!(u16, put_u16_be, get_u16_be);
-buffer_primitive!(i32, put_i32_be, get_i32_be);
-buffer_primitive!(u32, put_u32_be, get_u32_be);
-buffer_primitive!(i64, put_i64_be, get_i64_be);
-buffer_primitive!(u64, put_u64_be, get_u64_be);
-buffer_primitive!(f32, put_f32_be, get_f32_be);
-buffer_primitive!(f64, put_f64_be, get_f64_be);
+buffer_primitive!(i16, put_i16, get_i16);
+buffer_primitive!(u16, put_u16, get_u16);
+buffer_primitive!(i32, put_i32, get_i32);
+buffer_primitive!(u32, put_u32, get_u32);
+buffer_primitive!(i64, put_i64, get_i64);
+buffer_primitive!(u64, put_u64, get_u64);
+buffer_primitive!(f32, put_f32, get_f32);
+buffer_primitive!(f64, put_f64, get_f64);
 
 impl ConstantBufferSize for () {
     fn constant_buffer_size() -> usize {
@@ -50,7 +50,7 @@ impl Buffer for () {
 }
 
 impl UnbufferConstantSize for () {
-    fn unbuffer_constant_size<T: Source>(_buf: T) -> Result<Self> {
+    fn unbuffer_constant_size<T: Buf>(_buf: &mut T) -> Result<Self> {
         Ok(())
     }
 }

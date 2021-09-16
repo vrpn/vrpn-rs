@@ -14,7 +14,7 @@ pub struct FramedMessageCodec;
 impl Decoder for FramedMessageCodec {
     type Item = SequencedGenericMessage;
     type Error = Error;
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>> {
+    fn decode(&mut self, buf: &mut Bytes) -> Result<Option<Self::Item>> {
         let initial_len = buf.len();
         if initial_len == 0 {
             // short-circuit if we have run out of stuff.

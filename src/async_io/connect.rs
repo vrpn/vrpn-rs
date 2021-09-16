@@ -9,7 +9,7 @@ use crate::{
     cookie::check_ver_nonfile_compatible,
     ConnectionStatus, CookieData, Error, Result, Scheme, ServerInfo, Unbuffer,
 };
-use bytes::{buf::IntoBuf, Buf, BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::{
     fmt::{self, Debug},
@@ -184,7 +184,7 @@ pub(crate) struct Connect {
     server: ServerInfo,
     stream: Option<TcpStream>,
     udp_connect: Option<UdpConnect>,
-    cookie_buf: <Bytes as IntoBuf>::Buf,
+    cookie_buf: Bytes,
     delay: Delay,
 }
 const MILLIS_BETWEEN_ATTEMPTS: u64 = 500;

@@ -68,7 +68,7 @@ impl Buffer for CookieData {
         if buf.remaining_mut() < Self::constant_buffer_size() {
             return Err(Error::OutOfBuffer);
         }
-        buf.put(self.to_string());
+        buf.put(self.to_string().as_bytes());
         buf.put(COOKIE_PADDING);
         Ok(())
     }
