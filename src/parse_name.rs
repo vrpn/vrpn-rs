@@ -108,8 +108,8 @@ impl FromStr for ServerInfo {
             }
         };
         let socket_addr: SocketAddr = parsed
-            .with_default_port(|_| Ok(constants::DEFAULT_PORT))?
-            .to_socket_addrs()?
+            .socket_addrs(|| Some(constants::DEFAULT_PORT))?
+            .into_iter()
             .next()
             .ok_or_else(|| {
                 Error::OtherMessage(format!(
