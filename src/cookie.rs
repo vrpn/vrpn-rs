@@ -5,7 +5,7 @@
 use crate::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
     unbuffer::check_expected,
-    Buffer, ConstantBufferSize, EmptyResult, Error, LogFlags, LogMode, Result, Unbuffer,
+    Buffer, ConstantBufferSize, EmptyResult, Error, LogMode, Result, Unbuffer,
 };
 use bytes::{BufMut, Bytes};
 use std::fmt::{self, Display, Formatter};
@@ -85,14 +85,7 @@ fn dec_digits(buf: &mut Bytes, n: usize) -> Result<u8> {
 }
 
 fn u8_to_log_mode(v: u8) -> LogMode {
-    let mut mode = LogMode::none();
-    if (v & *LogFlags::Incoming) != 0 {
-        mode.set(LogFlags::Incoming);
-    }
-    if (v & *LogFlags::Outgoing) != 0 {
-        mode.set(LogFlags::Outgoing);
-    }
-    mode
+    LogMode::from_bits_truncate(v)
 }
 
 impl Unbuffer for CookieData {
@@ -137,13 +130,13 @@ impl Display for Version {
 
 impl Display for LogMode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        if self.is_none() {
+        if self.is_empty() {
             write!(f, "no logging")
         } else if self.is_all() {
             write!(f, "incoming and outgoing logging")
-        } else if self.contains(LogFlags::Incoming) {
+        } else if self.contains(LogMode::Incoming) {
             write!(f, "incoming logging")
-        } else if self.contains(LogFlags::Outgoing) {
+        } else if self.contains(LogMode::Outgoing) {
             write!(f, "outgoing logging")
         } else {
             write!(f, "unrecognized logging")
@@ -158,7 +151,7 @@ impl Display for CookieData {
             "{}{}  {}",
             String::from_utf8_lossy(MAGIC_PREFIX),
             self.version,
-            *(self.log_mode.unwrap_or_else(LogMode::none))
+            (self.log_mode.unwrap_or(LogMode::None))
         )
     }
 }
@@ -206,7 +199,7 @@ mod tests {
         assert_eq!(MAGIC_DATA.to_string().len(), MAGICLEN - MAGIC_PREFIX.len());
 
         let mut magic_cookie = CookieData::from(MAGIC_DATA);
-        magic_cookie.log_mode = Some(LogMode::none());
+        magic_cookie.log_mode = Some(LogMode::None);
         assert_eq!(magic_cookie.required_buffer_size(), COOKIE_SIZE);
 
         let mut buf = Vec::new();
@@ -225,7 +218,7 @@ mod tests {
     #[test]
     fn roundtrip() {
         let mut magic_cookie = CookieData::from(MAGIC_DATA);
-        magic_cookie.log_mode = Some(LogMode::none());
+        magic_cookie.log_mode = Some(LogMode::None);
         let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
         magic_cookie
             .buffer_ref(&mut buf)
@@ -238,7 +231,7 @@ mod tests {
     #[test]
     fn roundtrip_bytesmut() {
         let mut magic_cookie = CookieData::from(MAGIC_DATA);
-        magic_cookie.log_mode = Some(LogMode::none());
+        magic_cookie.log_mode = Some(LogMode::None);
 
         let mut buf = BytesMut::new()
             .allocate_and_buffer(magic_cookie)

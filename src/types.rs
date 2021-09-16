@@ -142,13 +142,13 @@ where
         Some(i) => i == other,
     }
 }
-bitmask! {
-    pub mask ClassOfService : u32 where flags ServiceFlags {
-        Reliable = (1 << 0),
-        FixedLatency = (1 << 1),
-        LowLatency = (1 << 2),
-        FixedThroughput = (1 << 3),
-        HighThroughput = (1 << 4),
+bitflags! {
+    pub struct ClassOfService : u32 {
+        const Reliable = (1 << 0);
+        const FixedLatency = (1 << 1);
+        const LowLatency = (1 << 2);
+        const FixedThroughput = (1 << 3);
+        const HighThroughput = (1 << 4);
     }
 }
 

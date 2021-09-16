@@ -16,7 +16,7 @@ extern crate hex_literal;
 extern crate proptest;
 
 #[macro_use]
-extern crate bitmask;
+extern crate bitflags;
 
 #[macro_use]
 extern crate downcast_rs;
@@ -63,7 +63,7 @@ pub use crate::{
     endpoint::*,
     error::*,
     handler::{Handler, TypedBodylessHandler, TypedHandler},
-    log::{LogFileNames, LogFlags, LogMode},
+    log::{LogFileNames, LogMode},
     message::{
         GenericBody, GenericMessage, Message, MessageBody, MessageHeader, MessageTypeIdentifier,
         MessageTypeIdentifier::UserMessageName, SequencedGenericMessage, SequencedMessage,

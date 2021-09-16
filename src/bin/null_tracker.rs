@@ -18,7 +18,7 @@ use vrpn::{
     },
     prelude::*,
     tracker::PoseReport,
-    Error, LocalId, Quat, Result, SenderId, Sensor, ServiceFlags, StaticSenderName, Vec3,
+    ClassOfService, Error, LocalId, Quat, Result, SenderId, Sensor, StaticSenderName, Vec3,
 };
 #[derive(Debug)]
 struct ConnectionAndServer {
@@ -64,7 +64,7 @@ impl Future for ConnectionAndServer {
                 None,
                 self.sender,
                 pose,
-                ServiceFlags::LowLatency.into(),
+                ClassOfService::LowLatency.into(),
             )?;
         }
         Ok(Async::NotReady)
@@ -109,7 +109,7 @@ impl Future for NullTracker {
                 None,
                 self.sender,
                 pose,
-                ServiceFlags::LowLatency.into(),
+                ClassOfService::LowLatency.into(),
             )?;
         }
         Ok(Async::NotReady)

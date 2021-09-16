@@ -9,12 +9,12 @@ use crate::{
 };
 use bytes::{BufMut, Bytes};
 
-bitmask! {
-    pub mask LogMode: u8 where flags LogFlags {
-        None = 0,
-        Incoming = (1 << 0),
-        Outgoing = (1 << 1),
-        IncomingOutgoing = (1 << 0)|(1 << 1)
+bitflags! {
+    pub struct LogMode: u8  {
+        const None = 0;
+        const Incoming = (1 << 0);
+        const Outgoing = (1 << 1);
+        const IncomingOutgoing = (1 << 0)|(1 << 1);
     }
 }
 
@@ -69,14 +69,14 @@ impl LogFileNames {
 
     pub fn log_mode(&self) -> LogMode {
         let in_mode = if self.in_log_file.is_some() {
-            LogFlags::Incoming
+            LogMode::Incoming
         } else {
-            LogFlags::None
+            LogMode::None
         };
         let out_mode = if self.out_log_file.is_some() {
-            LogFlags::Outgoing
+            LogMode::Outgoing
         } else {
-            LogFlags::None
+            LogMode::None
         };
         in_mode | out_mode
     }
@@ -219,18 +219,18 @@ mod tests {
     }
     #[test]
     fn log_mode() {
-        assert_eq!(LogFileNames::new().log_mode(), LogMode::none());
+        assert_eq!(LogFileNames::new().log_mode(), LogMode::None);
         assert_eq!(
             LogFileNames::from_names(Some(&b"a"[..]), None).log_mode(),
-            LogMode::from(LogFlags::Incoming)
+            LogMode::Incoming
         );
         assert_eq!(
             LogFileNames::from_names(None, Some(&b"a"[..])).log_mode(),
-            LogMode::from(LogFlags::Outgoing)
+            LogMode::Outgoing
         );
         assert_eq!(
             LogFileNames::from_names(Some(&b"a"[..]), Some(&b"a"[..])).log_mode(),
-            LogMode::from(LogFlags::IncomingOutgoing)
+            LogMode::IncomingOutgoing
         );
     }
 }

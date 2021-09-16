@@ -7,8 +7,8 @@ use crate::{
     descriptions::{InnerDescription, UdpDescription, UdpInnerDescription},
     BaseTypeSafeId, BaseTypeSafeIdName, Buffer, ClassOfService, Description, Error, GenericMessage,
     IntoId, LocalId, LogFileNames, MatchingTable, Message, MessageHeader, RemoteId, Result,
-    SenderId, SenderName, ServiceFlags, TranslationTables, TypeDispatcher, TypeId, TypeName,
-    TypeSafeId, TypedMessageBody,
+    SenderId, SenderName, TranslationTables, TypeDispatcher, TypeId, TypeName, TypeSafeId,
+    TypedMessageBody,
 };
 use bytes::Bytes;
 use downcast_rs::Downcast;
@@ -153,7 +153,7 @@ pub trait Endpoint: Downcast {
             messages.push(desc_msg.try_into_generic()?);
         }
         for msg in messages.into_iter() {
-            self.buffer_generic_message(msg, ClassOfService::from(ServiceFlags::Reliable))?;
+            self.buffer_generic_message(msg, ClassOfService::Reliable)?;
         }
         Ok(())
     }
@@ -217,7 +217,7 @@ where
         TranslationTables: MatchingTable<T>,
     {
         let desc_msg = Message::from(Description::new(local_id.0, name));
-        self.buffer_message(desc_msg, ClassOfService::from(ServiceFlags::Reliable))
+        self.buffer_message(desc_msg, ClassOfService::Reliable)
             .map(|_| ())
     }
 
