@@ -79,15 +79,14 @@ impl EndpointSyncTcp {
         // Read the message header and padding
         buf.resize(24, 0);
         // Peek the message header and padding
-        match self.stream.peek(buf.as_mut()) {
-            Err(e) => {
-                if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut {
-                    return Err(Error::NeedMoreData(BytesRequired::Unknown));
+        if let Err(e) = self.stream.peek(buf.as_mut()) {
+            match e.kind() {
+                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => {
+                    return Err(Error::NeedMoreData(BytesRequired::Unknown))
                 }
                 // Not a "need more data"
-                return Err(Error::Other(Box::new(e)));
+                _ => return Err(Error::Other(Box::new(e))),
             }
-            Ok(_) => {}
         }
 
         // Peek the size field, to compute the MessageSize.
@@ -116,14 +115,14 @@ impl EndpointSyncTcp {
                 Err(Error::NeedMoreData(_)) => {
                     break;
                 }
-                Err(e) => Err(e)?,
+                Err(e) => return Err(e),
             }
         }
         // Now, process the system commands that have been queued.
         loop {
             match self.system_rx.recv_timeout(Duration::from_micros(1)) {
                 Ok(cmd) => {
-                    if let Some(_) = self.handle_system_command(&mut dispatcher, cmd)? {
+                    if self.handle_system_command(&mut dispatcher, cmd)?.is_some() {
                         // we don't handle any other system commands in this endpoint right now
                     }
                 }

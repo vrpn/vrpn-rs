@@ -88,7 +88,7 @@ impl<T: BaseTypeSafeId> Table<T> {
             }
             InArray(v) => v as usize,
         };
-        let new_entry = Entry::new(name.clone(), local_id, remote_id);
+        let new_entry = Entry::new(name, local_id, remote_id);
         self.entries[index] = Some(new_entry);
         Ok(remote_id)
     }

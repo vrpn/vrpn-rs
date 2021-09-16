@@ -161,14 +161,8 @@ fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct Name(Bytes);
-
-impl Hash for Name {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(&self.0[..]);
-    }
-}
 
 /// Structure holding and dispatching generic and message-filtered callbacks.
 ///
@@ -330,8 +324,8 @@ impl TypeDispatcher {
         let index = message_type_into_index(msg.header.message_type, self.types.len())?;
         let mapping = &mut self.types[index];
 
-        self.generic_callbacks.call(&msg)?;
-        mapping.call(&msg)
+        self.generic_callbacks.call(msg)?;
+        mapping.call(msg)
     }
 
     pub fn senders_iter<'a>(

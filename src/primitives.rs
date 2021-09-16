@@ -63,7 +63,7 @@ impl ConstantBufferSize for Vec3 {
 impl Buffer for Vec3 {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         if buf.remaining_mut() < Self::constant_buffer_size() {
-            Err(Error::OutOfBuffer)?;
+            return Err(Error::OutOfBuffer);
         }
         self.x.buffer_ref(buf)?;
         self.y.buffer_ref(buf)?;
@@ -75,9 +75,9 @@ impl Buffer for Vec3 {
 impl Unbuffer for Vec3 {
     fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
         if buf.len() < Self::constant_buffer_size() {
-            Err(Error::NeedMoreData(BytesRequired::Exactly(
+            return Err(Error::NeedMoreData(BytesRequired::Exactly(
                 Self::constant_buffer_size() - buf.len(),
-            )))?;
+            )));
         }
         let x = f64::unbuffer_ref(buf)?;
         let y = f64::unbuffer_ref(buf)?;
@@ -95,7 +95,7 @@ impl ConstantBufferSize for Quat {
 impl Buffer for Quat {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
         if buf.remaining_mut() < Self::constant_buffer_size() {
-            Err(Error::OutOfBuffer)?;
+            return Err(Error::OutOfBuffer);
         }
         self.v.buffer_ref(buf)?;
         self.s.buffer_ref(buf)?;
@@ -106,9 +106,9 @@ impl Buffer for Quat {
 impl Unbuffer for Quat {
     fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
         if buf.len() < Self::constant_buffer_size() {
-            Err(Error::NeedMoreData(BytesRequired::Exactly(
+            return Err(Error::NeedMoreData(BytesRequired::Exactly(
                 Self::constant_buffer_size() - buf.len(),
-            )))?;
+            )));
         }
         let v = Vec3::unbuffer_ref(buf)?;
         let w = f64::unbuffer_ref(buf)?;

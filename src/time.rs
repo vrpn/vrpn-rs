@@ -104,6 +104,6 @@ impl Unbuffer for TimeVal {
     fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
         Seconds::unbuffer_ref(buf)
             .and_then(|sec| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
-            .and_then(|(usec, sec)| Ok(TimeVal::new(sec, usec)))
+            .map(|(usec, sec)| TimeVal::new(sec, usec))
     }
 }

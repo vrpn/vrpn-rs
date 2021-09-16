@@ -85,7 +85,7 @@ impl<T: UnbufferConstantSize> Unbuffer for T {
 
 impl<T: WrappedConstantSize> UnbufferConstantSize for T {
     fn unbuffer_constant_size<U: Source>(buf: U) -> Result<Self> {
-        T::WrappedType::unbuffer_constant_size(buf).map(|v| T::new(v))
+        T::WrappedType::unbuffer_constant_size(buf).map(T::new)
     }
 }
 
