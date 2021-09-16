@@ -102,9 +102,9 @@ quick_error! {
                     expected, actual)
         }
         Other(err: Box<dyn std::error::Error + Send>) {
-            cause(&**err)
+            source(&**err)
             display("{}", err)
-            cause(err)
+            source(err)
             from(e: std::num::ParseIntError) -> (Box::new(e))
             from(e: std::io::Error) -> (Box::new(e))
         }
@@ -113,7 +113,7 @@ quick_error! {
             display("{}", s)
         }
         ConsErrors(err: Box<Error>, tail: Box<Error>) {
-            cause(err)
+            source(err)
             display("{}, {}", err, tail)
         }
     }
