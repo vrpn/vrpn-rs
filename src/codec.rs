@@ -44,13 +44,12 @@ pub(crate) fn decode_one(buf: &mut Bytes) -> Result<Option<SequencedGenericMessa
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{descriptions::InnerDescription, Message, SenderId};
     fn get_test_messages() -> Vec<Vec<u8>> {
-        vec![
-            Vec::from(&hex!("00 00 00 29 5b eb 33 2e 00 0c 58 b1 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 0d 56 52 50 4e 20 43 6f 6e 74 72 6f 6c 00 00 00 00 00 00 00 00")[..]),
-            Vec::from(&hex!("00 00 00 25 5b eb 33 2e 00 0c 58 b1 00 00 00 01 ff ff ff ff 00 00 00 01 00 00 00 09 54 72 61 63 6b 65 72 30 00 00 00 00")[..]),
-            Vec::from(&hex!("00 00 00 41 5b eb 33 2e 00 0c 58 b2 00 00 00 00 ff ff ff fe 00 00 00 02 00 00 00 25 56 52 50 4e 5f 43 6f 6e 6e 65 63 74 69 6f 6e 5f 47 6f 74 5f 46 69 72 73 74 5f 43 6f 6e 6e 65 63 74 69 6f 6e 00 00 00 00 00 00 00 00")[..])
-        ]
+        let msg1 = hex!("00 00 00 29 5b eb 33 2e 00 0c 58 b1 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 0d 56 52 50 4e 20 43 6f 6e 74 72 6f 6c 00 00 00 00 00 00 00 00");
+        let msg2 = hex!("00 00 00 25 5b eb 33 2e 00 0c 58 b1 00 00 00 01 ff ff ff ff 00 00 00 01 00 00 00 09 54 72 61 63 6b 65 72 30 00 00 00 00");
+        let msg3 = hex!("00 00 00 41 5b eb 33 2e 00 0c 58 b2 00 00 00 00 ff ff ff fe 00 00 00 02 00 00 00 25 56 52 50 4e 5f 43 6f 6e 6e 65 63 74 69 6f 6e 5f 47 6f 74 5f 46 69 72 73 74 5f 43 6f 6e 6e 65 63 74 69 6f 6e 00 00 00 00 00 00 00 00");
+
+        vec![Vec::from(msg1), Vec::from(msg2), Vec::from(msg3)]
     }
     #[test]
     fn individual_decode_one() {
