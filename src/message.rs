@@ -316,11 +316,11 @@ impl Buffer for SequencedMessage<GenericBody> {
         }
         let length_field = size.length_field() as u32;
 
-        Buffer::buffer_ref(&length_field, buf)
-            .and_then(|()| self.message.header.time.buffer_ref(buf))
-            .and_then(|()| self.message.header.sender.buffer_ref(buf))
-            .and_then(|()| self.message.header.message_type.buffer_ref(buf))
-            .and_then(|()| self.sequence_number.buffer_ref(buf))?;
+        Buffer::buffer_ref(&length_field, buf)?;
+        self.message.header.time.buffer_ref(buf)?;
+        self.message.header.sender.buffer_ref(buf)?;
+        self.message.header.message_type.buffer_ref(buf)?;
+        self.sequence_number.buffer_ref(buf)?;
 
         buf.put(&self.message.body.inner);
         for _ in 0..size.body_padding() {

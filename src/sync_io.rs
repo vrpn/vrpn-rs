@@ -34,10 +34,9 @@ pub fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<()>
 where
     T: Write,
 {
-    BytesMut::new().allocate_and_buffer(cookie).and_then(|buf| {
-        stream.write_all(&buf.freeze())?;
-        Ok(())
-    })
+    let buf = BytesMut::new().allocate_and_buffer(cookie)?;
+    stream.write_all(&buf.freeze())?;
+    Ok(())
 }
 
 /// Read a cookie from a synchronous source implementing Read.
@@ -161,11 +160,9 @@ impl Endpoint for EndpointSyncTcp {
         // Ignore class of service here
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
         let sequenced = msg.into_sequenced_message(SequenceNumber(seq as u32));
-        BytesMut::new()
-            .allocate_and_buffer(sequenced)
-            .and_then(|buf| {
-                self.stream.write_all(&buf.freeze())?;
-                Ok(())
-            })
+        let buf = BytesMut::new().allocate_and_buffer(sequenced)?;
+
+        self.stream.write_all(&buf.freeze())?;
+        Ok(())
     }
 }

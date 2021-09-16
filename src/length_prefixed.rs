@@ -51,11 +51,11 @@ pub fn buffer_string<T: BufMut>(
         buf_size -= 1;
     }
     let buf_size = buf_size as u32;
-    buf_size.buffer_ref(buf).and_then(|()| {
-        buf.put(s);
-        buf.put_u8(0);
-        Ok(())
-    })
+    buf_size.buffer_ref(buf)?;
+
+    buf.put(s);
+    buf.put_u8(0);
+    Ok(())
 }
 
 /// Unbuffer a string, preceded by its length and followed by a null bytes.
