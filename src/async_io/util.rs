@@ -60,15 +60,14 @@ where
         let inner = self.inner.take();
         if let Some(mut stream) = inner {
             loop {
-                match stream.poll() {
-                    Ok(Async::Ready(Some(_))) => {}
-                    Ok(Async::Ready(None)) => {
+                match stream.poll()? {
+                    Async::Ready(Some(_)) => {}
+                    Async::Ready(None) => {
                         return Ok(Async::Ready(()));
                     }
-                    Ok(Async::NotReady) => {
+                    Async::NotReady => {
                         break;
                     }
-                    Err(e) => return Err(From::from(e)),
                 }
             }
             self.inner = Some(stream);

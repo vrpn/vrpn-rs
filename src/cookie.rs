@@ -76,7 +76,7 @@ impl Buffer for CookieData {
 
 #[inline]
 fn from_dec(input: &[u8]) -> Result<u8> {
-    u8::from_str_radix(&String::from_utf8_lossy(input), 10).map_err(|e| Error::from(e))
+    u8::from_str_radix(&String::from_utf8_lossy(input), 10).map_err(Error::from)
 }
 
 #[inline]
@@ -156,9 +156,9 @@ impl Display for CookieData {
         write!(
             f,
             "{}{}  {}",
-            String::from_utf8_lossy(&MAGIC_PREFIX[..]),
+            String::from_utf8_lossy(MAGIC_PREFIX),
             self.version,
-            *(self.log_mode.unwrap_or(LogMode::none()))
+            *(self.log_mode.unwrap_or_else(LogMode::none))
         )
     }
 }

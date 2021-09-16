@@ -50,7 +50,7 @@ impl MessageHeader {
         sender: impl IntoId<BaseId = SenderId>,
     ) -> MessageHeader {
         MessageHeader {
-            time: time.unwrap_or_else(|| TimeVal::get_time_of_day()),
+            time: time.unwrap_or_else(TimeVal::get_time_of_day),
             message_type: message_type.into_id(),
             sender: sender.into_id(),
         }
@@ -103,7 +103,7 @@ impl<T: TypedMessageBody + Unbuffer> Message<T> {
         let mut buf = msg.body.inner.clone();
         let body = T::unbuffer_ref(&mut buf)
             .map_need_more_err_to_generic_parse_err("parsing message body")?;
-        if buf.len() > 0 {
+        if !buf.is_empty() {
             return Err(Error::OtherMessage(format!(
                 "message body length was indicated as {}, but {} bytes remain unconsumed",
                 msg.body.inner.len(),
@@ -118,14 +118,9 @@ impl<T: TypedMessageBody + Buffer> Message<T> {
     pub fn try_into_generic(self) -> Result<GenericMessage> {
         let old_body = self.body;
         let header = self.header;
-        BytesMut::new()
-            .allocate_and_buffer(old_body)
-            .and_then(|body| {
-                Ok(GenericMessage::from_header_and_body(
-                    header,
-                    GenericBody::new(body.freeze()),
-                ))
-            })
+        BytesMut::new().allocate_and_buffer(old_body).map(|body| {
+            GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
+        })
     }
 }
 

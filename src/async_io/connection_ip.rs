@@ -99,18 +99,14 @@ impl ConnectionIp {
             let ep_arc = self.endpoints();
             let mut endpoints = ep_arc.lock()?;
             let num_endpoints = endpoints.len();
-            match client_info.poll(num_endpoints)? {
-                Async::Ready(Some(results)) => {
-                    // OK, we finished a connection setup.
-                    endpoints.push(Some(EndpointIp::new(
-                        results.tcp.unwrap(),
-                        results
-                            .udp
-                            .map(|sock| UdpFramed::new(sock, FramedMessageCodec)),
-                    )));
-                }
-                // Nothing to do in other cases
-                _ => {}
+            if let Async::Ready(Some(results)) = client_info.poll(num_endpoints)? {
+                // OK, we finished a connection setup.
+                endpoints.push(Some(EndpointIp::new(
+                    results.tcp.unwrap(),
+                    results
+                        .udp
+                        .map(|sock| UdpFramed::new(sock, FramedMessageCodec)),
+                )));
             };
         }
 

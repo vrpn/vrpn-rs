@@ -49,7 +49,7 @@ where
         self.rx
             .poll()
             // these nested maps are to get all the way inside the Ok(Async::Ready(Some(msg)))
-            .map(|a| a.map(|o| o.map(|msg| GenericMessage::from(msg))))
+            .map(|a| a.map(|o| o.map(GenericMessage::from)))
     }
 }
 

@@ -12,6 +12,7 @@ pub trait Source:
     fn split_to(&mut self, n: usize) -> Self;
     fn len(&self) -> usize;
     fn advance(&mut self, n: usize);
+    fn is_empty(&self) -> bool;
 }
 
 impl Source for Bytes {
@@ -24,6 +25,9 @@ impl Source for Bytes {
     fn advance(&mut self, n: usize) {
         Bytes::advance(self, n)
     }
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
 }
 
 impl Source for BytesMut {
@@ -35,6 +39,9 @@ impl Source for BytesMut {
     }
     fn advance(&mut self, n: usize) {
         BytesMut::advance(self, n)
+    }
+    fn is_empty(&self) -> bool {
+        self.is_empty()
     }
 }
 

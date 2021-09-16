@@ -9,7 +9,7 @@ use crate::{
         endpoint_channel::{poll_and_dispatch, EndpointChannel},
     },
     endpoint::*,
-    Error, GenericMessage, MatchingTable, Result, TranslationTables, TypeDispatcher,
+    Error, GenericMessage, Result, TranslationTables, TypeDispatcher,
 };
 use futures::sync::mpsc;
 use std::{
@@ -160,10 +160,8 @@ mod tests {
                 for _i in 0..4 {
                     let _ = ep
                         .reliable_channel
-                        .lock()
-                        .unwrap()
-                        .poll()
-                        .unwrap()
+                        .lock()?
+                        .poll()?
                         .map(|msg| {
                             eprintln!("Received message {:?}", msg);
                             msg

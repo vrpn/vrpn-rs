@@ -48,7 +48,7 @@ pub trait Connection: Send + Sync {
             RegisterMapping::NewMapping(id) => {
                 eprintln!(
                     "New mapping (coming from our side): {:?} -> {:?}",
-                    name.clone(),
+                    name,
                     id
                 );
                 let mut endpoints = self.connection_core().endpoints.lock()?;

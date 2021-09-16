@@ -48,9 +48,7 @@ pub trait EmptyMessage: Default + std::fmt::Debug {}
 
 impl<T: EmptyMessage> WrappedConstantSize for T {
     type WrappedType = ();
-    fn get(&self) -> Self::WrappedType {
-        ()
-    }
+    fn get(&self) -> Self::WrappedType {}
     fn new(_v: Self::WrappedType) -> Self {
         Default::default()
     }

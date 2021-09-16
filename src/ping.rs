@@ -112,7 +112,7 @@ impl<T: Connection + 'static> Client<T> {
             connection,
             inner,
             ping_type,
-            sender: sender,
+            sender,
         };
         client.initiate_ping_cycle()?;
         Ok(client)
@@ -204,7 +204,7 @@ impl Server {
             Box::new(PingHandler {
                 connection: Arc::downgrade(&connection),
                 pong_type,
-                sender: sender,
+                sender,
             }),
             Some(sender),
         )?;

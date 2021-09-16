@@ -72,7 +72,7 @@ pub struct Description<T: BaseTypeSafeId> {
 
 impl<T: BaseTypeSafeId> Description<T> {
     pub fn new(which: T, name: Bytes) -> Description<T> {
-        Description { which: which, name }
+        Description { which, name }
     }
 }
 

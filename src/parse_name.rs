@@ -4,7 +4,7 @@
 
 use crate::{constants, Error, Result};
 use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs},
+    net::{SocketAddr, ToSocketAddrs},
     str::FromStr,
 };
 use url::Url;
@@ -58,7 +58,7 @@ const SCHEMES: &[&str] = &["x-vrpn:", "x-vrsh:", "tcp:", "mpi:"];
 
 /// Makes sure there's a scheme followed by ://, and ending with a trailing slash.
 fn normalize_scheme(server: &str) -> String {
-    let server = server.trim_end_matches("/");
+    let server = server.trim_end_matches('/');
     if server.contains("://") {
         // already got a scheme
         return format!("{}/", server);
@@ -107,14 +107,16 @@ impl FromStr for ServerInfo {
                 )));
             }
         };
-        let socket_addr = parsed
+        let socket_addr: SocketAddr = parsed
             .with_default_port(|_| Ok(constants::DEFAULT_PORT))?
             .to_socket_addrs()?
             .next()
-            .ok_or(Error::OtherMessage(format!(
-                "could not parse address {} (url portion {})",
-                url, urlpart
-            )))?;
+            .ok_or_else(|| {
+                Error::OtherMessage(format!(
+                    "could not parse address {} (url portion {})",
+                    url, urlpart
+                ))
+            })?;
         Ok(ServerInfo {
             socket_addr,
             scheme,
@@ -220,5 +222,4 @@ mod tests {
             }
         }
     }
-
 }

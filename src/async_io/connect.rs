@@ -71,7 +71,7 @@ pub fn make_udp_socket() -> io::Result<UdpSocket> {
 }
 
 pub fn outgoing_tcp_connect(addr: std::net::SocketAddr) -> Result<ConnectFuture> {
-    let sock = make_tcp_socket(addr).map_err(|e| Error::from(e))?;
+    let sock = make_tcp_socket(addr).map_err(Error::from)?;
 
     Ok(TcpStream::connect_std(
         sock,
@@ -247,7 +247,7 @@ impl Connect {
                 })
             }
             Scheme::TcpOnly => {
-                let addr = server.socket_addr.clone();
+                let addr = server.socket_addr;
                 let connect_future = outgoing_tcp_connect(addr)?;
                 Ok(Connect {
                     server,
@@ -308,9 +308,7 @@ impl Future for Connect {
                     // .map_err(|e| {
                     //         Error::OtherMessage(format!("error polling delay: {}", e))
                     //     }));
-                    if let Ok(connect_future) =
-                        outgoing_tcp_connect(self.server.socket_addr.clone())
-                    {
+                    if let Ok(connect_future) = outgoing_tcp_connect(self.server.socket_addr) {
                         eprintln!("Delay completed, and we were able to connect.");
                         *state = State::Connecting(connect_future);
                     } else {

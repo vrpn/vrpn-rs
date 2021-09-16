@@ -52,7 +52,7 @@ pub trait Endpoint: Downcast {
     /// Call from within your dispatch function once you've recognized that a message is a system message.
     fn handle_message_as_system(&self, msg: GenericMessage) -> Result<()> {
         if !msg.is_system_message() {
-            Err(Error::NotSystemMessage)?;
+            return Err(Error::NotSystemMessage);
         }
         match msg.header.message_type {
             constants::TYPE_DESCRIPTION => {
@@ -81,9 +81,9 @@ pub trait Endpoint: Downcast {
                 ))?;
             }
             _ => {
-                Err(Error::UnrecognizedSystemMessage(
+                return Err(Error::UnrecognizedSystemMessage(
                     msg.header.message_type.get(),
-                ))?;
+                ));
             }
         }
         Ok(())
@@ -231,7 +231,7 @@ where
             .translation_tables()
             .find_by_local_id(local_id)
             .ok_or_else(|| Error::InvalidId(local_id.get()))
-            .and_then(|entry| Ok(entry.name().clone()))?;
+            .map(|entry| entry.name().clone())?;
 
         self.pack_description_impl(name, local_id)
     }
@@ -269,21 +269,17 @@ where
             Ok(msg)
         } else {
             let remote_type = RemoteId(msg.header.message_type);
-            let LocalId(new_type) =
-                self.map_to_local_id(remote_type)
-                    .ok_or(Error::OtherMessage(
-                        "Could not map sender to local".to_string(),
-                    ))?;
+            let LocalId(new_type) = self
+                .map_to_local_id(remote_type)
+                .ok_or_else(|| Error::OtherMessage("Could not map sender to local".to_string()))?;
             let remote_sender = RemoteId(msg.header.sender);
-            let LocalId(new_sender) =
-                self.map_to_local_id(remote_sender)
-                    .ok_or(Error::OtherMessage(
-                        "Could not map type to local".to_string(),
-                    ))?;
+            let LocalId(new_sender) = self
+                .map_to_local_id(remote_sender)
+                .ok_or_else(|| Error::OtherMessage("Could not map type to local".to_string()))?;
 
             // eprintln!("user message: {:?}", msg.header);
             let msg = Message::from_header_and_body(
-                MessageHeader::new(Some(msg.header.time.clone()), new_type, new_sender),
+                MessageHeader::new(Some(msg.header.time), new_type, new_sender),
                 msg.body,
             );
             Ok(msg)

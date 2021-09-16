@@ -33,7 +33,7 @@ where
         None => None,
         Some(name_str) => {
             let name_str = Bytes::from(name_str);
-            if name_str.len() > 0 {
+            if !name_str.is_empty() {
                 Some(name_str)
             } else {
                 None
@@ -114,7 +114,7 @@ pub struct LogFileNameIter<'a> {
 impl<'a> Iterator for LogFileNameIter<'a> {
     type Item = &'a Option<Bytes>;
     fn next(&mut self) -> Option<Self::Item> {
-        let state = self.state.clone();
+        let state = self.state;
         match state {
             None => None,
             Some(FileNameState::In) => {
@@ -148,7 +148,7 @@ impl BufferSize for LogFileNames {
     fn buffer_size(&self) -> usize {
         2 + // null terminators
         2 * u32::constant_buffer_size()  +
-        self.filenames_iter().fold(0 as usize, |acc, name| acc + filename_len(name))
+        self.filenames_iter().fold(0_usize, |acc, name| acc + filename_len(name))
     }
 }
 
@@ -189,9 +189,9 @@ impl Unbuffer for LogFileNames {
     fn unbuffer_ref(buf: &mut Bytes) -> Result<LogFileNames> {
         let min_size = 2 * u32::constant_buffer_size() + 2;
         if buf.len() < min_size {
-            Err(Error::NeedMoreData(BytesRequired::AtLeast(
+            return Err(Error::NeedMoreData(BytesRequired::AtLeast(
                 min_size - buf.len(),
-            )))?;
+            )));
         }
         let in_len = u32::unbuffer_ref(buf)?;
         let out_len = u32::unbuffer_ref(buf)?;
