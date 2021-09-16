@@ -496,7 +496,7 @@ mod tests {
 
         #[test]
         fn roundtrip(len in 20u32..10000)  {
-            MessageSize::from_length_field(len).length_field() == len
+            prop_assert_eq!(MessageSize::from_length_field(len).length_field(), len);
         }
     }
 
