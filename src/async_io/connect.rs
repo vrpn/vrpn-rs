@@ -417,7 +417,7 @@ mod tests {
         let results = "tcp://127.0.0.1:3883"
             .parse::<ServerInfo>()
             .into_future()
-            .and_then(|server| Connect::new(server))
+            .and_then(Connect::new)
             .flatten()
             .wait()
             .expect("should be able to create connection future");
@@ -429,7 +429,7 @@ mod tests {
         let results = "127.0.0.1:3883"
             .parse::<ServerInfo>()
             .into_future()
-            .and_then(|server| Connect::new(server))
+            .and_then(Connect::new)
             .flatten()
             .wait()
             .expect("should be able to create connection future");
