@@ -27,7 +27,6 @@ extern crate futures;
 #[macro_use]
 extern crate quick_error;
 
-#[macro_use]
 extern crate tokio;
 
 pub mod async_io;
