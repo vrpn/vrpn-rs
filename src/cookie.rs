@@ -76,7 +76,7 @@ impl Buffer for CookieData {
 
 #[inline]
 fn from_dec(input: &[u8]) -> Result<u8> {
-    u8::from_str_radix(&String::from_utf8_lossy(input), 10).map_err(Error::from)
+    str::parse::<u8>(&String::from_utf8_lossy(input)).map_err(Error::from)
 }
 
 #[inline]
