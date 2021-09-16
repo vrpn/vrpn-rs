@@ -4,7 +4,7 @@
 
 use crate::constants;
 use bytes::Bytes;
-use cgmath::{Quaternion, Vector3};
+use cgmath::Vector3;
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
@@ -256,8 +256,45 @@ pub struct SequenceNumber(pub u32);
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Sensor(pub i32);
 
-pub type Quat = Quaternion<f64>;
+// pub type Quat = Quaternion<f64>;
 pub type Vec3 = Vector3<f64>;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Quat {
+    pub s: f64,
+    pub v: Vec3,
+}
+
+impl Quat {
+    pub fn from_sv(s: f64, v: Vector3<f64>) -> Quat {
+        Quat { s, v }
+    }
+
+    pub fn new(w: f64, x: f64, y: f64, z: f64) -> Quat {
+        Quat {
+            s: w,
+            v: Vec3::new(x, y, z),
+        }
+    }
+    pub fn identity() -> Quat {
+        Quat {
+            s: 1.0,
+            v: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
+}
+
+impl From<cgmath::Quaternion<f64>> for Quat {
+    fn from(q: cgmath::Quaternion<f64>) -> Self {
+        Quat { s: q.s, v: q.v }
+    }
+}
+
+impl From<Quat> for cgmath::Quaternion<f64> {
+    fn from(q: Quat) -> Self {
+        cgmath::Quaternion::from_sv(q.s, q.v)
+    }
+}
 
 pub(crate) enum RangedId {
     BelowZero(IdType),

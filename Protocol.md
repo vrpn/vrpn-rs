@@ -16,6 +16,7 @@ General notes:
   or between different connections.
   They map to corresponding unique and stable string identifiers,
   which are communicated via `SENDER_DESCRIPTION` and `TYPE_DESCRIPTION` messages, respectively.
+- Quaternions are w, x, y, z
 
 ## Common message framing
 
