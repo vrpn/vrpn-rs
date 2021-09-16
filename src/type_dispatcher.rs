@@ -127,20 +127,20 @@ impl CallbackCollection {
 
     /// Remove a callback
     fn remove(&mut self, handle: HandlerHandleInner) -> Result<()> {
-        match self.callbacks.iter().position(|x| {
-            x.as_ref()
-                .map(|handler| handler.handle == handle)
-                .unwrap_or(false)
-        }) {
-            Some(i) => {
-                self.callbacks.remove(i);
-                Ok(())
-            }
-            None => Err(Error::HandlerNotFound),
-        }
+        let index = self
+            .callbacks
+            .iter()
+            .position(|x| {
+                x.as_ref()
+                    .map(|handler| handler.handle == handle)
+                    .unwrap_or(false)
+            })
+            .ok_or(Error::HandlerNotFound)?;
+        self.callbacks.remove(index);
+        Ok(())
     }
 
-    /// Call all callbacks (subject to sender filters)
+    /// Call all callbacks (subject to sender filters) and remove the callbacks who ask for it.
     fn call(&mut self, msg: &GenericMessage) -> Result<()> {
         for entry in &mut self.callbacks.iter_mut() {
             if let Some(unwrapped_entry) = entry {
