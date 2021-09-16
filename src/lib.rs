@@ -5,12 +5,15 @@
 extern crate bytes;
 extern crate cgmath;
 extern crate chrono;
-extern crate tk_listen;
 extern crate url;
+
+#[cfg(feature = "async-tokio")]
+extern crate tk_listen;
 
 #[cfg(test)]
 #[macro_use]
 extern crate hex_literal;
+
 #[cfg(test)]
 #[macro_use]
 extern crate proptest;
@@ -27,9 +30,12 @@ extern crate futures;
 #[macro_use]
 extern crate quick_error;
 
+#[cfg(feature = "async-tokio")]
 extern crate tokio;
 
+#[cfg(feature = "async-tokio")]
 pub mod async_io;
+
 pub mod buffer;
 pub mod codec;
 pub mod connection;
