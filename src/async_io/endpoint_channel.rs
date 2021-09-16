@@ -145,7 +145,7 @@ mod tests {
         let connector = Connect::new(server).expect("should be able to create connection future");
 
         let _ = connector
-            .and_then(|ConnectResults { tcp, udp }| {
+            .and_then(|ConnectResults { tcp, udp: _ }| {
                 let chan = EndpointChannel::new(apply_message_framing(tcp.unwrap()));
                 for _i in 0..4 {
                     let _ = chan.lock().unwrap().poll().unwrap().map(|msg| {

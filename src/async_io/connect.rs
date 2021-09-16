@@ -4,11 +4,7 @@
 
 use crate::prelude::*;
 use crate::{
-    async_io::{
-        connection_ip::ConnectionIpAcceptor,
-        cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
-        ping, ConnectionIp, ConnectionIpStream, Drain, StreamExtras,
-    },
+    async_io::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
     constants,
     cookie::check_ver_nonfile_compatible,
     ConnectionStatus, CookieData, Error, Result, Scheme, ServerInfo, Unbuffer,

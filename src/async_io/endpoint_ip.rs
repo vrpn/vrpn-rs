@@ -141,10 +141,7 @@ impl Endpoint for EndpointIp {
 mod tests {
     use super::*;
     use crate::{
-        async_io::{
-            apply_message_framing,
-            connect::{Connect, ConnectResults},
-        },
+        async_io::connect::{Connect, ConnectResults},
         ServerInfo,
     };
 
@@ -155,17 +152,13 @@ mod tests {
         let connector = Connect::new(server).expect("should be able to create connection future");
 
         let _ = connector
-            .and_then(|ConnectResults { tcp, udp }| {
+            .and_then(|ConnectResults { tcp, udp: _ }| {
                 let ep = EndpointIp::new(tcp.unwrap(), None);
                 for _i in 0..4 {
-                    let _ = ep
-                        .reliable_channel
-                        .lock()?
-                        .poll()?
-                        .map(|msg| {
-                            eprintln!("Received message {:?}", msg);
-                            msg
-                        });
+                    let _ = ep.reliable_channel.lock()?.poll()?.map(|msg| {
+                        eprintln!("Received message {:?}", msg);
+                        msg
+                    });
                 }
                 Ok(())
             })
@@ -180,7 +173,7 @@ mod tests {
         let connector = Connect::new(server).expect("should be able to create connection future");
 
         let _ = connector
-            .and_then(|ConnectResults { tcp, udp }| {
+            .and_then(|ConnectResults { tcp, udp: _ }| {
                 let mut ep = EndpointIp::new(tcp.unwrap(), None);
                 let mut disp = TypeDispatcher::new();
                 for _i in 0..4 {

@@ -49,7 +49,6 @@ fn main() {
         .select(ping_client)
         .map_err(|e| {
             eprintln!("error: {}", e);
-            ()
         })
         .drain();
 

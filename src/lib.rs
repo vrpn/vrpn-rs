@@ -31,6 +31,7 @@ extern crate tokio;
 
 pub mod async_io;
 pub mod buffer;
+pub mod codec;
 pub mod connection;
 pub mod constants;
 pub mod cookie;
@@ -53,7 +54,6 @@ pub mod translation_table;
 pub mod type_dispatcher;
 pub mod types;
 pub mod unbuffer;
-pub mod codec;
 
 pub use crate::{
     buffer::{BufMutExtras, Buffer, BytesMutExtras},

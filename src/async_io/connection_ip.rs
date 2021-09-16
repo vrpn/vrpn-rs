@@ -5,7 +5,7 @@
 use crate::{
     async_io::{
         codec::FramedMessageCodec,
-        connect::{incoming_handshake, Connect, ConnectionIpInfo},
+        connect::{incoming_handshake, ConnectionIpInfo},
         endpoint_ip::EndpointIp,
     },
     connection::*,
@@ -16,7 +16,7 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 use tokio::{
-    net::{tcp::Incoming, TcpListener, TcpStream, UdpFramed, UdpSocket},
+    net::{tcp::Incoming, TcpListener, UdpFramed},
     prelude::*,
 };
 
@@ -256,7 +256,6 @@ mod tests {
         Message, StaticSenderName, StaticTypeName, TypeSafeId,
     };
     use std::sync::{Arc, Mutex};
-    use std::time::Duration;
 
     #[derive(Debug)]
     struct TrackerHandler {
@@ -301,7 +300,7 @@ mod tests {
             .wait()
             .unwrap();
 
-        assert!(*flag.lock().unwrap() == true);
+        assert!(*flag.lock().unwrap());
     }
 
     #[ignore] // because it requires an external server to be running.
@@ -335,14 +334,14 @@ mod tests {
             })
             .wait()
             .unwrap();
-        assert!(*flag.lock().unwrap() == true);
+        assert!(*flag.lock().unwrap());
     }
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker_manual() {
         let flag = Arc::new(Mutex::new(false));
 
-        let server = "tcp://127.0.0.1:3883"
+        let _server = "tcp://127.0.0.1:3883"
             .parse::<ServerInfo>()
             .into_future()
             .and_then(|server| {
@@ -370,6 +369,6 @@ mod tests {
             })
             .wait()
             .unwrap();
-        assert!(*flag.lock().unwrap() == true);
+        assert!(*flag.lock().unwrap());
     }
 }

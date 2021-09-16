@@ -5,22 +5,20 @@
 // Null tracker server: provides a tracker at Tracker0@localhost
 // that just reports the identity transform on a regular basis.
 
+extern crate futures;
 extern crate tokio;
 extern crate vrpn;
-#[macro_use]
-extern crate futures;
 
 use std::{sync::Arc, time::Duration};
 use tokio::{prelude::*, timer::Interval};
 use vrpn::{
     async_io::{
         connection_ip::ConnectionIpAcceptor, drain_poll_fn, ConnectionIp, ConnectionIpStream,
-        Drain, StreamExtras,
+        StreamExtras,
     },
-    ping,
     prelude::*,
     tracker::PoseReport,
-    Error, LocalId, Message, Quat, Result, SenderId, Sensor, ServiceFlags, StaticSenderName, Vec3,
+    Error, LocalId, Quat, Result, SenderId, Sensor, ServiceFlags, StaticSenderName, Vec3,
 };
 #[derive(Debug)]
 struct ConnectionAndServer {

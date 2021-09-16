@@ -46,11 +46,7 @@ pub trait Connection: Send + Sync {
         match dispatcher.register_type(name.clone())? {
             RegisterMapping::Found(id) => Ok(id),
             RegisterMapping::NewMapping(id) => {
-                eprintln!(
-                    "New mapping (coming from our side): {:?} -> {:?}",
-                    name,
-                    id
-                );
+                eprintln!("New mapping (coming from our side): {:?} -> {:?}", name, id);
                 let mut endpoints = self.connection_core().endpoints.lock()?;
                 for ep in endpoints.iter_mut().flatten() {
                     ep.new_local_id(name.clone(), id)?;
