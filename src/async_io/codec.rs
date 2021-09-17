@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{codec::decode_one, Buffer, Error, Result, SequencedGenericMessage};
-use bytes::{Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use tokio::{
     prelude::*,
 };
@@ -14,17 +14,17 @@ pub struct FramedMessageCodec;
 impl Decoder for FramedMessageCodec {
     type Item = SequencedGenericMessage;
     type Error = Error;
-    fn decode(&mut self, buf: &mut Bytes) -> Result<Option<Self::Item>> {
-        let initial_len = buf.len();
+    fn decode(&mut self, src:  &mut BytesMut) -> Result<Option<Self::Item>> {
+        let initial_len = src.len();
         if initial_len == 0 {
             // short-circuit if we have run out of stuff.
             return Ok(None);
         }
-        let mut inner_buf = Bytes::from(buf.clone());
+        let mut inner_buf = Bytes::from(src);
         match decode_one(&mut inner_buf)? {
             Some(msg) => {
                 let consumed = initial_len - inner_buf.len();
-                buf.advance(consumed);
+                src.advance(consumed);
                 Ok(Some(msg))
             }
             None => Ok(None),

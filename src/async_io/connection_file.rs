@@ -3,7 +3,6 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    async_io::endpoint_ip::EndpointIp,
     descriptions::InnerDescription,
     type_dispatcher::{HandlerHandle, RegisterMapping},
     BaseTypeSafeId, Error, Handler, LocalId, LogFileNames, MatchingTable, Message,

@@ -5,13 +5,16 @@
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
 use crate::{
-    async_io::endpoint_ip::EndpointIp, Endpoint, EndpointGeneric, Error, GenericMessage,
-    SequenceNumber, SequencedGenericMessage, TypeDispatcher,
+    Endpoint, EndpointGeneric, Error, GenericMessage, SequenceNumber, SequencedGenericMessage,
+    TypeDispatcher,
 };
 use futures::{
     stream::{SplitSink, SplitStream},
     Sink, Stream,
 };
+use futures::{SinkExt, StreamExt};
+use std::pin::Pin;
+use std::task::Context;
 use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -30,8 +33,7 @@ pub(crate) struct EndpointChannel<T> {
 
 impl<T> EndpointChannel<T>
 where
-    T: Sink<SequencedGenericMessage, Error = Error>
-        + Stream<Item = SequencedGenericMessage>,
+    T: Sink<SequencedGenericMessage, Error = Error> + Stream<Item = SequencedGenericMessage>,
 {
     pub(crate) fn new(framed_stream: T) -> Arc<Mutex<EndpointChannel<T>>> {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
@@ -46,8 +48,7 @@ where
 
 impl<T> Stream for EndpointChannel<T>
 where
-    T: Sink<SequencedGenericMessage, Error = Error>
-        + Stream<Item = SequencedGenericMessage>,
+    T: Sink<SequencedGenericMessage, Error = Error> + Stream<Item = SequencedGenericMessage>,
 {
     type Item = Result<GenericMessage, Error>;
 
@@ -57,68 +58,70 @@ where
     ) -> std::task::Poll<Option<Self::Item>> {
         // treat errors like a closed connection
         self.rx
-            .poll()
+            .poll_next_unpin(cx)
             // these nested maps are to get all the way inside the Ok(Async::Ready(Some(msg)))
-            .map(|a| a.map(|o| o.map(GenericMessage::from)))
+            .map(|a| a.map(|a| Ok(GenericMessage::from(a))))
     }
 }
 
-impl<T> Sink<GenericMessage> for EndpointChannel<T>
-where
-    T: Sink<SequencedGenericMessage, Error = Error>
-        + Stream<Item = SequencedGenericMessage>,
-{
-    fn poll_ready(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        todo!()
-    }
-    fn start_send(&mut self, item: SequencedGenericMessage) -> Result<(), Self::Error> {
-        let seq = self.seq.fetch_add(1, Ordering::SeqCst);
+// impl<T> Sink<GenericMessage> for EndpointChannel<T>
+// where
+//     T: Sink<SequencedGenericMessage, Error = Error> + Stream<Item = SequencedGenericMessage>,
+// {
+//     fn poll_ready(
+//         self: std::pin::Pin<&mut Self>,
+//         cx: &mut std::task::Context<'_>,
+//     ) -> std::task::Poll<Result<(), Self::Error>> {
+//         todo!()
+//     }
 
-        match self
-            .tx
-            .start_send(item.into_sequenced_message(SequenceNumber(seq as u32)))?
-        {
-            Poll::Ready(_) => Ok(Poll::Ready),
+//     fn start_send(self: Pin<&mut Self>, item: GenericMessage) -> Result<(), Self::Error> {
+//         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
 
-            // Unwrap the message again if not ready.
-            Poll::NotReady(msg) => Ok(Poll::NotReady(GenericMessage::from(msg))),
-        }
-    }
+//         let item = item.clone().into_sequenced_message(SequenceNumber(seq as u32));
+//         if let Poll::Pending(msg) =  self
+//             .tx
+//             .start_send_unpin(item)?
+//         {
 
-    type Error = Error;
+//             // Unwrap the message again if not ready.
+//             return Ok(Poll::NotReady(GenericMessage::from(msg)));
+//         }
+//     }
 
-    fn poll_flush(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        self.tx.poll_complete()
-    }
+//     type Error = Error;
 
-    fn poll_close(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        todo!()
-    }
-}
+//     fn poll_flush(
+//         self: std::pin::Pin<&mut Self>,
+//         cx: &mut std::task::Context<'_>,
+//     ) -> std::task::Poll<Result<(), Self::Error>> {
+//         self.tx.poll_complete()
+//     }
+
+//     fn poll_close(
+//         self: std::pin::Pin<&mut Self>,
+//         cx: &mut std::task::Context<'_>,
+//     ) -> std::task::Poll<Result<(), Self::Error>> {
+//         todo!()
+//     }
+// }
 
 /// Given a stream of GenericMessage, poll the stream and dispatch received messages.
-pub(crate) fn poll_and_dispatch<T>(
-    endpoint: &mut EndpointIp,
-    stream: &mut T,
+pub(crate) fn poll_and_dispatch<T, U>(
+    endpoint: &mut T,
+    stream: &mut U,
     dispatcher: &mut TypeDispatcher,
+    cx: &mut Context<'_>,
 ) -> Poll<Result<(), Error>>
 where
-    T: Stream<Item = GenericMessage>,
+    T: Endpoint,
+    U: Stream<Item = GenericMessage> + Unpin,
 {
     const MAX_PER_TICK: usize = 10;
     let mut closed = false;
     // for i in 0..MAX_PER_TICK {
     loop {
-        let poll_result = stream.poll()?;
+        let poll_result = stream.poll_next_unpin(cx);
         match poll_result {
             Poll::Ready(Some(msg)) => {
                 let msg = endpoint.map_remote_message_to_local(msg)?;
@@ -131,7 +134,7 @@ where
                 closed = true;
                 break;
             }
-            Poll::NotReady => {
+            Poll::Pending => {
                 break;
             }
         }
@@ -145,18 +148,24 @@ where
     }
     if closed {
         eprintln!("poll_and_dispatch decided the channel was closed");
-        Ok(Poll::Ready(()))
+        Poll::Ready(Ok(()))
     } else {
         // eprintln!("poll_and_dispatch decided that it's not ready");
         // task::current().notify();
-        Ok(Poll::NotReady)
+        Poll::Pending
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ServerInfo, async_io::{apply_message_framing, connect::{Connect, ConnectResults}}};
+    use crate::{
+        async_io::{
+            apply_message_framing,
+            connect::{Connect, ConnectResults},
+        },
+        ServerInfo,
+    };
     #[test]
     fn make_endpoint_channel() {
         let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();

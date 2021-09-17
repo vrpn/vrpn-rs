@@ -28,7 +28,7 @@ use tokio::{
     time::Sleep,
 };
 
-pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
+pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<socket2::Socket> {
     use socket2::*;
     let domain = if addr.is_ipv4() {
         Domain::IPV4
@@ -49,7 +49,7 @@ pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
         }
     }
     sock.set_reuse_address(true)?;
-    Ok(std::net::TcpStream::from(sock))
+    Ok(sock)
 }
 
 pub fn make_udp_socket() -> io::Result<UdpSocket> {
@@ -67,13 +67,14 @@ pub fn make_udp_socket() -> io::Result<UdpSocket> {
 }
 
 pub async fn outgoing_tcp_connect(addr: std::net::SocketAddr) -> Result<net::TcpStream> {
-    let sock: net::TcpStream = make_tcp_socket(addr)?;
-    sock.connect(&addr)
+    let sock = make_tcp_socket(addr.clone())?;
+    sock.connect(&SockAddr::from(addr))?;
+    Ok(std::net::TcpStream::from(sock))
 }
 
 pub async fn outgoing_handshake<T>(socket: T) -> Result<T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite,
 {
     let socket = send_nonfile_cookie(socket).await;
     read_and_check_nonfile_cookie(socket).await
@@ -152,20 +153,35 @@ impl<'a> Future for WaitForConnect<'a> {
 }
 
 /// The steps of establishing a connection
-#[derive(Debug)]
+// #[derive(Debug)]
 enum State {
     /// Sending the initial UDP datagram with our "call-back" address and port
     Lobbing(Option<TcpListener>, IpAddr),
     /// Follows after Lobbing.
-    WaitingForConnection(dyn Future<Output = TcpStream>),
+    WaitingForConnection, /* (dyn Future<Output = TcpStream>) */
     /// Making the connection for a TCP-only setup.
-    Connecting(dyn Future<Output = TcpStream>),
+    Connecting(Box<dyn Future<Output = TcpStream>>),
     /// Reached from Connecting in case of error.
     DelayBeforeConnectionRetry,
     /// Transmitting the magic cookie - used by both modes.
     SendingHandshake,
     /// Receiving and checking the magic cookie - used by both modes.
     ReceivingHandshake(BytesMut),
+}
+
+impl Debug for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Lobbing(arg0, arg1) => f.debug_tuple("Lobbing").field(arg0).field(arg1).finish(),
+            Self::WaitingForConnection => write!(f, "WaitingForConnection"),
+            Self::Connecting(arg0) => write!(f, "Connecting"),
+            Self::DelayBeforeConnectionRetry => write!(f, "DelayBeforeConnectionRetry"),
+            Self::SendingHandshake => write!(f, "SendingHandshake"),
+            Self::ReceivingHandshake(arg0) => {
+                f.debug_tuple("ReceivingHandshake").field(arg0).finish()
+            }
+        }
+    }
 }
 
 pub(crate) struct ConnectResults {
@@ -185,6 +201,15 @@ enum ConnectPollOutput {
     NotConnected,
 }
 
+// impl Debug for Option<Box<dyn Future<Output = TcpStream>>> {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         match self {
+//             Self::None => write!(f, "None"),
+//             Self::Some(arg0) => f.debug("Some Future").finish(),
+//         }
+//     }
+// }
+
 /// A future that handles the connection and handshake process.
 #[derive(Debug)]
 pub(crate) struct Connect {
@@ -193,7 +218,8 @@ pub(crate) struct Connect {
     stream: Option<TcpStream>,
     udp_connect: Option<UdpConnect>,
     cookie_buf: Bytes,
-    delay: Sleep,
+    // delay: Sleep,
+    // stream_future: Option<Box<dyn Future<Output = TcpStream>>>,
 }
 const MILLIS_BETWEEN_ATTEMPTS: u64 = 500;
 
@@ -211,155 +237,211 @@ const MILLIS_BETWEEN_ATTEMPTS: u64 = 500;
 
 fn set_delay(delay: &mut Sleep) {
     let deadline = Instant::now() + Duration::from_millis(MILLIS_BETWEEN_ATTEMPTS);
-    delay.reset(deadline);
+    delay.reset(tokio::time::Instant::from_std(deadline));
 }
-impl Connect {
-    /// Create a future for establishing a connection.
-    pub(crate) fn new(server: ServerInfo) -> Result<Connect> {
-        let cookie_buf = BytesMut::new()
-            .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
-            .freeze()
-            .into_buf();
-        match server.scheme {
-            Scheme::UdpAndTcp => {
-                let udp = make_udp_socket()?;
-                let addr = "localhost".to_socket_addrs()?.next().unwrap();
-                let addr = SocketAddr::new(addr.ip(), 0);
-                let tcp_listener = TcpListener::bind(&addr)?;
-                let port = udp.local_addr()?.port();
-                let addr = SocketAddr::new(addr.ip(), port);
-                let lobbed_buf = {
-                    let addr_str = addr.ip().to_string();
-                    let port_str = addr.port().to_string();
-                    let mut buf = BytesMut::with_capacity(addr_str.len() + port_str.len() + 2);
+// impl Connect {
+/// Create a future for establishing a connection.
+//     pub(crate) fn new(server: ServerInfo) -> Result<Connect> {
+//         let cookie_buf = BytesMut::new()
+//             .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
+//             .freeze()
+//             .into_buf();
+//         match server.scheme {
+//             Scheme::UdpAndTcp => {
+//                 let udp = make_udp_socket()?;
+//                 let addr = "localhost".to_socket_addrs()?.next().unwrap();
+//                 let addr = SocketAddr::new(addr.ip(), 0);
+//                 let tcp_listener = TcpListener::bind(&addr)?;
+//                 let port = udp.local_addr()?.port();
+//                 let addr = SocketAddr::new(addr.ip(), port);
+//                 let lobbed_buf = {
+//                     let addr_str = addr.ip().to_string();
+//                     let port_str = addr.port().to_string();
+//                     let mut buf = BytesMut::with_capacity(addr_str.len() + port_str.len() + 2);
 
-                    buf.put(addr_str);
-                    buf.put(" ");
-                    buf.put(port_str);
-                    buf.put_u8(0);
-                    buf
-                };
-                let ip = addr.ip();
-                let lobbed_buf = lobbed_buf.freeze();
-                Ok(Connect {
-                    server,
-                    udp_connect: Some(UdpConnect { udp, lobbed_buf }),
-                    state: Some(State::Lobbing(Some(tcp_listener), ip)),
-                    cookie_buf,
-                    stream: None,
-                    delay: Sleep::new(Instant::now()),
-                })
-            }
-            Scheme::TcpOnly => {
-                let addr = server.socket_addr;
-                let connect_future = outgoing_tcp_connect(addr)?;
-                Ok(Connect {
-                    server,
-                    udp_connect: None,
-                    state: Some(State::Connecting(connect_future)),
-                    cookie_buf,
-                    stream: None,
-                    delay: Sleep::new(Instant::now()),
-                })
-            }
-        }
+//                     buf.put(addr_str);
+//                     buf.put(" ");
+//                     buf.put(port_str);
+//                     buf.put_u8(0);
+//                     buf
+//                 };
+//                 let ip = addr.ip();
+//                 let lobbed_buf = lobbed_buf.freeze();
+//                 Ok(Connect {
+//                     server,
+//                     udp_connect: Some(UdpConnect { udp, lobbed_buf }),
+//                     state: Some(State::Lobbing(Some(tcp_listener), ip)),
+//                     cookie_buf,
+//                     stream: None,
+//                     delay: Sleep::new(Instant::now()),
+//                 })
+//             }
+//             Scheme::TcpOnly => {
+//                 let addr = server.socket_addr;
+//                 let connect_future = outgoing_tcp_connect(addr)?;
+//                 Ok(Connect {
+//                     server,
+//                     udp_connect: None,
+//                     state: Some(State::Connecting(connect_future)),
+//                     cookie_buf,
+//                     stream: None,
+//                     delay: Sleep::new(Instant::now()),
+//                 })
+//             }
+//         }
+//     }
+// }
+
+// impl Future for Connect {
+//     type Output = Result<ConnectResults>;
+//     fn poll(&mut self) -> Poll<Self::Output> {
+//         // Loop until we succeed, error, or hit NotReady
+//         loop {
+//             // Handle each different state.
+//             let state = self.state.as_mut().unwrap();
+//             match state {
+//                 State::Lobbing(tcp_listener, ip) => {
+//                     if let Some(udp_connect) = self.udp_connect.as_mut() {
+//                         ready!(udp_connect
+//                             .udp
+//                             .poll_send_to(&udp_connect.lobbed_buf, &self.server.socket_addr));
+//                         //if we don't return immediately, then we're OK.
+//                         *state = State::WaitingForConnection(WaitForConnect::new(
+//                             *ip,
+//                             tcp_listener.take().unwrap(),
+//                         ));
+//                     } else {
+//                         return Err(Error::OtherMessage(String::from("no udp socket found?")));
+//                     }
+//                 }
+
+//                 State::Connecting(conn_future) => match conn_future.poll() {
+//                     Err(e) => {
+//                         eprintln!("Error connecting: {}. Will retry after a delay.", e);
+//                         set_delay(&mut self.delay);
+//                         *state = State::DelayBeforeConnectionRetry;
+//                     }
+//                     Ok(Future::Ready(stream)) => {
+//                         self.stream = Some(stream);
+//                         *state = State::SendingHandshake;
+//                     }
+//                     Ok(Future::NotReady) => {
+//                         return Ok(Future::NotReady);
+//                     }
+//                 },
+
+//                 State::DelayBeforeConnectionRetry => {
+//                     if self.delay.poll().unwrap().is_not_ready() {
+//                         return Ok(Future::NotReady);
+//                     };
+//                     // .map_err(|e| {
+//                     //         Error::OtherMessage(format!("error polling delay: {}", e))
+//                     //     }));
+//                     if let Ok(connect_future) = outgoing_tcp_connect(self.server.socket_addr) {
+//                         eprintln!("Delay completed, and we were able to connect.");
+//                         *state = State::Connecting(connect_future);
+//                     } else {
+//                         eprintln!("Delay completed but still could not connect to server.");
+//                         set_delay(&mut self.delay);
+//                     }
+//                 }
+
+//                 State::WaitingForConnection(conn_stream) => {
+//                     let stream = ready!(conn_stream
+//                         .poll()
+//                         .map_err(|_e| Error::OtherMessage(String::from(""))));
+//                     self.stream = Some(stream);
+//                     *state = State::SendingHandshake;
+//                 }
+
+//                 State::SendingHandshake => {
+//                     while self.cookie_buf.has_remaining() {
+//                         ready!(self
+//                             .stream
+//                             .as_mut()
+//                             .unwrap()
+//                             .write_buf(&mut self.cookie_buf));
+//                     }
+//                     let cookie_size = CookieData::constant_buffer_size();
+//                     let buf = BytesMut::with_capacity(cookie_size);
+//                     *state = State::ReceivingHandshake(buf);
+//                 }
+
+//                 State::ReceivingHandshake(buf) => {
+//                     while buf.len() < CookieData::constant_buffer_size() {
+//                         let _ = ready!(self.stream.as_mut().unwrap().read_buf(buf));
+//                     }
+//                     let mut buf = buf.clone().freeze();
+//                     let cookie = CookieData::unbuffer_ref(&mut buf)?;
+//                     check_ver_nonfile_compatible(cookie.version)?;
+//                     let udp = self.udp_connect.take().map(|udp_connect| udp_connect.udp);
+
+//                     return Ok(Future::Ready(ConnectResults {
+//                         tcp: self.stream.take(),
+//                         udp,
+//                     }));
+//                 }
+//             };
+//         }
+//     }
+// }
+
+async fn connect_tcp_and_udp(server: ServerInfo) -> Result<Connect> {
+    let cookie_buf = BytesMut::new()
+        .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
+        .freeze();
+    let udp = make_udp_socket()?;
+    let addr = "localhost".to_socket_addrs()?.next().unwrap();
+    let addr = SocketAddr::new(addr.ip(), 0);
+    let tcp_listener = TcpListener::bind(&addr).await?;
+    let port = udp.local_addr()?.port();
+    let addr = SocketAddr::new(addr.ip(), port);
+    let lobbed_buf = {
+        let addr_str = addr.ip().to_string();
+        let port_str = addr.port().to_string();
+        let mut buf = BytesMut::with_capacity(addr_str.len() + port_str.len() + 2);
+
+        buf.put(addr_str.as_bytes());
+        buf.put(" ".as_bytes());
+        buf.put(port_str.as_bytes());
+        buf.put_u8(0);
+        buf
+    };
+    let ip = addr.ip();
+    let lobbed_buf = lobbed_buf.freeze();
+    Ok(Connect {
+        server,
+        udp_connect: Some(UdpConnect { udp, lobbed_buf }),
+        state: Some(State::Lobbing(Some(tcp_listener), ip)),
+        cookie_buf,
+        stream: None,
+        // delay: Sleep::new(Instant::now()),
+    })
+}
+async fn connect_tcp_only(server: ServerInfo) -> Result<Connect> {
+    let cookie_buf = BytesMut::new()
+        .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
+        .freeze();
+    let addr = server.socket_addr;
+    let connect_future = outgoing_tcp_connect(addr);
+    Ok(Connect {
+        server,
+        udp_connect: None,
+        state: Some(State::Connecting(connect_future)),
+        cookie_buf,
+        stream: None,
+        // delay: Sleep::new(Instant::now()),
+    })
+}
+pub(crate) async fn connect(server: ServerInfo) -> Result<()> {
+    let mut connect: Option<Connect> = None;
+    let mut stream: Option<Box<dyn Stream<Item = TcpStream>>> = None;
+
+    match server.scheme {
+        Scheme::UdpAndTcp => {}
+        Scheme::TcpOnly => {}
     }
 }
-
-impl Future for Connect {
-    type Output = Result<ConnectResults>;
-    fn poll(&mut self) -> Poll<Self::Output> {
-        // Loop until we succeed, error, or hit NotReady
-        loop {
-            // Handle each different state.
-            let state = self.state.as_mut().unwrap();
-            match state {
-                State::Lobbing(tcp_listener, ip) => {
-                    if let Some(udp_connect) = self.udp_connect.as_mut() {
-                        ready!(udp_connect
-                            .udp
-                            .poll_send_to(&udp_connect.lobbed_buf, &self.server.socket_addr));
-                        //if we don't return immediately, then we're OK.
-                        *state = State::WaitingForConnection(WaitForConnect::new(
-                            *ip,
-                            tcp_listener.take().unwrap(),
-                        ));
-                    } else {
-                        return Err(Error::OtherMessage(String::from("no udp socket found?")));
-                    }
-                }
-
-                State::Connecting(conn_future) => match conn_future.poll() {
-                    Err(e) => {
-                        eprintln!("Error connecting: {}. Will retry after a delay.", e);
-                        set_delay(&mut self.delay);
-                        *state = State::DelayBeforeConnectionRetry;
-                    }
-                    Ok(Future::Ready(stream)) => {
-                        self.stream = Some(stream);
-                        *state = State::SendingHandshake;
-                    }
-                    Ok(Future::NotReady) => {
-                        return Ok(Future::NotReady);
-                    }
-                },
-
-                State::DelayBeforeConnectionRetry => {
-                    if self.delay.poll().unwrap().is_not_ready() {
-                        return Ok(Future::NotReady);
-                    };
-                    // .map_err(|e| {
-                    //         Error::OtherMessage(format!("error polling delay: {}", e))
-                    //     }));
-                    if let Ok(connect_future) = outgoing_tcp_connect(self.server.socket_addr) {
-                        eprintln!("Delay completed, and we were able to connect.");
-                        *state = State::Connecting(connect_future);
-                    } else {
-                        eprintln!("Delay completed but still could not connect to server.");
-                        set_delay(&mut self.delay);
-                    }
-                }
-
-                State::WaitingForConnection(conn_stream) => {
-                    let stream = ready!(conn_stream
-                        .poll()
-                        .map_err(|_e| Error::OtherMessage(String::from(""))));
-                    self.stream = Some(stream);
-                    *state = State::SendingHandshake;
-                }
-
-                State::SendingHandshake => {
-                    while self.cookie_buf.has_remaining() {
-                        ready!(self
-                            .stream
-                            .as_mut()
-                            .unwrap()
-                            .write_buf(&mut self.cookie_buf));
-                    }
-                    let cookie_size = CookieData::constant_buffer_size();
-                    let buf = BytesMut::with_capacity(cookie_size);
-                    *state = State::ReceivingHandshake(buf);
-                }
-
-                State::ReceivingHandshake(buf) => {
-                    while buf.len() < CookieData::constant_buffer_size() {
-                        let _ = ready!(self.stream.as_mut().unwrap().read_buf(buf));
-                    }
-                    let mut buf = buf.clone().freeze();
-                    let cookie = CookieData::unbuffer_ref(&mut buf)?;
-                    check_ver_nonfile_compatible(cookie.version)?;
-                    let udp = self.udp_connect.take().map(|udp_connect| udp_connect.udp);
-
-                    return Ok(Future::Ready(ConnectResults {
-                        tcp: self.stream.take(),
-                        udp,
-                    }));
-                }
-            };
-        }
-    }
-}
-
 #[derive(Debug)]
 pub(crate) enum ConnectionIpInfo {
     ConnectionSetupFuture(Connect),

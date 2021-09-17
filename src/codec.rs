@@ -4,11 +4,20 @@
 
 use crate::prelude::*;
 use crate::{message::MessageSize, Error, Result, SequencedGenericMessage, Unbuffer};
-use bytes::{Buf, Bytes};
+use bytes::{Buf,  Bytes, BytesMut};
 
 pub fn peek_u32(buf: &Bytes) -> Result<Option<u32>> {
-    let size_len = u32::constant_buffer_size();
-    if buf.len() < size_len {
+    const size_len: usize = std::mem::size_of::<u32>();
+    if buf.remaining() < size_len {
+        eprintln!("Not enough remaining bytes for the size.");
+        return Ok(None);
+    }
+    let peeked = (&buf[..size_len]).get_u32();
+    Ok(Some(peeked))
+}
+pub fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
+    const size_len: usize = std::mem::size_of::<u32>();
+    if buf.remaining() < size_len {
         eprintln!("Not enough remaining bytes for the size.");
         return Ok(None);
     }
@@ -41,6 +50,30 @@ pub(crate) fn decode_one(buf: &mut Bytes) -> Result<Option<SequencedGenericMessa
     }
 }
 
+pub(crate) fn decode_one_mut(buf: &mut BytesMut) -> Result<Option<SequencedGenericMessage>> {
+    let initial_len = buf.len();
+    if let Some(combined_size) = peek_u32_bytes_mut(buf)? {
+        let mut inner_buf = buf.clone();
+        let size = MessageSize::from_length_field(combined_size);
+        if initial_len < size.padded_message_size() {
+            return Ok(None);
+        }
+        let mut taken_buf = inner_buf.split_to(size.padded_message_size());
+        let unbuffered = SequencedGenericMessage::unbuffer_ref(&mut taken_buf);
+        match unbuffered {
+            Ok(v) => {
+                buf.advance(size.padded_message_size());
+                Ok(Some(v))
+            }
+            Err(Error::NeedMoreData(_)) => {
+                unreachable!();
+            }
+            Err(e) => Err(e),
+        }
+    } else {
+        Ok(None)
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
