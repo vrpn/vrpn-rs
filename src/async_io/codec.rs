@@ -5,9 +5,9 @@
 use crate::{codec::decode_one, Buffer, Error, Result, SequencedGenericMessage};
 use bytes::{Bytes, BytesMut};
 use tokio::{
-    codec::{Decoder, Encoder, Framed},
     prelude::*,
 };
+use tokio_util::codec::{Decoder, Encoder, Framed};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FramedMessageCodec;

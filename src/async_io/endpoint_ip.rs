@@ -11,13 +11,15 @@ use crate::{
     endpoint::*,
     Error, GenericMessage, Result, TranslationTables, TypeDispatcher,
 };
-use futures::sync::mpsc;
+use futures::channel::mpsc;
+use tokio_util::udp::UdpFramed;
+use std::task::Poll;
 use std::{
     ops::DerefMut,
     sync::{Arc, Mutex},
 };
 use tokio::{
-    net::{TcpStream, UdpFramed},
+    net::{TcpStream},
     prelude::*,
 };
 
@@ -48,7 +50,7 @@ impl EndpointIp {
         }
     }
 
-    pub(crate) fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Poll<(), Error> {
+    pub(crate) fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Poll<Result<(), Error>> {
         let channel_arc = Arc::clone(&self.reliable_channel);
         let mut channel = channel_arc
             .lock()
@@ -66,11 +68,11 @@ impl EndpointIp {
                 ))
             })?;
             match cmd_poll {
-                Async::Ready(None) => {
+                Poll::Ready(None) => {
                     closed = true;
                     break;
                 }
-                Async::Ready(Some(cmd)) => {
+                Poll::Ready(Some(cmd)) => {
                     if let Some(cmd) = self.handle_system_command(&mut dispatcher, cmd)? {
                         match cmd {
                             ExtendedSystemCommand::UdpDescription(desc) => {
@@ -85,14 +87,14 @@ impl EndpointIp {
                         }
                     }
                 }
-                Async::NotReady => break,
+                Poll::NotReady => break,
             }
         }
 
         if closed {
-            Ok(Async::Ready(()))
+            Ok(Poll::Ready(()))
         } else {
-            Ok(Async::NotReady)
+            Ok(Poll::NotReady)
         }
     }
 }
@@ -125,8 +127,8 @@ impl Endpoint for EndpointIp {
                 .start_send(msg)
                 .map_err(|e| Error::OtherMessage(e.to_string()))?
             {
-                AsyncSink::Ready => Ok(()),
-                AsyncSink::NotReady(_) => Err(Error::OtherMessage(String::from(
+                Poll::Ready(_) => Ok(()),
+                Poll::NotReady(_) => Err(Error::OtherMessage(String::from(
                     "Didn't have room in send buffer",
                 ))),
             }

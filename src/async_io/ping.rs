@@ -3,9 +3,11 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{ping::Client as RawClient, Connection, Error, LocalId, Result, SenderId, SenderName};
+use futures::{ready, Stream};
+use std::task::Poll;
 use std::{sync::Arc, time::Duration};
 use tokio::prelude::*;
-use tokio::timer::Interval;
+use tokio::time::Interval;
 
 pub struct Client<T: Connection + 'static> {
     client: RawClient<T>,
@@ -32,10 +34,13 @@ impl<T: Connection + 'static> Client<T> {
 }
 
 impl<T: Connection + 'static> Stream for Client<T> {
-    type Item = ();
-    type Error = Error;
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        let _ = try_ready!(self
+    type Item = Result<(), Error>;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        let _ = ready!(self
             .interval
             .poll()
             .map_err(|e| Error::OtherMessage(e.to_string())));
@@ -49,7 +54,7 @@ impl<T: Connection + 'static> Stream for Client<T> {
                 radio_silence
             );
         }
-        Ok(Async::Ready(Some(())))
+        Ok(Poll::Ready(Some(())))
         //     }
         //     Async::Ready(None) => Ok(Async::Ready(None)),
         // }

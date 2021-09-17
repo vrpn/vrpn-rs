@@ -66,8 +66,8 @@ pub fn make_udp_socket() -> io::Result<UdpSocket> {
     Ok(tokio_socket)
 }
 
-pub async fn outgoing_tcp_connect(addr: std::net::SocketAddr) -> Result<_> {
-    let sock = make_tcp_socket(addr).map_err(Error::from)?;
+pub async fn outgoing_tcp_connect(addr: std::net::SocketAddr) -> Result<net::TcpStream> {
+    let sock: net::TcpStream = make_tcp_socket(addr).map_err(Error::from)?;
     sock.connect(&addr)
 }
 
@@ -104,18 +104,18 @@ where
 
 /// A separate future, because couldn't get a boxed future built with combinators
 /// to appease the borrow checker for threading reasons.
-struct WaitForConnect {
+struct WaitForConnect<'a> {
     ip: IpAddr,
-    incoming: SleepOnError<Incoming>,
+    incoming: SleepOnError<Incoming<'a>>,
 }
 
-impl Debug for WaitForConnect {
+impl<'a> Debug for WaitForConnect<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "waiting for connection from {}", self.ip)
     }
 }
-impl WaitForConnect {
-    fn new(ip: IpAddr, listener: TcpListener) -> WaitForConnect {
+impl<'a> WaitForConnect<'a> {
+    fn new(ip: IpAddr, listener: TcpListener) -> WaitForConnect<'a> {
         WaitForConnect {
             ip,
             incoming: listener
@@ -125,8 +125,21 @@ impl WaitForConnect {
     }
 }
 
-impl Future for WaitForConnect {
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+impl<'a> Future for WaitForConnect<'a> {
+    // fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    //     loop {
+    //         let result = ready!(self.incoming.poll());
+    //         if let Some(stream) = result {
+    //             if stream.peer_addr().map_err(|_| ())?.ip() == self.ip {
+    //                 return Poll::Ready(stream);
+    //             }
+    //         }
+    //     }
+    // }
+
+    type Output = TcpStream;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         loop {
             let result = ready!(self.incoming.poll());
             if let Some(stream) = result {
@@ -136,8 +149,6 @@ impl Future for WaitForConnect {
             }
         }
     }
-
-    type Output = TcpStream;
 }
 
 /// The steps of establishing a connection
@@ -146,9 +157,9 @@ enum State {
     /// Sending the initial UDP datagram with our "call-back" address and port
     Lobbing(Option<TcpListener>, IpAddr),
     /// Follows after Lobbing.
-    WaitingForConnection(WaitForConnect),
+    WaitingForConnection(dyn Future<Output = TcpStream>),
     /// Making the connection for a TCP-only setup.
-    Connecting(dyn Future),
+    Connecting(dyn Future<Output = TcpStream>),
     /// Reached from Connecting in case of error.
     DelayBeforeConnectionRetry,
     /// Transmitting the magic cookie - used by both modes.
@@ -257,7 +268,7 @@ impl Connect {
 
 impl Future for Connect {
     type Output = Result<ConnectResults>;
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self) -> Poll<Self::Output> {
         // Loop until we succeed, error, or hit NotReady
         loop {
             // Handle each different state.
@@ -366,7 +377,7 @@ impl ConnectionIpInfo {
     pub(crate) fn new_server() -> Result<ConnectionIpInfo> {
         Ok(ConnectionIpInfo::Server)
     }
-    pub(crate) fn poll(&mut self, num_endpoints: usize) -> Poll<Option<ConnectResults>, Error> {
+    pub(crate) fn poll(&mut self, num_endpoints: usize) -> Poll<Result<Option<ConnectResults>>> {
         loop {
             match self {
                 ConnectionIpInfo::ConnectionSetupFuture(fut) => {

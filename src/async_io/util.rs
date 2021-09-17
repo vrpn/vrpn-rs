@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use std::task::Poll;
+
+use futures::{Future, Stream};
 use tokio::prelude::*;
 
 /// Pull as many items from the stream as possible until an error, end of stream, or NotReady.
@@ -15,10 +18,10 @@ where
     F: FnMut() -> Poll<Option<T>, E>,
 {
     loop {
-        match try_ready!(func()) {
+        match ready!(func()) {
             Some(_) => {}
             None => {
-                return Ok(Async::Ready(()));
+                return Ok(Poll::Ready(()));
             }
         }
     }
@@ -54,9 +57,7 @@ impl<S> Future for Drain<S>
 where
     S: Stream + Sized,
 {
-    type Item = ();
-    type Error = S::Error;
-    fn poll(&mut self) -> Poll<(), Self::Error> {
+    fn poll(&mut self) -> Poll<Result<(), S::Error>> {
         let inner = self.inner.take();
         if let Some(mut stream) = inner {
             loop {
@@ -74,6 +75,8 @@ where
         }
         Ok(Async::NotReady)
     }
+
+    type Output = Result<(), S::Error>;
 }
 
 /// Evaluates the expression (`returning Poll<Option<_>, _>`) in a loop,

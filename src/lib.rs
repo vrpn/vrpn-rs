@@ -36,7 +36,7 @@ extern crate tokio;
 pub mod async_io;
 
 pub mod buffer;
-// pub mod codec;
+pub mod codec;
 pub mod connection;
 pub mod constants;
 pub mod cookie;

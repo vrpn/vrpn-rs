@@ -62,7 +62,7 @@ impl ConnectionIp {
         Ok(ret)
     }
 
-    pub fn poll_endpoints(&self) -> Poll<Option<()>, Error> {
+    pub fn poll_endpoints(&self) -> Poll<Result<Option<()>>> {
         // eprintln!("in <ConnectionIp as Future>::poll");
         // if let Some(listener_mutex) = &self.server_tcp {
         //     let listener = listener_mutex.lock()?;
@@ -176,7 +176,7 @@ impl ConnectionIpStream {
 }
 
 impl Stream for ConnectionIpStream {
-    type Item = Result<(), Error>;
+    type Item = Result<()>;
 
     fn poll_next(
         self: std::pin::Pin<&mut Self>,
@@ -208,7 +208,7 @@ impl ConnectionIpAcceptor {
     }
 }
 impl Stream for ConnectionIpAcceptor {
-    type Item = Result<(), Error>;
+    type Item = Result<()>;
     
     fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
         

@@ -5,13 +5,13 @@
 use crate::async_io::codec::*;
 use crate::async_io::cookie::*;
 use crate::{ClassOfService, Endpoint, GenericMessage, Result, SystemCommand, TranslationTables};
-use futures::sync::mpsc;
+use futures::channel::mpsc;
 use std::fs;
 use tokio::{
-    codec::{Decoder, Framed},
     fs::File,
     prelude::*,
 };
+use tokio_util::codec::{Decoder, Framed};
 
 pub struct EndpointFile {
     translation: TranslationTables,
