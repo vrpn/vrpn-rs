@@ -9,33 +9,32 @@ use crate::{
     ConstantBufferSize, CookieData, Error, Unbuffer,
 };
 use bytes::{Bytes, BytesMut};
-use tokio::{io, prelude::*};
+use futures::Future;
+use tokio::prelude::*;
+use tokio::io::{self, AsyncReadExt};
 
 /// Writes the supplied cookie to a stream.
 ///
 /// Future resolves to the provided stream on success.
-fn write_cookie<T>(stream: T, cookie: CookieData) -> impl Future<Item = T, Error = Error>
+async fn write_cookie<T>(stream: T, cookie: CookieData) -> Result<Item = T, Error = Error>
 where
     T: AsyncWrite,
 {
-    BytesMut::new()
-        .allocate_and_buffer(cookie)
-        .into_future()
-        .and_then(|buf| {
-            io::write_all(stream, buf.freeze())
-                .map(|(stream, _)| stream)
-                .from_err()
-        })
+    let buf = BytesMut::new().allocate_and_buffer(cookie)?;
+    stream
+        .write_all(stream, buf.freeze())
+        .map(|(stream, _)| stream)
+        .await
 }
 
 /// Reads a cookie's worth of data into a temporary buffer.
 ///
 /// Future resolves to (stream, buffer) on success.
-fn read_cookie<T>(stream: T) -> impl Future<Item = (T, Vec<u8>), Error = Error>
+async fn read_cookie<T>(stream: T) -> Result<Item = (T, Vec<u8>), Error = Error>
 where
     T: AsyncRead,
 {
-    io::read_exact(stream, vec![0u8; CookieData::constant_buffer_size()]).from_err()
+    stream.read_exact(vec![0u8; CookieData::constant_buffer_size()]).from_err()
 }
 
 fn verify_version_nonfile(msg: CookieData) -> impl Future<Item = (), Error = Error> {
@@ -85,7 +84,7 @@ where
 /// Reads a cookie's worth of data from the stream, and cheacks to make sure it is the right version.
 ///
 /// Future resolves to the provided stream on success.
-pub(crate) fn read_and_check_file_cookie<T>(stream: T) -> impl Future<Item = T, Error = Error>
+pub(crate) async fn read_and_check_file_cookie<T>(stream: T) -> Result<Item = T, Error = Error>
 where
     T: AsyncRead,
 {

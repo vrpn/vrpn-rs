@@ -4,21 +4,16 @@
 
 use crate::{
     async_io::{
-        codec::FramedMessageCodec,
+        // codec::FramedMessageCodec,
         connect::{incoming_handshake, ConnectionIpInfo},
         endpoint_ip::EndpointIp,
     },
     connection::*,
     Error, LogFileNames, Result, ServerInfo, TypeSafeId,
 };
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::{Arc, Mutex, Weak},
-};
-use tokio::{
-    net::{tcp::Incoming, TcpListener, UdpFramed},
-    prelude::*,
-};
+use futures::{Future, Stream, ready};
+use std::{net::{Incoming, IpAddr, Ipv4Addr, SocketAddr}, sync::{Arc, Mutex, Weak}, task::Poll};
+use tokio::{net::TcpListener, prelude::*};
 
 #[derive(Debug)]
 pub struct ConnectionIp {
@@ -99,13 +94,12 @@ impl ConnectionIp {
             let ep_arc = self.endpoints();
             let mut endpoints = ep_arc.lock()?;
             let num_endpoints = endpoints.len();
-            if let Async::Ready(Some(results)) = client_info.poll(num_endpoints)? {
+            if let Future::Ready(Some(results)) = client_info.poll(num_endpoints)? {
+                todo!();
                 // OK, we finished a connection setup.
                 endpoints.push(Some(EndpointIp::new(
                     results.tcp.unwrap(),
-                    results
-                        .udp
-                        .map(|sock| UdpFramed::new(sock, FramedMessageCodec)),
+                    results.udp, // .map(|sock| UdpFramed::new(sock, FramedMessageCodec)),
                 )));
             };
         }
@@ -115,9 +109,9 @@ impl ConnectionIp {
             Some(a) => loop {
                 let poll_result = a.poll()?;
                 match poll_result {
-                    Async::NotReady => break,
-                    Async::Ready(Some(_)) => (),
-                    Async::Ready(None) => return Ok(Async::Ready(None)),
+                    Future::NotReady => break,
+                    Future::Ready(Some(_)) => (),
+                    Future::Ready(None) => return Ok(Future::Ready(None)),
                 }
             },
             None => (),
@@ -148,9 +142,9 @@ impl ConnectionIp {
             endpoints.retain(|ep| ep.is_some());
 
             if got_not_ready {
-                Ok(Async::NotReady)
+                Ok(Future::NotReady)
             } else {
-                Ok(Async::Ready(Some(())))
+                Ok(Future::Ready(Some(())))
             }
         }
     }
@@ -182,9 +176,12 @@ impl ConnectionIpStream {
 }
 
 impl Stream for ConnectionIpStream {
-    type Item = ();
-    type Error = Error;
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    type Item = Result<(), Error>;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         // eprintln!("in <ConnectionIpStream as Stream>::poll");
         self.connection.poll_endpoints()
     }
@@ -211,18 +208,19 @@ impl ConnectionIpAcceptor {
     }
 }
 impl Stream for ConnectionIpAcceptor {
-    type Item = ();
-    type Error = Error;
-    fn poll(&mut self) -> Poll<Option<()>, Error> {
+    type Item = Result<(), Error>;
+    
+    fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
+        
         let mut incoming = self.server_tcp.lock()?;
         loop {
             let connection = match self.connection.upgrade() {
                 Some(c) => c,
-                None => return Ok(Async::Ready(None)),
+                None => return Ok(Future::Ready(None)),
             };
-            let socket = match try_ready!(incoming.poll()) {
+            let socket = match ready!(incoming.poll()) {
                 Some(s) => s,
-                None => return Ok(Async::Ready(None)),
+                None => return Ok(Future::Ready(None)),
             };
             // OK, we got a new one.
             let endpoints = connection.endpoints();
@@ -295,7 +293,7 @@ mod tests {
                 }
                 conn.remove_handler(handler_handle)
                     .expect("should be able to remove handler");
-                Ok(Async::Ready(()))
+                Ok(Future::Ready(()))
             })
             .wait()
             .unwrap();
@@ -330,7 +328,7 @@ mod tests {
                 }
                 conn.remove_handler(handler_handle)
                     .expect("should be able to remove handler");
-                Ok(Async::Ready(()))
+                Ok(Future::Ready(()))
             })
             .wait()
             .unwrap();
@@ -365,7 +363,7 @@ mod tests {
                 for _ in 0..4 {
                     let _ = conn.poll_endpoints()?;
                 }
-                Ok(Async::Ready(()))
+                Ok(Future::Ready(()))
             })
             .wait()
             .unwrap();

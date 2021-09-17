@@ -7,8 +7,8 @@ extern crate cgmath;
 extern crate chrono;
 extern crate url;
 
-#[cfg(feature = "async-tokio")]
-extern crate tk_listen;
+// #[cfg(feature = "async-tokio")]
+// extern crate tk_listen;
 
 #[cfg(test)]
 #[macro_use]
@@ -24,7 +24,6 @@ extern crate bitflags;
 #[macro_use]
 extern crate downcast_rs;
 
-#[macro_use]
 extern crate futures;
 
 #[macro_use]
@@ -37,7 +36,7 @@ extern crate tokio;
 pub mod async_io;
 
 pub mod buffer;
-pub mod codec;
+// pub mod codec;
 pub mod connection;
 pub mod constants;
 pub mod cookie;
