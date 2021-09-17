@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{BytesRequired, ConstantBufferSize, Error, Result, WrappedConstantSize};
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 /// Unifying trait over things we can unbuffer from (Bytes and BytesMut)
 pub trait Source: Sized + std::ops::Deref<Target = [u8]> + PartialEq<[u8]> + Clone {
@@ -36,7 +36,7 @@ impl Source for Bytes {
 //         BytesMut::len(self)
 //     }
 //     fn advance(&mut self, n: usize) {
-//         BytesMut::advance(self, n)
+//         Buf::advance(&mut self, n)
 //     }
 //     fn is_empty(&self) -> bool {
 //         self.is_empty()
@@ -48,14 +48,14 @@ pub trait Unbuffer: Sized {
     /// Tries to unbuffer.
     ///
     /// Returns Err(Error::NeedMoreData(n)) if not enough data.
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<Self>;
+    fn unbuffer_ref<T: Buf /* + Source */>(buf: &mut T) -> Result<Self>;
 }
 
 /// Tries to unbuffer from a mutable reference to a buffer.
 ///
 /// Delegates to Unbuffer::unbuffer_ref().
 /// Returns Err(Error::NeedMoreData(n)) if not enough data.
-pub fn unbuffer_ref<T: Unbuffer>(buf: &mut Bytes) -> Result<T> {
+pub fn unbuffer_ref<T: Unbuffer, U: Buf /* + Source */>(buf: &mut U) -> Result<T> {
     T::unbuffer_ref(buf)
 }
 
@@ -77,12 +77,22 @@ pub trait UnbufferConstantSize: Sized + ConstantBufferSize {
 
 /// Blanket impl for types implementing UnbufferConstantSize.
 impl<T: UnbufferConstantSize> Unbuffer for T {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
+    fn unbuffer_ref<U: Buf>(buf: &mut U) -> Result<Self> {
         let len = Self::constant_buffer_size();
-        if buf.len() < len {
-            Err(Error::NeedMoreData(BytesRequired::Exactly(buf.len() - len)))
+        if buf.remaining() < len {
+            Err(Error::NeedMoreData(BytesRequired::Exactly(
+                buf.remaining() - len,
+            )))
         } else {
-            Self::unbuffer_constant_size(&mut buf.split_to(len))
+            let mut buf_subset = buf.take(len);
+            let mut bytes_subset = buf_subset.copy_to_bytes(len);
+            let result = Self::unbuffer_constant_size(&mut bytes_subset);
+            // don't advance if we need more data
+            if let Err(Error::NeedMoreData(n)) = result {
+                return Err(Error::NeedMoreData(n));
+            } 
+            buf.advance(len);
+            result
         }
     }
 }
@@ -134,35 +144,36 @@ impl<T: UnbufferOutput> OutputResultExtras<T> for Result<T> {
     }
 }
 
-pub trait BytesExtras
-where
-    Self: Source,
-{
-    fn unbuffer<T>(self) -> Result<(T, Self)>
-    where
-        T: Unbuffer;
-}
-impl BytesExtras for Bytes {
-    fn unbuffer<T>(self) -> Result<(T, Self)>
-    where
-        T: Unbuffer,
-    {
-        let mut buf = self;
-        let v = T::unbuffer_ref(&mut buf)?;
-        Ok((v, buf))
-    }
-}
+// pub trait BytesExtras
+// where
+//     Self: Source,
+// {
+//     fn unbuffer<T>(self) -> Result<(T, Self)>
+//     where
+//         T: Unbuffer;
+// }
+// impl BytesExtras for Bytes {
+//     fn unbuffer<T>(self) -> Result<(T, Self)>
+//     where
+//         T: Unbuffer,
+//     {
+//         let mut buf = self;
+//         let v = T::unbuffer_ref(&mut buf)?;
+//         Ok((v, buf))
+//     }
+// }
 
 /// Check that the buffer begins with the expected string.
-pub fn check_expected(buf: &mut Bytes, expected: &'static [u8]) -> Result<()> {
-    let bytes_len = buf.len();
+pub fn check_expected<T: Buf /* + Source */>(buf: &mut T, expected: &'static [u8]) -> Result<()> {
+    let bytes_len = buf.remaining();
     let expected_len = expected.len();
     if bytes_len < expected_len {
         return Err(Error::NeedMoreData(BytesRequired::Exactly(
             expected_len - bytes_len,
         )));
     }
-    let my_bytes = buf.split_to(expected_len);
+
+    let my_bytes = buf.copy_to_bytes(expected_len);
     if my_bytes == expected {
         Ok(())
     } else {

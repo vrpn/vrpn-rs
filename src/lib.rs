@@ -80,7 +80,7 @@ pub use crate::{
     time::TimeVal,
     type_dispatcher::{RegisterMapping, TypeDispatcher},
     types::*,
-    unbuffer::{BytesExtras, OutputResultExtras, Unbuffer, UnbufferOutput},
+    unbuffer::{OutputResultExtras, Unbuffer, UnbufferOutput},
 };
 
 pub(crate) use crate::{

@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{
-    unbuffer::Source, unbuffer::UnbufferConstantSize, Buffer, BytesRequired, ConstantBufferSize,
+use crate::{ unbuffer::UnbufferConstantSize, Buffer, BytesRequired, ConstantBufferSize,
     EmptyResult, Error, Quat, Result, Sensor, Unbuffer, Vec3, WrappedConstantSize,
 };
 use bytes::{Buf, BufMut, Bytes};
@@ -73,10 +72,10 @@ impl Buffer for Vec3 {
 }
 
 impl Unbuffer for Vec3 {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
-        if buf.len() < Self::constant_buffer_size() {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
+        if buf.remaining() < Self::constant_buffer_size() {
             return Err(Error::NeedMoreData(BytesRequired::Exactly(
-                Self::constant_buffer_size() - buf.len(),
+                Self::constant_buffer_size() - buf.remaining(),
             )));
         }
         let x = f64::unbuffer_ref(buf)?;
@@ -104,10 +103,10 @@ impl Buffer for Quat {
 }
 
 impl Unbuffer for Quat {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
-        if buf.len() < Self::constant_buffer_size() {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
+        if buf.remaining() < Self::constant_buffer_size() {
             return Err(Error::NeedMoreData(BytesRequired::Exactly(
-                Self::constant_buffer_size() - buf.len(),
+                Self::constant_buffer_size() - buf.remaining(),
             )));
         }
         let v = Vec3::unbuffer_ref(buf)?;

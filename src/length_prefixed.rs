@@ -6,7 +6,7 @@ use crate::prelude::*;
 use crate::{
     unbuffer::check_expected, Buffer, BytesRequired, EmptyResult, Error, Result, Unbuffer,
 };
-use bytes::{BufMut, Bytes};
+use bytes::{Buf, BufMut, Bytes};
 use std::mem::size_of;
 
 /// Does the "length prefix" value include a trailing null character (strlen() + 1)?
@@ -59,13 +59,13 @@ pub fn buffer_string<T: BufMut>(
 }
 
 /// Unbuffer a string, preceded by its length and followed by a null bytes.
-pub fn unbuffer_string(buf: &mut Bytes) -> Result<Bytes> {
+pub fn unbuffer_string<T: Buf>(buf: &mut T) -> Result<Bytes> {
     let buf_size = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
 
     let buf_size = buf_size as usize;
-    if buf.len() < buf_size {
+    if buf.remaining() < buf_size {
         return Err(Error::NeedMoreData(BytesRequired::Exactly(
-            buf_size - buf.len(),
+            buf_size - buf.remaining(),
         )));
     }
     assert_ne!(
@@ -75,7 +75,7 @@ pub fn unbuffer_string(buf: &mut Bytes) -> Result<Bytes> {
     // Subtract null-terminator from length we want.
     let buf_size = buf_size - 1;
 
-    let s = buf.split_to(buf_size);
+    let s = buf.copy_to_bytes(buf_size);
     // Grab null terminator
     check_expected(buf, b"\0")?;
     Ok(s)

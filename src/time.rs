@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{error::*, prelude::*, Buffer, ConstantBufferSize, Unbuffer, WrappedConstantSize};
-use bytes::{BufMut, Bytes};
+use bytes::{Buf, BufMut, Bytes};
 use std::time::{Duration, SystemTime};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
@@ -101,7 +101,7 @@ impl Buffer for TimeVal {
 }
 
 impl Unbuffer for TimeVal {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
         Seconds::unbuffer_ref(buf)
             .and_then(|sec| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
             .map(|(usec, sec)| TimeVal::new(sec, usec))

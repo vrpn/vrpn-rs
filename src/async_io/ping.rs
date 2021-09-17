@@ -3,11 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{ping::Client as RawClient, Connection, Error, LocalId, Result, SenderId, SenderName};
-use futures::{ready, Stream};
+use futures::{Stream, StreamExt, ready};
 use std::task::Poll;
 use std::{sync::Arc, time::Duration};
-use tokio::prelude::*;
-use tokio::time::Interval;
+use tokio::time::{Interval, interval};
 
 pub struct Client<T: Connection + 'static> {
     client: RawClient<T>,
@@ -18,7 +17,7 @@ impl<T: Connection + 'static> Client<T> {
     fn new_impl(client: RawClient<T>) -> Result<Client<T>> {
         Ok(Client {
             client,
-            interval: Interval::new_interval(Duration::from_secs(1)),
+            interval: interval(Duration::from_secs(1)),
         })
     }
     pub fn new(sender: LocalId<SenderId>, connection: Arc<T>) -> Result<Client<T>> {
@@ -42,21 +41,14 @@ impl<T: Connection + 'static> Stream for Client<T> {
     ) -> std::task::Poll<Option<Self::Item>> {
         let _ = ready!(self
             .interval
-            .poll()
-            .map_err(|e| Error::OtherMessage(e.to_string())));
+            .poll_next_unpin(cx));
 
-        // match self.interval.poll()? {
-        //     Async::NotReady => Ok(Async::NotReady),
-        //     Async::Ready(Some(_)) => {
         if let Some(radio_silence) = self.client.check_ping_cycle()? {
             eprintln!(
-                "It has been {} since the first unanwered ping was sent to the server!",
+                "It has been {} since the first unanswered ping was sent to the server!",
                 radio_silence
             );
         }
-        Ok(Poll::Ready(Some(())))
-        //     }
-        //     Async::Ready(None) => Ok(Async::Ready(None)),
-        // }
+        Poll::Ready(Some(Ok(())))
     }
 }

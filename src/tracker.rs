@@ -6,7 +6,7 @@ use crate::{
     Buffer, ConstantBufferSize, EmptyResult, MessageTypeIdentifier, Quat, Result, Sensor,
     StaticTypeName, TypedMessageBody, Unbuffer, Vec3,
 };
-use bytes::{BufMut, Bytes};
+use bytes::{Buf, BufMut, Bytes};
 
 /// Position and orientation for trackers.
 #[derive(Clone, Debug, PartialEq)]
@@ -41,17 +41,19 @@ impl Buffer for PoseReport {
 }
 
 impl Unbuffer for PoseReport {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
-        let sensor = Sensor::unbuffer_ref(buf)?;
-        let _ = Sensor::unbuffer_ref(buf)?;
-        let pos = Vec3::unbuffer_ref(buf)?;
-        let quat = Quat::unbuffer_ref(buf)?;
-        Ok(PoseReport { sensor, pos, quat })
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
+        {
+            let sensor = Sensor::unbuffer_ref(buf)?;
+            let _ = Sensor::unbuffer_ref(buf)?;
+            let pos = Vec3::unbuffer_ref(buf)?;
+            let quat = Quat::unbuffer_ref(buf)?;
+            Ok(PoseReport { sensor, pos, quat })
+        }
     }
 }
 
 /// Linear and angular velocity for trackers.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct VelocityReport {
     pub sensor: Sensor,
     pub vel: Vec3,
@@ -65,7 +67,7 @@ impl TypedMessageBody for VelocityReport {
 }
 
 /// Linear and angular acceleration for trackers.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct AccelReport {
     pub sensor: Sensor,
     pub acc: Vec3,

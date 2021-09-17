@@ -7,7 +7,7 @@ use crate::{
     ConstantBufferSize, EmptyResult, Error, MessageTypeIdentifier, Result, TypedMessageBody,
     Unbuffer,
 };
-use bytes::{BufMut, Bytes};
+use bytes::{Buf, BufMut, Bytes};
 
 bitflags! {
     pub struct LogMode: u8  {
@@ -174,9 +174,9 @@ impl TypedMessageBody for LogFileNames {
         MessageTypeIdentifier::SystemMessageId(LOG_DESCRIPTION);
 }
 
-fn unbuffer_logname(len: usize, buf: &mut Bytes) -> Result<Option<Bytes>> {
+fn unbuffer_logname<T: Buf>(len: usize, buf: &mut T) -> Result<Option<Bytes>> {
     let name = if len > 0 {
-        Some(buf.split_to(len))
+        Some(buf.copy_to_bytes(len))
     } else {
         None
     };
@@ -186,11 +186,11 @@ fn unbuffer_logname(len: usize, buf: &mut Bytes) -> Result<Option<Bytes>> {
 }
 
 impl Unbuffer for LogFileNames {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<LogFileNames> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
         let min_size = 2 * u32::constant_buffer_size() + 2;
-        if buf.len() < min_size {
+        if buf.remaining() < min_size {
             return Err(Error::NeedMoreData(BytesRequired::AtLeast(
-                min_size - buf.len(),
+                min_size - buf.remaining(),
             )));
         }
         let in_len = u32::unbuffer_ref(buf)?;

@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{codec::decode_one, Buffer, Error, Result, SequencedGenericMessage};
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut, Buf};
 use tokio::{
     prelude::*,
 };
@@ -11,6 +11,7 @@ use tokio_util::codec::{Decoder, Encoder, Framed};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FramedMessageCodec;
+
 impl Decoder for FramedMessageCodec {
     type Item = SequencedGenericMessage;
     type Error = Error;
@@ -20,7 +21,7 @@ impl Decoder for FramedMessageCodec {
             // short-circuit if we have run out of stuff.
             return Ok(None);
         }
-        let mut inner_buf = Bytes::from(src);
+        let mut inner_buf = src.clone();
         match decode_one(&mut inner_buf)? {
             Some(msg) => {
                 let consumed = initial_len - inner_buf.len();
@@ -32,10 +33,9 @@ impl Decoder for FramedMessageCodec {
     }
 }
 
-impl Encoder for FramedMessageCodec {
+impl Encoder<SequencedGenericMessage> for FramedMessageCodec {
     type Error = Error;
-    type Item = SequencedGenericMessage;
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<()> {
+    fn encode(&mut self, item: SequencedGenericMessage, dst: &mut BytesMut) -> Result<()> {
         dst.reserve(item.required_buffer_size());
         item.buffer_ref(dst)
     }

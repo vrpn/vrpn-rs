@@ -6,6 +6,6 @@ pub use crate::{
     buffer::{BufMutExtras, BytesMutExtras},
     connection::Connection,
     size::{BufferSize, ConstantBufferSize, WrappedConstantSize},
-    unbuffer::{BytesExtras, OutputResultExtras, UnbufferOutput},
+    unbuffer::{OutputResultExtras, UnbufferOutput},
     BaseTypeSafeId, TypeSafeId,
 };

@@ -2,12 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{
-    constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
-    unbuffer::check_expected,
-    Buffer, ConstantBufferSize, EmptyResult, Error, LogMode, Result, Unbuffer,
-};
-use bytes::{BufMut, Bytes};
+use crate::{Buffer, ConstantBufferSize, EmptyResult, Error, LogMode, Result, Unbuffer, constants::{self, COOKIE_SIZE, MAGIC_PREFIX}, unbuffer::{check_expected}};
+use bytes::{Buf, BufMut, Bytes};
 use std::fmt::{self, Display, Formatter};
 
 const COOKIE_PADDING: &[u8] = b"\0\0\0\0\0";
@@ -75,13 +71,13 @@ impl Buffer for CookieData {
 }
 
 #[inline]
-fn from_dec(input: &[u8]) -> Result<u8> {
-    str::parse::<u8>(&String::from_utf8_lossy(input)).map_err(Error::from)
+fn from_dec(input: Bytes) -> Result<u8> {
+    str::parse::<u8>(&String::from_utf8_lossy(&input)).map_err(Error::from)
 }
 
 #[inline]
-fn dec_digits(buf: &mut Bytes, n: usize) -> Result<u8> {
-    from_dec(&buf.split_to(n))
+fn dec_digits<T: Buf>(buf: &mut T, n: usize) -> Result<u8> {
+    from_dec(buf.copy_to_bytes(n))
 }
 
 fn u8_to_log_mode(v: u8) -> LogMode {
@@ -89,7 +85,7 @@ fn u8_to_log_mode(v: u8) -> LogMode {
 }
 
 impl Unbuffer for CookieData {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<Self> {
+    fn unbuffer_ref<T: Buf /* + Source */>(buf: &mut T) -> Result<Self> {
         // remove "vrpn: ver. "
         check_expected(buf, MAGIC_PREFIX)?;
 
@@ -243,8 +239,8 @@ mod tests {
 
     #[test]
     fn basics() {
-        assert_eq!(from_dec(b"1").unwrap(), 1_u8);
-        assert_eq!(from_dec(b"12").unwrap(), 12_u8);
+        assert_eq!(from_dec(Bytes::from_static(b"1")).unwrap(), 1_u8);
+        assert_eq!(from_dec(Bytes::from_static(b"12")).unwrap(), 12_u8);
     }
     #[test]
     fn dec_digits_fn() {
@@ -262,7 +258,8 @@ mod tests {
     #[test]
     fn parse_decimal() {
         fn parse_decimal_u8(v: &'static [u8]) -> u8 {
-            from_dec(v).unwrap()
+            let myval = Bytes::from_static(v);
+            from_dec(myval).unwrap()
         }
         assert_eq!(0_u8, parse_decimal_u8(b"0"));
         assert_eq!(0_u8, parse_decimal_u8(b"00"));

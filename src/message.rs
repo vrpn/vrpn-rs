@@ -205,7 +205,7 @@ impl WrappedConstantSize for TypeId {
 }
 
 #[inline]
-fn compute_padding(len: usize) -> usize {
+const fn compute_padding(len: usize) -> usize {
     let remainder = len % ALIGN;
     if remainder != 0 {
         ALIGN - remainder
@@ -215,7 +215,7 @@ fn compute_padding(len: usize) -> usize {
 }
 
 #[inline]
-fn padded(len: usize) -> usize {
+const fn padded(len: usize) -> usize {
     len + compute_padding(len)
 }
 
@@ -233,20 +233,20 @@ impl MessageSize {
 
     /// Get a MessageSize from the unpadded size of a message body only.
     #[inline]
-    pub fn from_unpadded_body_size(unpadded_body_size: usize) -> MessageSize {
+    pub const fn from_unpadded_body_size(unpadded_body_size: usize) -> MessageSize {
         MessageSize { unpadded_body_size }
     }
 
     /// Get a MessageSize from the total unpadded size of a message (header plus body)
     #[inline]
-    pub fn from_unpadded_message_size(unpadded_message_size: usize) -> MessageSize {
+    pub const fn from_unpadded_message_size(unpadded_message_size: usize) -> MessageSize {
         MessageSize::from_unpadded_body_size(
             unpadded_message_size - MessageSize::UNPADDED_HEADER_SIZE,
         )
     }
     /// Get a MessageSize from the length field of a message (padded header plus unpadded body)
     #[inline]
-    pub fn from_length_field(length_field: LengthField) -> MessageSize {
+    pub const fn from_length_field(length_field: LengthField) -> MessageSize {
         MessageSize::from_unpadded_body_size(
             length_field as usize - padded(MessageSize::UNPADDED_HEADER_SIZE),
         )
@@ -254,7 +254,7 @@ impl MessageSize {
 
     /// The unpadded size of just the message body.
     #[inline]
-    pub fn unpadded_body_size(&self) -> usize {
+    pub const fn unpadded_body_size(&self) -> usize {
         self.unpadded_body_size
     }
 
@@ -262,19 +262,19 @@ impl MessageSize {
     ///
     /// This is the value put in the message header's length field.
     #[inline]
-    pub fn length_field(&self) -> LengthField {
+    pub const fn length_field(&self) -> LengthField {
         (self.unpadded_body_size + padded(MessageSize::UNPADDED_HEADER_SIZE)) as LengthField
     }
 
     /// The size of the body plus padding (multiple of ALIGN)
     #[inline]
-    pub fn padded_body_size(&self) -> usize {
+    pub const fn padded_body_size(&self) -> usize {
         padded(self.unpadded_body_size)
     }
 
     /// The number of padding bytes required to follow the message body.
     #[inline]
-    pub fn body_padding(&self) -> usize {
+    pub const fn body_padding(&self) -> usize {
         compute_padding(self.unpadded_body_size)
     }
 
@@ -282,7 +282,7 @@ impl MessageSize {
     ///
     /// This is the size of buffer actually required for this message.
     #[inline]
-    pub fn padded_message_size(&self) -> usize {
+    pub const fn padded_message_size(&self) -> usize {
         self.padded_body_size() + padded(MessageSize::UNPADDED_HEADER_SIZE)
     }
 }
@@ -332,17 +332,17 @@ impl Buffer for SequencedMessage<GenericBody> {
 
 impl Unbuffer for SequencedMessage<GenericBody> {
     /// Deserialize from a buffer.
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<SequencedMessage<GenericBody>> {
-        let initial_remaining = buf.len();
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<SequencedMessage<GenericBody>> {
+        let initial_remaining = buf.remaining();
         let length_field = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
         let size = MessageSize::from_length_field(length_field);
 
         // Subtracting the length of the u32 we already unbuffered.
         let expected_remaining_bytes = size.padded_message_size() - size_of::<u32>();
 
-        if buf.len() < expected_remaining_bytes {
+        if buf.remaining() < expected_remaining_bytes {
             return Err(Error::NeedMoreData(BytesRequired::Exactly(
-                expected_remaining_bytes - buf.len(),
+                expected_remaining_bytes - buf.remaining(),
             )));
         }
         let time = TimeVal::unbuffer_ref(buf)?;
@@ -351,17 +351,17 @@ impl Unbuffer for SequencedMessage<GenericBody> {
         let sequence_number = SequenceNumber::unbuffer_ref(buf)?;
 
         // Assert that handling the sequence number meant we're now aligned again.
-        assert_eq!((initial_remaining - buf.len()) % ALIGN, 0);
+        assert_eq!((initial_remaining - buf.remaining()) % ALIGN, 0);
 
         let body;
         {
-            let mut body_buf = buf.split_to(size.unpadded_body_size());
+            let mut body_buf = buf.copy_to_bytes(size.unpadded_body_size());
             body = GenericBody::unbuffer_ref(&mut body_buf).map_exactly_err_to_at_least()?;
-            assert_eq!(body_buf.len(), 0);
+            assert_eq!(body_buf.remaining(), 0);
         }
 
         // drop padding bytes
-        let _ = buf.split_to(size.body_padding());
+        let _ = buf.copy_to_bytes(size.body_padding());
         Ok(SequencedMessage::new(
             Some(time),
             message_type,
@@ -373,10 +373,11 @@ impl Unbuffer for SequencedMessage<GenericBody> {
 }
 
 impl Unbuffer for GenericBody {
-    fn unbuffer_ref(buf: &mut Bytes) -> Result<GenericBody> {
-        let my_buf = buf.clone();
-        buf.advance(my_buf.len());
-        Ok(GenericBody::new(my_buf))
+    fn unbuffer_ref<T: Buf /* + Source */>(buf: &mut T) -> Result<GenericBody> {
+        let my_bytes = buf.copy_to_bytes(buf.remaining());
+        // let my_buf = Bytes::from(buf);// buf.clone();
+        // buf.advance(my_buf.remaining());
+        Ok(GenericBody::new(my_bytes))
     }
 }
 
