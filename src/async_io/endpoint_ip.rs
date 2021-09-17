@@ -50,7 +50,7 @@ impl EndpointIp {
         }
     }
 
-    pub(crate) fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Poll<Result<(), Error>> {
+    pub(crate) fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Poll<Result<()>> {
         let channel_arc = Arc::clone(&self.reliable_channel);
         let mut channel = channel_arc
             .lock()

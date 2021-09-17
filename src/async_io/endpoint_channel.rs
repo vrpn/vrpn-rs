@@ -23,15 +23,15 @@ use tokio::prelude::*;
 
 #[derive(Debug)]
 pub(crate) struct EndpointChannel<T> {
-    tx: SplitSink<T>,
+    tx: SplitSink<T, SequencedGenericMessage>,
     rx: SplitStream<T>,
     seq: AtomicUsize,
 }
 
 impl<T> EndpointChannel<T>
 where
-    T: Sink<SinkItem = SequencedGenericMessage, SinkError = Error>
-        + Stream<Item = SequencedGenericMessage, Error = Error>,
+    T: Sink<SequencedGenericMessage, Error = Error>
+        + Stream<Item = SequencedGenericMessage>,
 {
     pub(crate) fn new(framed_stream: T) -> Arc<Mutex<EndpointChannel<T>>> {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
@@ -46,8 +46,8 @@ where
 
 impl<T> Stream for EndpointChannel<T>
 where
-    T: Sink<SinkItem = SequencedGenericMessage, SinkError = Error>
-        + Stream<Item = SequencedGenericMessage, Error = Error>,
+    T: Sink<SequencedGenericMessage, Error = Error>
+        + Stream<Item = SequencedGenericMessage>,
 {
     type Item = Result<GenericMessage, Error>;
 
@@ -65,8 +65,8 @@ where
 
 impl<T> Sink<GenericMessage> for EndpointChannel<T>
 where
-    T: Sink<SinkItem = SequencedGenericMessage, SinkError = Error>
-        + Stream<Item = SequencedGenericMessage, Error = Error>,
+    T: Sink<SequencedGenericMessage, Error = Error>
+        + Stream<Item = SequencedGenericMessage>,
 {
     fn poll_ready(
         self: std::pin::Pin<&mut Self>,
@@ -74,7 +74,7 @@ where
     ) -> std::task::Poll<Result<(), Self::Error>> {
         todo!()
     }
-    fn start_send(&mut self, item: Self::SinkItem) -> Result<(), Self::Error> {
+    fn start_send(&mut self, item: SequencedGenericMessage) -> Result<(), Self::Error> {
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
 
         match self
@@ -110,9 +110,9 @@ pub(crate) fn poll_and_dispatch<T>(
     endpoint: &mut EndpointIp,
     stream: &mut T,
     dispatcher: &mut TypeDispatcher,
-) -> Poll<(), Error>
+) -> Poll<Result<(), Error>>
 where
-    T: Stream<Item = GenericMessage, Error = Error>,
+    T: Stream<Item = GenericMessage>,
 {
     const MAX_PER_TICK: usize = 10;
     let mut closed = false;

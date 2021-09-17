@@ -34,7 +34,7 @@ impl<T: Connection + 'static> Client<T> {
 }
 
 impl<T: Connection + 'static> Stream for Client<T> {
-    type Item = Result<(), Error>;
+    type Item = Result<()>;
 
     fn poll_next(
         self: std::pin::Pin<&mut Self>,
