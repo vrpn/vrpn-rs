@@ -10,18 +10,18 @@ use crate::{
     ConnectionStatus, CookieData, Error, Result, Scheme, ServerInfo, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::{AsyncRead, AsyncWrite, Future, FutureExt, Stream, ready};
+use futures::{ready, AsyncRead, AsyncWrite, Future, FutureExt, Stream};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
-use tokio::io::AsyncWriteExt;
-use tokio::time::Sleep;
 use std::net::{Incoming, TcpStream};
 use std::pin::Pin;
-use std::task::{Poll, ready};
+use std::task::{ready, Poll};
 use std::time::{Duration, Instant};
 use std::{
     fmt::{self, Debug},
     net::{self, IpAddr, SocketAddr, ToSocketAddrs},
 };
+use tokio::io::AsyncWriteExt;
+use tokio::time::Sleep;
 use tokio::{
     io,
     net::{TcpListener, UdpSocket},
@@ -161,7 +161,7 @@ enum State {
     /// Follows after Lobbing.
     WaitingForConnection(WaitForConnect),
     /// Making the connection for a TCP-only setup.
-    Connecting(Box<dyn Future<Output = Result<tokio::net::TcpStream>> + Send>),
+    Connecting,
     /// Reached from Connecting in case of error.
     DelayBeforeConnectionRetry,
     /// Transmitting the magic cookie - used by both modes.
@@ -175,7 +175,7 @@ impl Debug for State {
         match self {
             Self::Lobbing(arg0, arg1) => f.debug_tuple("Lobbing").field(arg0).field(arg1).finish(),
             Self::WaitingForConnection(_) => write!(f, "WaitingForConnection"),
-            Self::Connecting(arg0) => write!(f, "Connecting"),
+            Self::Connecting => write!(f, "Connecting"),
             Self::DelayBeforeConnectionRetry => write!(f, "DelayBeforeConnectionRetry"),
             Self::SendingHandshake => write!(f, "SendingHandshake"),
             Self::ReceivingHandshake(arg0) => {
@@ -276,7 +276,7 @@ const MILLIS_BETWEEN_ATTEMPTS: u64 = 500;
 //                 }
 
 //                 State::Connecting(conn_future) => match ready!(conn_future.poll_unpin(cx)) {
-                    
+
 //                     Err(e) => {
 //                         eprintln!("Error connecting: {}. Will retry after a delay.", e);
 //                         self.delay_before_retry();
@@ -378,32 +378,36 @@ async fn connect_tcp_and_udp(server: ServerInfo) -> Result<ConnectResults> {
     };
     let ip = addr.ip();
     let lobbed_buf = lobbed_buf.freeze();
- finish_connecting(server, State::Lobbing(Some(tcp_listener), ip), Some(UdpConnect { udp, lobbed_buf })).await
+    finish_connecting(
+        server,
+        State::Lobbing(Some(tcp_listener), ip),
+        Some(UdpConnect { udp, lobbed_buf }),
+    )
+    .await
 }
 async fn connect_tcp_only(server: ServerInfo) -> Result<ConnectResults> {
     let cookie_buf = BytesMut::new()
         .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
         .freeze();
     let addr = server.socket_addr;
-    let connect_future = outgoing_tcp_connect(addr).boxed();
-    finish_connecting(server, State::Connecting(Box::new(connect_future)), None).await
+    finish_connecting(server, State::Connecting, None).await
 }
 
-pub(crate) async fn finish_connecting(server: ServerInfo, 
+pub(crate) async fn finish_connecting(
+    server: ServerInfo,
     state: State,
-    udp_connect: Option<UdpConnect>,) -> Result<ConnectResults> {
-        let full_state = Some(state);
-    let cookie_buf = BytesMut::new()
-        .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
-        .freeze();
-        let delay: Option<Sleep> = None;
+    udp_connect: Option<UdpConnect>,
+) -> Result<ConnectResults> {
+    let mut full_state = Some(state);
+    let mut udp_connect = udp_connect;
+    let delay: Option<Sleep> = None;
 
-        let stream: Option<tokio::net::TcpStream> = None;
-        async fn delay_before_retry() {
-
-            let mut deadline = tokio::time::Instant::now() +  tokio::time::Duration::from_millis(MILLIS_BETWEEN_ATTEMPTS);
-            // tokio::time::sleep(deadline).await
-        }
+    let mut stream: Option<tokio::net::TcpStream> = None;
+    async fn delay_before_retry() {
+        let mut deadline = tokio::time::Instant::now()
+            + tokio::time::Duration::from_millis(MILLIS_BETWEEN_ATTEMPTS);
+        tokio::time::sleep(deadline).await
+    }
     // Loop until we succeed, error, or hit NotReady
     loop {
         let state = full_state.as_mut().unwrap();
@@ -412,8 +416,10 @@ pub(crate) async fn finish_connecting(server: ServerInfo,
             State::Lobbing(tcp_listener, ip) => {
                 if let Some(udp_connect) = udp_connect.as_mut() {
                     udp_connect
-                        .udp.send_to( &udp_connect.lobbed_buf, server.socket_addr.clone()).await?;
-                    *state = State::WaitingForConnection( WaitForConnect::new(
+                        .udp
+                        .send_to(&udp_connect.lobbed_buf, server.socket_addr.clone())
+                        .await?;
+                    *state = State::WaitingForConnection(WaitForConnect::new(
                         *ip,
                         tcp_listener.take().unwrap(),
                     ));
@@ -423,12 +429,11 @@ pub(crate) async fn finish_connecting(server: ServerInfo,
             }
 
             State::Connecting => match outgoing_tcp_connect(server.socket_addr).await {
-                
                 Err(e) => {
                     eprintln!("Error connecting: {}. Will retry after a delay.", e);
                     *state = State::DelayBeforeConnectionRetry;
                 }
-                Ok(s)  => {
+                Ok(s) => {
                     stream = Some(s);
                     *state = State::SendingHandshake;
                 }
@@ -466,11 +471,11 @@ pub(crate) async fn finish_connecting(server: ServerInfo,
             }
 
             State::SendingHandshake => {
+                let mut cookie_buf = BytesMut::new()
+                    .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
+                    .freeze();
                 while cookie_buf.has_remaining() {
-                    stream
-                        .as_mut()
-                        .unwrap()
-                        .write_buf(&mut cookie_buf).await;
+                    stream.as_mut().unwrap().write_buf(&mut cookie_buf).await;
                 }
                 let cookie_size = CookieData::constant_buffer_size();
                 let buf = BytesMut::with_capacity(cookie_size);
@@ -484,7 +489,7 @@ pub(crate) async fn finish_connecting(server: ServerInfo,
                 let mut buf = buf.clone().freeze();
                 let cookie = CookieData::unbuffer_ref(&mut buf)?;
                 check_ver_nonfile_compatible(cookie.version)?;
-                let udp = connect.udp_connect.take().map(|udp_connect| udp_connect.udp);
+                let udp = udp_connect.take().map(|udp_connect| udp_connect.udp);
 
                 return Ok(ConnectResults {
                     tcp: stream.take(),
@@ -492,17 +497,23 @@ pub(crate) async fn finish_connecting(server: ServerInfo,
                 });
             }
         };
- 
-}
-
-impl Connect {
-    pub async fn new(server: ServerInfo) -> Result<Self> {
-        match server.scheme {
-            Scheme::UdpAndTcp => connect_tcp_and_udp(server).await,
-            Scheme::TcpOnly => connect_tcp_only(server).await,
-        }
     }
 }
+
+pub async fn connect(server: ServerInfo) -> Result<ConnectResults> {
+    match server.scheme {
+        Scheme::UdpAndTcp => connect_tcp_and_udp(server).await,
+        Scheme::TcpOnly => connect_tcp_only(server).await,
+    }
+}
+// impl Connect {
+//     pub async fn new(server: ServerInfo) -> Result<Self> {
+//         match server.scheme {
+//             Scheme::UdpAndTcp => connect_tcp_and_udp(server).await,
+//             Scheme::TcpOnly => connect_tcp_only(server).await,
+//         }
+//     }
+// }
 // pub(crate) async fn connect(server: ServerInfo) -> Result<()> {
 //     let mut connect: Option<Connect> = None;
 //     match server.scheme {
@@ -517,44 +528,44 @@ pub(crate) enum ConnectionIpInfo {
     Server,
 }
 
-impl ConnectionIpInfo {
-    pub(crate) fn new_client(server: ServerInfo) -> Result<ConnectionIpInfo> {
-        Ok(ConnectionIpInfo::ConnectionSetupFuture(Connect::new(
-            server,
-        )?))
-    }
+// impl ConnectionIpInfo {
+//     pub(crate) fn new_client(server: ServerInfo) -> Result<ConnectionIpInfo> {
+//         Ok(ConnectionIpInfo::ConnectionSetupFuture(Connect::new(
+//             server,
+//         )?))
+//     }
 
-    pub(crate) fn new_server() -> Result<ConnectionIpInfo> {
-        Ok(ConnectionIpInfo::Server)
-    }
-    pub(crate) fn poll(&mut self, num_endpoints: usize) -> Poll<Result<Option<ConnectResults>>> {
-        loop {
-            match self {
-                ConnectionIpInfo::ConnectionSetupFuture(fut) => {
-                    let result = ready!(fut.poll());
-                    *self = ConnectionIpInfo::Info(fut.server.clone());
-                    return Ok(Future::Ready(Some(result)));
-                }
-                ConnectionIpInfo::Info(info) => {
-                    if num_endpoints == 0 {
-                        eprintln!("No endpoints, despite claims we've already connected. Re-starting connection process.");
-                        *self = ConnectionIpInfo::new_client(info.clone())?;
-                    } else {
-                        return Ok(Future::Ready(None));
-                    }
-                }
-                _ => return Ok(Future::Ready(None)),
-            }
-        }
-    }
-    pub(crate) fn status(&self, num_endpoints: usize) -> ConnectionStatus {
-        match *self {
-            ConnectionIpInfo::ConnectionSetupFuture(_) => ConnectionStatus::ClientConnecting,
-            ConnectionIpInfo::Info(_) => ConnectionStatus::ClientConnected,
-            ConnectionIpInfo::Server => ConnectionStatus::Server(num_endpoints),
-        }
-    }
-}
+//     pub(crate) fn new_server() -> Result<ConnectionIpInfo> {
+//         Ok(ConnectionIpInfo::Server)
+//     }
+//     pub(crate) fn poll(&mut self, num_endpoints: usize) -> Poll<Result<Option<ConnectResults>>> {
+//         loop {
+//             match self {
+//                 ConnectionIpInfo::ConnectionSetupFuture(fut) => {
+//                     let result = ready!(fut.poll());
+//                     *self = ConnectionIpInfo::Info(fut.server.clone());
+//                     return Ok(Future::Ready(Some(result)));
+//                 }
+//                 ConnectionIpInfo::Info(info) => {
+//                     if num_endpoints == 0 {
+//                         eprintln!("No endpoints, despite claims we've already connected. Re-starting connection process.");
+//                         *self = ConnectionIpInfo::new_client(info.clone())?;
+//                     } else {
+//                         return Ok(Future::Ready(None));
+//                     }
+//                 }
+//                 _ => return Ok(Future::Ready(None)),
+//             }
+//         }
+//     }
+//     pub(crate) fn status(&self, num_endpoints: usize) -> ConnectionStatus {
+//         match *self {
+//             ConnectionIpInfo::ConnectionSetupFuture(_) => ConnectionStatus::ClientConnecting,
+//             ConnectionIpInfo::Info(_) => ConnectionStatus::ClientConnected,
+//             ConnectionIpInfo::Server => ConnectionStatus::Server(num_endpoints),
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -567,9 +578,7 @@ mod tests {
 
     #[test]
     fn basic_connect_tcp() {
-        let results = finish_connecting(Connect::new("tcp://127.0.0.1:3883"
-            .parse::<ServerInfo>().unwrap()))
-            .flatten()
+        let results = connect("tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap())
             .wait()
             .expect("should be able to create connection future");
         results.tcp.expect("Should have a TCP stream");
@@ -577,11 +586,7 @@ mod tests {
     }
     #[test]
     fn basic_connect() {
-        let results = "127.0.0.1:3883"
-            .parse::<ServerInfo>()
-            .into_future()
-            .and_then(Connect::new)
-            .flatten()
+        let results = connect("127.0.0.1:3883".parse::<ServerInfo>().unwrap())
             .wait()
             .expect("should be able to create connection future");
         results.tcp.expect("Should have a TCP stream");
