@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{ unbuffer::UnbufferConstantSize, Buffer, BytesRequired, ConstantBufferSize,
-    EmptyResult, Error, Quat, Result, Sensor, Unbuffer, Vec3, WrappedConstantSize,
+use crate::{
+    unbuffer::UnbufferConstantSize, Buffer, BytesRequired, ConstantBufferSize, EmptyResult, Error,
+    Quat, Result, Sensor, Unbuffer, Vec3, WrappedConstantSize,
 };
 use bytes::{Buf, BufMut, Bytes};
 

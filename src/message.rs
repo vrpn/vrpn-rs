@@ -373,10 +373,8 @@ impl Unbuffer for SequencedMessage<GenericBody> {
 }
 
 impl Unbuffer for GenericBody {
-    fn unbuffer_ref<T: Buf /* + Source */>(buf: &mut T) -> Result<GenericBody> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<GenericBody> {
         let my_bytes = buf.copy_to_bytes(buf.remaining());
-        // let my_buf = Bytes::from(buf);// buf.clone();
-        // buf.advance(my_buf.remaining());
         Ok(GenericBody::new(my_bytes))
     }
 }

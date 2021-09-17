@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{Buffer, ConstantBufferSize, EmptyResult, Error, LogMode, Result, Unbuffer, constants::{self, COOKIE_SIZE, MAGIC_PREFIX}, unbuffer::{check_expected}};
+use crate::{
+    constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
+    unbuffer::check_expected,
+    Buffer, ConstantBufferSize, EmptyResult, Error, LogMode, Result, Unbuffer,
+};
 use bytes::{Buf, BufMut, Bytes};
 use std::fmt::{self, Display, Formatter};
 
@@ -85,7 +89,7 @@ fn u8_to_log_mode(v: u8) -> LogMode {
 }
 
 impl Unbuffer for CookieData {
-    fn unbuffer_ref<T: Buf /* + Source */>(buf: &mut T) -> Result<Self> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
         // remove "vrpn: ver. "
         check_expected(buf, MAGIC_PREFIX)?;
 

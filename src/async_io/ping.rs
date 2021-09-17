@@ -3,10 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{ping::Client as RawClient, Connection, Error, LocalId, Result, SenderId, SenderName};
-use futures::{Stream, StreamExt, ready};
+use futures::{ready, Stream, StreamExt};
 use std::task::Poll;
 use std::{sync::Arc, time::Duration};
-use tokio::time::{Interval, interval};
+use tokio::time::{interval, Interval};
 
 pub struct Client<T: Connection + 'static> {
     client: RawClient<T>,
@@ -39,9 +39,7 @@ impl<T: Connection + 'static> Stream for Client<T> {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let _ = ready!(self
-            .interval
-            .poll_next_unpin(cx));
+        let _ = ready!(self.interval.poll_next_unpin(cx));
 
         if let Some(radio_silence) = self.client.check_ping_cycle()? {
             eprintln!(

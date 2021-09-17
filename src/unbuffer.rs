@@ -5,57 +5,19 @@
 use crate::{BytesRequired, ConstantBufferSize, Error, Result, WrappedConstantSize};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
-/// Unifying trait over things we can unbuffer from (Bytes and BytesMut)
-pub trait Source: Sized + std::ops::Deref<Target = [u8]> + PartialEq<[u8]> + Clone {
-    fn split_to(&mut self, n: usize) -> Self;
-    fn len(&self) -> usize;
-    fn advance(&mut self, n: usize);
-    fn is_empty(&self) -> bool;
-}
-
-impl Source for Bytes {
-    fn split_to(&mut self, n: usize) -> Self {
-        Bytes::split_to(self, n)
-    }
-    fn len(&self) -> usize {
-        Bytes::len(self)
-    }
-    fn advance(&mut self, n: usize) {
-        Buf::advance(self, n)
-    }
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-// impl Source for BytesMut {
-//     fn split_to(&mut self, n: usize) -> Self {
-//         BytesMut::split_to(self, n)
-//     }
-//     fn len(&self) -> usize {
-//         BytesMut::len(self)
-//     }
-//     fn advance(&mut self, n: usize) {
-//         Buf::advance(&mut self, n)
-//     }
-//     fn is_empty(&self) -> bool {
-//         self.is_empty()
-//     }
-// }
-
 /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
 pub trait Unbuffer: Sized {
     /// Tries to unbuffer.
     ///
     /// Returns Err(Error::NeedMoreData(n)) if not enough data.
-    fn unbuffer_ref<T: Buf /* + Source */>(buf: &mut T) -> Result<Self>;
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self>;
 }
 
 /// Tries to unbuffer from a mutable reference to a buffer.
 ///
 /// Delegates to Unbuffer::unbuffer_ref().
 /// Returns Err(Error::NeedMoreData(n)) if not enough data.
-pub fn unbuffer_ref<T: Unbuffer, U: Buf /* + Source */>(buf: &mut U) -> Result<T> {
+pub fn unbuffer_ref<T: Unbuffer, U: Buf>(buf: &mut U) -> Result<T> {
     T::unbuffer_ref(buf)
 }
 
@@ -90,7 +52,7 @@ impl<T: UnbufferConstantSize> Unbuffer for T {
             // don't advance if we need more data
             if let Err(Error::NeedMoreData(n)) = result {
                 return Err(Error::NeedMoreData(n));
-            } 
+            }
             buf.advance(len);
             result
         }
@@ -164,7 +126,7 @@ impl<T: UnbufferOutput> OutputResultExtras<T> for Result<T> {
 // }
 
 /// Check that the buffer begins with the expected string.
-pub fn check_expected<T: Buf /* + Source */>(buf: &mut T, expected: &'static [u8]) -> Result<()> {
+pub fn check_expected<T: Buf>(buf: &mut T, expected: &'static [u8]) -> Result<()> {
     let bytes_len = buf.remaining();
     let expected_len = expected.len();
     if bytes_len < expected_len {

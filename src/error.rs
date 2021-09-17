@@ -124,8 +124,8 @@ impl Error {
     //     Error::ConsErrors(Box::new(new_err), Box::new(self))
     // }
 
-    pub fn is_need_more_data(&self, ) -> bool {
-        if let &Error::NeedMoreData(_n)  = self {
+    pub fn is_need_more_data(&self) -> bool {
+        if let &Error::NeedMoreData(_n) = self {
             return true;
         }
         return false;

@@ -4,7 +4,7 @@
 
 use crate::prelude::*;
 use crate::{message::MessageSize, Error, Result, SequencedGenericMessage, Unbuffer};
-use bytes::{Buf,  Bytes, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 
 pub fn peek_u32<T: Buf>(buf: &T) -> Result<Option<u32>> {
     const size_len: usize = std::mem::size_of::<u32>();
@@ -28,7 +28,7 @@ pub fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
     Ok(Some(peeked))
 }
 
-pub(crate) fn decode_one<T: Buf>(buf: & mut T) -> Result<Option<SequencedGenericMessage>> {
+pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> Result<Option<SequencedGenericMessage>> {
     let initial_len = buf.remaining();
     if let Some(combined_size) = peek_u32(&buf)? {
         let size = MessageSize::from_length_field(combined_size);

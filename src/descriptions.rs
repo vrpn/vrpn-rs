@@ -7,7 +7,7 @@ use crate::{
     constants, length_prefixed, BaseTypeSafeId, Buffer, BufferSize, EmptyResult, Error, IdType,
     Message, MessageTypeIdentifier, Result, SenderId, TypeId, TypedMessageBody, Unbuffer,
 };
-use bytes::{Buf, BufMut, Bytes, buf::IntoIter};
+use bytes::{buf::IntoIter, Buf, BufMut, Bytes};
 use std::io::BufRead;
 use std::{
     marker::PhantomData,
@@ -169,15 +169,15 @@ impl<U: BaseTypeSafeId> Buffer for InnerDescription<U> {
 }
 
 impl<T: BaseTypeSafeId> Unbuffer for InnerDescription<T> {
-    fn unbuffer_ref<U: Buf /* + Source */>(buf: &mut U) -> Result<Self>{
+    fn unbuffer_ref<U: Buf>(buf: &mut U) -> Result<Self> {
         length_prefixed::unbuffer_string(buf).map(InnerDescription::new)
     }
 }
 
 impl Unbuffer for UdpInnerDescription {
-    fn unbuffer_ref<T: Buf /* + Source */>(buf: &mut T) -> Result<Self>{
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
         let mut ip_buf: Vec<u8> = Vec::default();
-        let length = buf.reader().read_until(0, & mut ip_buf)?;
+        let length = buf.reader().read_until(0, &mut ip_buf)?;
         // let ip_buf: Vec<u8> = buf.into_iter().take_while(|b| **b != 0).cloned().collect();
         let ip_str = String::from_utf8_lossy(&ip_buf);
         let addr: IpAddr = ip_str
