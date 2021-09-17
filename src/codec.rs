@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::prelude::*;
 use crate::{message::MessageSize, Error, Result, SequencedGenericMessage, Unbuffer};
 use bytes::{Buf, Bytes, BytesMut};
 

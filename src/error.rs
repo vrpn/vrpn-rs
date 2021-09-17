@@ -125,10 +125,10 @@ impl Error {
     // }
 
     pub fn is_need_more_data(&self) -> bool {
-        if let &Error::NeedMoreData(_n) = self {
+        if let Error::NeedMoreData(_n) = *self {
             return true;
         }
-        return false;
+        false
     }
 
     // pub fn contains_need_more_data(&self) -> bool {

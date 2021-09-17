@@ -6,7 +6,7 @@ use crate::{
     Buffer, ConstantBufferSize, EmptyResult, MessageTypeIdentifier, Quat, Result, Sensor,
     StaticTypeName, TypedMessageBody, Unbuffer, Vec3,
 };
-use bytes::{Buf, BufMut, Bytes};
+use bytes::{Buf, BufMut};
 
 /// Position and orientation for trackers.
 #[derive(Clone, Debug, PartialEq)]

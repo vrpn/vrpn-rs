@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{error::*, prelude::*, Buffer, ConstantBufferSize, Unbuffer, WrappedConstantSize};
-use bytes::{Buf, BufMut, Bytes};
+use bytes::{Buf, BufMut};
 use std::time::{Duration, SystemTime};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]

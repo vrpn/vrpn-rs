@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{BytesRequired, ConstantBufferSize, Error, Result, WrappedConstantSize};
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::{Buf, Bytes};
 
 /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
 pub trait Unbuffer: Sized {

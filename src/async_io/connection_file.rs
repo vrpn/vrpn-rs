@@ -13,6 +13,4 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex},
 };
-use tokio::{
-    net::{TcpListener, TcpStream},
-};
+use tokio::net::{TcpListener, TcpStream};

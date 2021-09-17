@@ -81,7 +81,7 @@ impl LogFileNames {
         in_mode | out_mode
     }
 
-    pub fn filenames_iter<'a>(&'a self) -> LogFileNameIter<'a> {
+    pub fn filenames_iter(&'_ self) -> LogFileNameIter<'_> {
         LogFileNameIter {
             names: self,
             state: Some(FileNameState::In),

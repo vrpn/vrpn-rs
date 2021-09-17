@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::prelude::*;
 use crate::{
     constants, length_prefixed, BaseTypeSafeId, Buffer, BufferSize, EmptyResult, Error, IdType,
     Message, MessageTypeIdentifier, Result, SenderId, TypeId, TypedMessageBody, Unbuffer,
 };
-use bytes::{buf::IntoIter, Buf, BufMut, Bytes};
+use bytes::{Buf, BufMut, Bytes};
 use std::io::BufRead;
 use std::{
     marker::PhantomData,
@@ -183,7 +182,7 @@ impl Unbuffer for UdpInnerDescription {
         let addr: IpAddr = ip_str
             .parse()
             .map_err(|e| Error::OtherMessage(format!("ip address parse error: {}", e)))?;
-        buf.advance(ip_buf.len());
+        buf.advance(length);
 
         Ok(UdpInnerDescription::new(addr))
     }

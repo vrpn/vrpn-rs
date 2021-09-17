@@ -11,8 +11,6 @@ use crate::{
 use bytes::{Bytes, BytesMut};
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-
-
 /// Writes the supplied cookie to a stream.
 async fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), Error>
 where

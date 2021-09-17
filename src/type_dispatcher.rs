@@ -10,11 +10,7 @@ use crate::{
     Result, TypedMessageBody,
 };
 use bytes::Bytes;
-use std::{
-    collections::HashMap,
-    fmt,
-    hash::{Hash, Hasher},
-};
+use std::{collections::HashMap, fmt, hash::Hash};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum RegisterMapping<T: BaseTypeSafeId> {

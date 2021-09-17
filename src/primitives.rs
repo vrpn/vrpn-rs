@@ -6,7 +6,7 @@ use crate::{
     unbuffer::UnbufferConstantSize, Buffer, BytesRequired, ConstantBufferSize, EmptyResult, Error,
     Quat, Result, Sensor, Unbuffer, Vec3, WrappedConstantSize,
 };
-use bytes::{Buf, BufMut, Bytes};
+use bytes::{Buf, BufMut};
 
 macro_rules! buffer_primitive {
     ($t:ty, $put:ident, $get:ident) => {

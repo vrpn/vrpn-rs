@@ -3,10 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{constants, Error, Result};
-use std::{
-    net::{SocketAddr, ToSocketAddrs},
-    str::FromStr,
-};
+use std::{net::SocketAddr, str::FromStr};
 use url::Url;
 
 impl From<url::ParseError> for Error {
@@ -145,6 +142,8 @@ impl FromStr for DeviceInfo {
 
 #[cfg(test)]
 mod tests {
+    use std::net::ToSocketAddrs;
+
     use super::*;
     use proptest::prelude::*;
 
