@@ -10,10 +10,9 @@ use crate::{
     ConnectionStatus, CookieData, Error, Result, Scheme, ServerInfo, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::{ready, AsyncRead, AsyncWrite, Future};
+use futures::{ready, AsyncRead, AsyncWrite, Future, Stream};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::net::Incoming;
-use std::process::Output;
 use std::task::Poll;
 use std::{
     fmt::{self, Debug},
@@ -21,6 +20,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tk_listen::SleepOnError;
+
 // use tk_listen::{ListenExt, SleepOnError};
 use tokio::{
     io,
@@ -28,14 +28,14 @@ use tokio::{
     time::Sleep,
 };
 
-pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<net::TcpStream> {
+pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<std::net::TcpStream> {
     use socket2::*;
     let domain = if addr.is_ipv4() {
-        Domain::ipv4()
+        Domain::IPV4
     } else {
-        Domain::ipv6()
+        Domain::IPV6
     };
-    let sock = socket2::Socket::new(domain, Type::stream(), Some(Protocol::tcp()))?;
+    let sock = socket2::Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
     sock.set_nonblocking(true)?;
     sock.set_nodelay(true)?;
 
@@ -49,12 +49,12 @@ pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<net::TcpStream> {
         }
     }
     sock.set_reuse_address(true)?;
-    Ok(sock.into_tcp_stream())
+    Ok(std::net::TcpStream::from(sock))
 }
 
 pub fn make_udp_socket() -> io::Result<UdpSocket> {
-    let domain = Domain::ipv4();
-    let sock = Socket::new(domain, Type::dgram(), Some(Protocol::udp()))?;
+    let domain = Domain::IPV4;
+    let sock = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
     sock.set_nonblocking(true)?;
     sock.set_nodelay(true)?;
 
@@ -62,12 +62,12 @@ pub fn make_udp_socket() -> io::Result<UdpSocket> {
     let addr = SocketAddr::new(IpAddr::V4(any), 0);
     sock.bind(&SockAddr::from(addr))?;
     sock.set_reuse_address(true)?;
-    let tokio_socket = UdpSocket::from_std(sock.into_udp_socket())?;
+    let tokio_socket = UdpSocket::from_std(std::net::UdpSocket::from(sock))?;
     Ok(tokio_socket)
 }
 
 pub async fn outgoing_tcp_connect(addr: std::net::SocketAddr) -> Result<net::TcpStream> {
-    let sock: net::TcpStream = make_tcp_socket(addr).map_err(Error::from)?;
+    let sock: net::TcpStream = make_tcp_socket(addr)?;
     sock.connect(&addr)
 }
 
