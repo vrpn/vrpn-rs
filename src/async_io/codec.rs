@@ -4,7 +4,7 @@
 
 use crate::{codec::decode_one, Buffer, Error, Result, SequencedGenericMessage};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use tokio::prelude::*;
+use futures::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]

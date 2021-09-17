@@ -72,9 +72,9 @@ pub async fn outgoing_tcp_connect(addr: std::net::SocketAddr) -> Result<net::Tcp
     Ok(std::net::TcpStream::from(sock))
 }
 
-pub async fn outgoing_handshake<T>(socket: T) -> Result<T>
+pub async fn outgoing_handshake<T>(socket: &mut T) -> Result<()>
 where
-    T: tokio::io::AsyncRead + tokio::io::AsyncWrite,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
     let socket = send_nonfile_cookie(socket).await;
     read_and_check_nonfile_cookie(socket).await

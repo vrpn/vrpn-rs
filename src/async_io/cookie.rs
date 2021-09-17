@@ -9,9 +9,9 @@ use crate::{
     ConstantBufferSize, CookieData, Error, Unbuffer,
 };
 use bytes::{Bytes, BytesMut};
-use tokio::io::AsyncReadExt;
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-use tokio::prelude::*;
+
 
 /// Writes the supplied cookie to a stream.
 async fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), Error>

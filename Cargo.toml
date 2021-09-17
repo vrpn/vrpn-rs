@@ -16,9 +16,9 @@ quick-error = "^2.0.1"
 downcast-rs = "1.0.4"
 # mio = { version = "0.6.16", optional = true }
 # mio = "0.6.16"
-tokio = { version = "0.3",  features = ["full"], optional = true }
-tokio-util = { version = "0.2",  features = ["udp", "codec"],optional = true }
-tokio-compat-02 = "0.2.0"
+tokio = { version = "1.1", features = ["full"], optional = true }
+tokio-util = { version = "0.6", features = ["net",  "compat", "codec"], optional = true }
+# tokio-compat-02 = "0.2.0"
 # tokio = "1.11.0"
 tk-listen = { version = "0.2.1", optional = true }
 socket2 = "0.4.2"
@@ -32,7 +32,7 @@ proptest = "^1.0.0"
 
 [features]
 # async-tokio = ["tokio", "mio", "tk-listen"]
-async-tokio = ["tokio", "tk-listen", "tokio-util"]
+async-tokio = ["tokio", "tk-listen"] #, "tokio-util"]
 # async-tokio = []
 
 [[bin]]
