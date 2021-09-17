@@ -328,15 +328,15 @@ impl TypeDispatcher {
         mapping.call(msg)
     }
 
-    pub fn senders_iter<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (LocalId<SenderId>, &'a SenderName)> + 'a {
+    pub fn senders_iter(
+        &'_ self,
+    ) -> impl Iterator<Item = (LocalId<SenderId>, &'_ SenderName)> + '_ {
         self.senders
             .iter()
             .enumerate()
             .map(|(i, name)| (LocalId(SenderId(i as i32)), name))
     }
-    pub fn types_iter<'a>(&'a self) -> impl Iterator<Item = (LocalId<TypeId>, TypeName)> + 'a {
+    pub fn types_iter(&'_ self) -> impl Iterator<Item = (LocalId<TypeId>, TypeName)> + '_ {
         self.types
             .iter()
             .enumerate()
