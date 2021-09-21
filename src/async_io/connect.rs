@@ -7,18 +7,16 @@ use crate::{
     async_io::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
     constants,
     cookie::check_ver_nonfile_compatible,
-    ConnectionStatus, CookieData, Error, Result, Scheme, ServerInfo, Unbuffer,
+    CookieData, Error, Result, Scheme, ServerInfo, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::{ready, AsyncRead, AsyncWrite, Future, FutureExt, Stream};
+use futures::ready;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
-use std::net::{Incoming, TcpStream};
-use std::pin::Pin;
-use std::task::{ready, Poll};
-use std::time::{Duration, Instant};
+use std::future::Future;
+use std::task::Poll;
 use std::{
     fmt::{self, Debug},
-    net::{self, IpAddr, SocketAddr, ToSocketAddrs},
+    net::{IpAddr, SocketAddr, ToSocketAddrs},
 };
 use tokio::io::AsyncWriteExt;
 use tokio::time::Sleep;
@@ -75,7 +73,7 @@ pub async fn outgoing_tcp_connect(addr: std::net::SocketAddr) -> Result<tokio::n
 
 pub async fn outgoing_handshake<T>(socket: &mut T) -> Result<()>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
     send_nonfile_cookie(socket).await?;
     read_and_check_nonfile_cookie(socket).await
@@ -95,7 +93,7 @@ where
 
 pub async fn incoming_handshake<T>(socket: &mut T) -> Result<()>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
     // If connection is incoming
     read_and_check_nonfile_cookie(socket).await?;
@@ -404,9 +402,7 @@ pub(crate) async fn finish_connecting(
 
     let mut stream: Option<tokio::net::TcpStream> = None;
     async fn delay_before_retry() {
-        let mut deadline = tokio::time::Instant::now()
-            + tokio::time::Duration::from_millis(MILLIS_BETWEEN_ATTEMPTS);
-        tokio::time::sleep(deadline).await
+        tokio::time::sleep(tokio::time::Duration::from_millis(MILLIS_BETWEEN_ATTEMPTS)).await
     }
     // Loop until we succeed, error, or hit NotReady
     loop {
@@ -569,6 +565,8 @@ pub(crate) enum ConnectionIpInfo {
 
 #[cfg(test)]
 mod tests {
+    use std::io::{Read, Write};
+
     use super::*;
     use crate::{
         constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible, ConstantBufferSize,
@@ -578,17 +576,18 @@ mod tests {
 
     #[test]
     fn basic_connect_tcp() {
-        let results = connect("tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap())
-            .wait()
-            .expect("should be able to create connection future");
+        let results = tokio_test::block_on(connect(
+            "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap(),
+        ))
+        .expect("should be able to connect");
         results.tcp.expect("Should have a TCP stream");
         assert!(results.udp.is_none());
     }
     #[test]
     fn basic_connect() {
-        let results = connect("127.0.0.1:3883".parse::<ServerInfo>().unwrap())
-            .wait()
-            .expect("should be able to create connection future");
+        let results =
+            tokio_test::block_on(connect("127.0.0.1:3883".parse::<ServerInfo>().unwrap()))
+                .expect("should be able to connect");
         results.tcp.expect("Should have a TCP stream");
         assert!(results.udp.is_some());
     }
@@ -597,20 +596,18 @@ mod tests {
     fn sync_connect() {
         use crate::buffer::Buffer;
 
-        let addr = "127.0.0.1:3883".parse().unwrap();
+        let addr: SocketAddr = "127.0.0.1:3883".parse().unwrap();
 
-        let sock = make_tcp_socket(addr).expect("failure making the socket");
-        let stream = sock.connect(&addr).wait().unwrap();
+        let sock = make_tcp_socket(addr.clone()).expect("failure making the socket");
+        // sock.connect(&SockAddr::from(&addr)).unwrap();
 
         let cookie = CookieData::from(MAGIC_DATA);
         let mut send_buf = BytesMut::with_capacity(cookie.required_buffer_size());
         cookie.buffer_ref(&mut send_buf).unwrap();
-        let (stream, _) = stream.write_all(send_buf.freeze()).wait().unwrap();
+        sock.write_all(&send_buf.freeze()).unwrap();
 
-        let (_stream, read_buf) = stream
-            .read_exact(vec![0u8; CookieData::constant_buffer_size()])
-            .wait()
-            .unwrap();
+        let mut read_buf = vec![0u8; CookieData::constant_buffer_size()];
+        sock.read_exact(&mut read_buf).unwrap();
         let mut read_buf = Bytes::from(read_buf);
         let parsed_cookie: CookieData = Unbuffer::unbuffer_ref(&mut read_buf).unwrap();
         check_ver_nonfile_compatible(parsed_cookie.version).unwrap();

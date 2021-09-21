@@ -41,7 +41,9 @@ impl Encoder<SequencedGenericMessage> for FramedMessageCodec {
 
 pub type MessageFramed<T> = Framed<T, FramedMessageCodec>;
 
-pub fn apply_message_framing<T: AsyncRead + AsyncWrite>(stream: T) -> MessageFramed<T> {
+pub fn apply_message_framing<T: tokio::io::AsyncRead + tokio::io::AsyncWrite>(
+    stream: T,
+) -> MessageFramed<T> {
     Decoder::framed(FramedMessageCodec {}, stream)
 }
 

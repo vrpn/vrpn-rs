@@ -29,6 +29,7 @@ url = "^2.2.2"
 [dev-dependencies]
 hex-literal = "0.3.3"
 proptest = "^1.0.0"
+tokio-test = "0.4.2"
 
 [features]
 # async-tokio = ["tokio", "mio", "tk-listen"]

@@ -5,35 +5,30 @@
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
 use crate::{
-    Endpoint, EndpointGeneric, Error, GenericMessage, SequenceNumber, SequencedGenericMessage,
-    TypeDispatcher,
+    Endpoint, EndpointGeneric, Error, GenericMessage, SequencedGenericMessage, TypeDispatcher,
 };
+use futures::StreamExt;
 use futures::{
     stream::{SplitSink, SplitStream},
     Sink, Stream,
 };
-use futures::{SinkExt, StreamExt};
-use std::pin::Pin;
+
 use std::task::Context;
 use std::{
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc, Mutex,
-    },
+    sync::{atomic::AtomicUsize, Arc, Mutex},
     task::Poll,
 };
-use tokio::prelude::*;
 
 #[derive(Debug)]
 pub(crate) struct EndpointChannel<T> {
-    tx: SplitSink<T, SequencedGenericMessage>,
+    tx: SplitSink<T, Result<SequencedGenericMessage, Error>>,
     rx: SplitStream<T>,
     seq: AtomicUsize,
 }
 
 impl<T> EndpointChannel<T>
 where
-    T: Sink<SequencedGenericMessage, Error = Error> + Stream<Item = SequencedGenericMessage>,
+    T: Sink<Result<SequencedGenericMessage, Error>> + Stream<Item = SequencedGenericMessage>,
 {
     pub(crate) fn new(framed_stream: T) -> Arc<Mutex<EndpointChannel<T>>> {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
@@ -162,27 +157,22 @@ mod tests {
     use crate::{
         async_io::{
             apply_message_framing,
-            connect::{Connect, ConnectResults},
+            connect::{connect, ConnectResults},
         },
         ServerInfo,
     };
     #[test]
     fn make_endpoint_channel() {
         let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
-        let connector = Connect::new(server).expect("should be able to create connection future");
-
-        let _ = connector
-            .and_then(|ConnectResults { tcp, udp: _ }| {
-                let chan = EndpointChannel::new(apply_message_framing(tcp.unwrap()));
-                for _i in 0..4 {
-                    let _ = chan.lock().unwrap().poll().unwrap().map(|msg| {
-                        eprintln!("Received message {:?}", msg);
-                        msg
-                    });
-                }
-                Ok(())
-            })
-            .wait()
-            .unwrap();
+        let connectionResults = tokio_test::block_on(connect(server))
+            .expect("should be able to create connection future");
+        let ConnectResults { tcp, udp: _ } = connectionResults;
+        let chan = EndpointChannel::new(apply_message_framing(tcp.unwrap()));
+        for _i in 0..4 {
+            let _ = chan.lock().unwrap().poll().unwrap().map(|msg| {
+                eprintln!("Received message {:?}", msg);
+                msg
+            });
+        }
     }
 }
