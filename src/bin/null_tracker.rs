@@ -10,12 +10,8 @@ extern crate tokio;
 extern crate vrpn;
 
 use std::{sync::Arc, time::Duration};
-use tokio::{prelude::*, timer::Interval};
+use tokio::{time::Interval};
 use vrpn::{
-    async_io::{
-        connection_ip::ConnectionIpAcceptor, drain_poll_fn, ConnectionIp, ConnectionIpStream,
-        StreamExtras,
-    },
     prelude::*,
     tracker::PoseReport,
     ClassOfService, Error, LocalId, Quat, Result, SenderId, Sensor, StaticSenderName, Vec3,

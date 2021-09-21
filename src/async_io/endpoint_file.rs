@@ -7,7 +7,7 @@ use crate::async_io::cookie::*;
 use crate::{ClassOfService, Endpoint, GenericMessage, Result, SystemCommand, TranslationTables};
 use futures::channel::mpsc;
 use std::fs;
-use tokio::{fs::File, prelude::*};
+use tokio::{fs::File};
 use tokio_util::codec::{Decoder, Framed};
 
 pub struct EndpointFile {
@@ -20,7 +20,7 @@ pub struct EndpointFile {
 impl EndpointFile {
     pub async fn new(file: fs::File) -> Result<EndpointFile> {
         let (system_tx, system_rx) = mpsc::unbounded();
-        let file = File::from_std(file);
+        let mut file = File::from_std(file);
         read_and_check_file_cookie(&mut file).await?;
         Ok(EndpointFile {
             translation: TranslationTables::new(),

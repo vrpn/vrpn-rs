@@ -33,13 +33,22 @@ tokio-test = "0.4.2"
 
 [features]
 # async-tokio = ["tokio", "mio", "tk-listen"]
-async-tokio = ["tokio", "tk-listen"] #, "tokio-util"]
+async-tokio = ["tokio", "tk-listen", "tokio-util"]
 # async-tokio = []
+incomplete-async = ["async-tokio"]
 
 [[bin]]
 name = "print_devices"
-required-features = ["async-tokio"]
+required-features = ["incomplete-async", "async-tokio"]
 
 [[bin]]
 name = "null_tracker"
+required-features = ["incomplete-async", "async-tokio"]
+
+[[bin]]
+name = "sync_client_simple"
+required-features = ["async-tokio"]
+
+[[bin]]
+name = "sync_client"
 required-features = ["async-tokio"]

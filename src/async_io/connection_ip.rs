@@ -13,7 +13,7 @@ use crate::{
 };
 use futures::{Future, Stream, ready};
 use std::{net::{Incoming, IpAddr, Ipv4Addr, SocketAddr}, sync::{Arc, Mutex, Weak}, task::Poll};
-use tokio::{net::TcpListener, prelude::*};
+use tokio::{net::TcpListener};
 
 #[derive(Debug)]
 pub struct ConnectionIp {
@@ -62,7 +62,7 @@ impl ConnectionIp {
         Ok(ret)
     }
 
-    pub fn poll_endpoints(&self) -> Poll<Result<Option<()>>> {
+    pub fn poll_endpoints(&self, cx: &mut std::task::Context<'_>) -> Poll<Result<Option<()>>> {
         // eprintln!("in <ConnectionIp as Future>::poll");
         // if let Some(listener_mutex) = &self.server_tcp {
         //     let listener = listener_mutex.lock()?;
@@ -94,7 +94,7 @@ impl ConnectionIp {
             let ep_arc = self.endpoints();
             let mut endpoints = ep_arc.lock()?;
             let num_endpoints = endpoints.len();
-            if let Future::Ready(Some(results)) = client_info.poll(num_endpoints)? {
+            if let Some(results) = ready!(client_info.unwrap().poll(num_endpoints))? {
                 todo!();
                 // OK, we finished a connection setup.
                 endpoints.push(Some(EndpointIp::new(
@@ -183,14 +183,14 @@ impl Stream for ConnectionIpStream {
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         // eprintln!("in <ConnectionIpStream as Stream>::poll");
-        self.connection.poll_endpoints()
+        self.connection.poll_endpoints(cx)
     }
 }
 
 #[derive(Debug)]
 pub struct ConnectionIpAcceptor {
     connection: Weak<ConnectionIp>,
-    server_tcp: Mutex<Incoming>,
+    // server_tcp: Mutex<Incoming<'a>>,
 }
 impl ConnectionIpAcceptor {
     pub fn new(
@@ -200,10 +200,10 @@ impl ConnectionIpAcceptor {
         let addr = addr.unwrap_or_else(|| {
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), DEFAULT_PORT)
         });
-        let server_tcp = Mutex::new(TcpListener::bind(&addr)?.incoming());
+        // let server_tcp = Mutex::new(TcpListener::bind(&addr)?.incoming());
         Ok(ConnectionIpAcceptor {
             connection,
-            server_tcp,
+            // server_tcp,
         })
     }
 }

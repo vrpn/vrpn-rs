@@ -105,7 +105,7 @@ where
 
 /// A separate future, because couldn't get a boxed future built with combinators
 /// to appease the borrow checker for threading reasons.
-struct WaitForConnect {
+pub(crate) struct WaitForConnect {
     ip: IpAddr,
     listener: TcpListener,
 }
@@ -153,7 +153,7 @@ impl Future for WaitForConnect {
 
 /// The steps of establishing a connection
 // #[derive(Debug)]
-enum State {
+pub(crate) enum State {
     /// Sending the initial UDP datagram with our "call-back" address and port
     Lobbing(Option<TcpListener>, IpAddr),
     /// Follows after Lobbing.
@@ -183,21 +183,16 @@ impl Debug for State {
     }
 }
 
-pub(crate) struct ConnectResults {
+pub struct ConnectResults {
     pub(crate) tcp: Option<tokio::net::TcpStream>,
     pub(crate) udp: Option<UdpSocket>,
 }
 
 /// Connect members that only are populated for UDP connections.
 #[derive(Debug)]
-struct UdpConnect {
+pub(crate) struct UdpConnect {
     udp: UdpSocket,
     lobbed_buf: Bytes,
-}
-
-enum ConnectPollOutput {
-    Connected,
-    NotConnected,
 }
 
 // impl Debug for Option<Box<dyn Future<Output = TcpStream>>> {
@@ -598,7 +593,7 @@ mod tests {
 
         let addr: SocketAddr = "127.0.0.1:3883".parse().unwrap();
 
-        let sock = make_tcp_socket(addr.clone()).expect("failure making the socket");
+        let mut sock = make_tcp_socket(addr.clone()).expect("failure making the socket");
         // sock.connect(&SockAddr::from(&addr)).unwrap();
 
         let cookie = CookieData::from(MAGIC_DATA);

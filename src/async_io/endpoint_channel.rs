@@ -48,7 +48,7 @@ where
     type Item = Result<GenericMessage, Error>;
 
     fn poll_next(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         // treat errors like a closed connection
@@ -167,12 +167,13 @@ mod tests {
         let connectionResults = tokio_test::block_on(connect(server))
             .expect("should be able to create connection future");
         let ConnectResults { tcp, udp: _ } = connectionResults;
-        let chan = EndpointChannel::new(apply_message_framing(tcp.unwrap()));
-        for _i in 0..4 {
-            let _ = chan.lock().unwrap().poll().unwrap().map(|msg| {
-                eprintln!("Received message {:?}", msg);
-                msg
-            });
-        }
+        todo!();
+        // let chan = EndpointChannel::new(apply_message_framing(tcp.unwrap()));
+        // for _i in 0..4 {
+        //     let _ = chan.lock().unwrap().poll().unwrap().map(|msg| {
+        //         eprintln!("Received message {:?}", msg);
+        //         msg
+        //     });
+        // }
     }
 }
