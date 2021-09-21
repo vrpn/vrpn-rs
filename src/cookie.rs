@@ -151,7 +151,7 @@ impl Display for CookieData {
             "{}{}  {}",
             String::from_utf8_lossy(MAGIC_PREFIX),
             self.version,
-            (self.log_mode.unwrap_or(LogMode::None))
+            (self.log_mode.unwrap_or(LogMode::None)).bits()
         )
     }
 }
@@ -231,7 +231,7 @@ mod tests {
     #[test]
     fn roundtrip_bytesmut() {
         let mut magic_cookie = CookieData::from(MAGIC_DATA);
-        magic_cookie.log_mode = Some(LogMode::None);
+        magic_cookie.log_mode = Some(LogMode::Incoming);
 
         let mut buf = BytesMut::new()
             .allocate_and_buffer(magic_cookie)
