@@ -3,8 +3,7 @@ extern crate socket2;
 // extern crate tokio;
 extern crate vrpn;
 
-use bytes::Bytes;
-// use tokio::prelude::*;
+// use bytes::Bytes;
 // use vrpn::{async_io::ConnectionIp, LocalId, RemoteId, SenderId, ServerInfo};
 
 #[ignore] // because it requires an external server to be running.
