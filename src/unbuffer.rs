@@ -2,28 +2,35 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+//! Traits, etc. related to unbuffering types
+
 use crate::{BytesRequired, ConstantBufferSize, Error, Result, WrappedConstantSize};
 use bytes::{Buf, Bytes};
 
 /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
 pub trait Unbuffer: Sized {
-    /// Tries to unbuffer.
+    /// Tries to unbuffer, advancing the buffer position only if successful.
     ///
-    /// Returns Err(Error::NeedMoreData(n)) if not enough data.
+    /// Returns `Err(Error::NeedMoreData(n))` if not enough data.
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self>;
 }
 
 /// Tries to unbuffer from a mutable reference to a buffer.
 ///
-/// Delegates to Unbuffer::unbuffer_ref().
-/// Returns Err(Error::NeedMoreData(n)) if not enough data.
+/// Delegates to `Unbuffer::unbuffer_ref()`.
+/// Returns `Err(Error::NeedMoreData(n))` if not enough data.
+#[deprecated]
 pub fn unbuffer_ref<T: Unbuffer, U: Buf>(buf: &mut U) -> Result<T> {
     T::unbuffer_ref(buf)
 }
 
-/// Tries to unbuffer.
+/// Tries to unbuffer, consuming the buffer and returning what's left.
 ///
-/// Returns Err(Error::NeedMoreData(n)) if not enough data.
+/// Should no longer be neccessary now that futures don't require you to consume and return streams
+/// with every call.
+///
+/// Returns `Err(Error::NeedMoreData(n))` if not enough data.
+#[deprecated]
 pub fn unbuffer_from<T: Unbuffer>(buf: Bytes) -> Result<(T, Bytes)> {
     let mut buf = buf;
     let v = T::unbuffer_ref(&mut buf)?;
@@ -65,7 +72,7 @@ impl<T: WrappedConstantSize> UnbufferConstantSize for T {
     }
 }
 
-/// Trait used to extend the methods of Result<Output<T>>
+/// Extension trait used to extend the methods of Result<Output<T>>
 pub trait OutputResultExtras<T> {
     /// Map the result that "exactly" n additional bytes are
     /// required to "at least" n additional bytes are required.
@@ -79,11 +86,17 @@ pub trait OutputResultExtras<T> {
     /// for instances where more bytes are logically unavailable.
     fn map_need_more_err_to_generic_parse_err(self, task: &str) -> Self;
 }
+
+/// A trait identifying a structure that can be unbuffered, or a pair of something that can be unbuffered and something else.
+///
+/// These are types that may be returned in a Result<> by an unbuffer operation.
+/// Used to automatically select which Result<> get the `OutputResultExtras<T>` extension trait.
 pub trait UnbufferOutput {}
 impl<T> UnbufferOutput for T where T: Unbuffer {}
 impl<T, U> UnbufferOutput for (T, U) where T: Unbuffer {}
 
 impl<T: UnbufferOutput> OutputResultExtras<T> for Result<T> {
+    /// Convert an error that you need exactly some amount of bytes, into the error that you need at least that much.
     fn map_exactly_err_to_at_least(self) -> Self {
         match self {
             Ok(v) => Ok(v),
