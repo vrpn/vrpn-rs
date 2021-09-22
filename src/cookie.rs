@@ -3,6 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
+    buffer::check_buffer_remaining,
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
     unbuffer::{consume_expected, UnbufferResult},
     Buffer, BufferUnbufferError, ConstantBufferSize, EmptyResult, Error, LogMode, Unbuffer,
@@ -68,9 +69,7 @@ impl ConstantBufferSize for CookieData {
 
 impl Buffer for CookieData {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> std::result::Result<(), BufferUnbufferError> {
-        if buf.remaining_mut() < Self::constant_buffer_size() {
-            return Err(BufferUnbufferError::OutOfBuffer);
-        }
+        check_buffer_remaining(buf, Self::constant_buffer_size())?;
         buf.put(self.to_string().as_bytes());
         buf.put(COOKIE_PADDING);
         Ok(())

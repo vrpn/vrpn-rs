@@ -3,8 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    buffer::BufferResult, unbuffer::UnbufferConstantSize, unbuffer::UnbufferResult, Buffer,
-    BufferUnbufferError, BytesRequired, ConstantBufferSize, Quat, Sensor, Unbuffer, Vec3,
+    buffer::{check_buffer_remaining, BufferResult},
+    unbuffer::UnbufferConstantSize,
+    unbuffer::{check_unbuffer_remaining, UnbufferResult},
+    Buffer, BufferUnbufferError, BytesRequired, ConstantBufferSize, Quat, Sensor, Unbuffer, Vec3,
     WrappedConstantSize,
 };
 use bytes::{Buf, BufMut};
@@ -22,6 +24,7 @@ macro_rules! buffer_primitive {
 
         impl UnbufferConstantSize for $t {
             fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
+                check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
                 Ok(buf.$get())
             }
         }
@@ -63,9 +66,7 @@ impl ConstantBufferSize for Vec3 {
 }
 impl Buffer for Vec3 {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        if buf.remaining_mut() < Self::constant_buffer_size() {
-            return Err(BufferUnbufferError::OutOfBuffer);
-        }
+        check_buffer_remaining(buf, Self::constant_buffer_size())?;
         self.x.buffer_ref(buf)?;
         self.y.buffer_ref(buf)?;
         self.z.buffer_ref(buf)?;
@@ -75,11 +76,7 @@ impl Buffer for Vec3 {
 
 impl Unbuffer for Vec3 {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
-        if buf.remaining() < Self::constant_buffer_size() {
-            return Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
-                Self::constant_buffer_size() - buf.remaining(),
-            )));
-        }
+        check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
         let x = f64::unbuffer_ref(buf)?;
         let y = f64::unbuffer_ref(buf)?;
         let z = f64::unbuffer_ref(buf)?;
@@ -95,9 +92,7 @@ impl ConstantBufferSize for Quat {
 
 impl Buffer for Quat {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        if buf.remaining_mut() < Self::constant_buffer_size() {
-            return Err(BufferUnbufferError::OutOfBuffer);
-        }
+        check_buffer_remaining(buf, Self::constant_buffer_size())?;
         self.v.buffer_ref(buf)?;
         self.s.buffer_ref(buf)?;
         Ok(())
@@ -106,11 +101,7 @@ impl Buffer for Quat {
 
 impl Unbuffer for Quat {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
-        if buf.remaining() < Self::constant_buffer_size() {
-            return Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
-                Self::constant_buffer_size() - buf.remaining(),
-            )));
-        }
+        check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
         let v = Vec3::unbuffer_ref(buf)?;
         let w = f64::unbuffer_ref(buf)?;
         Ok(Quat::from_sv(w, v))

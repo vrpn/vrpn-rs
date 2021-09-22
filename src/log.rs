@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    buffer::BufferResult,
+    buffer::{check_buffer_remaining, BufferResult},
     constants::LOG_DESCRIPTION,
     unbuffer::{consume_expected, UnbufferResult},
     Buffer, BufferSize, BufferUnbufferError, BytesRequired, ConstantBufferSize,
@@ -156,9 +156,7 @@ impl BufferSize for LogFileNames {
 
 impl Buffer for LogFileNames {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        if buf.remaining_mut() < self.buffer_size() {
-            return Err(BufferUnbufferError::OutOfBuffer);
-        }
+        check_buffer_remaining(buf, self.buffer_size())?;
         for filename in self.filenames_iter() {
             (filename_len(filename) as i32).buffer_ref(buf)?;
         }

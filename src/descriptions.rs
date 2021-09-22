@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::buffer::BufferResult;
+use crate::buffer::{check_buffer_remaining, BufferResult};
 use crate::unbuffer::UnbufferResult;
 use crate::{
     constants, length_prefixed, BaseTypeSafeId, Buffer, BufferSize, BufferUnbufferError, IdType,
@@ -197,9 +197,7 @@ impl BufferSize for UdpInnerDescription {
 impl Buffer for UdpInnerDescription {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         let addr_str = self.address.to_string();
-        if buf.remaining_mut() < (addr_str.len() + 1) {
-            return Err(BufferUnbufferError::OutOfBuffer);
-        }
+        check_buffer_remaining(buf, (addr_str.len() + 1))?;
         buf.put(addr_str.as_bytes());
         buf.put_u8(0);
         Ok(())

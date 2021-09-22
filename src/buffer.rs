@@ -4,7 +4,7 @@
 
 //! Extension traits related to buffering types.
 
-use crate::{BufferSize, BufferUnbufferError, WrappedConstantSize};
+use crate::{BufferSize, BufferUnbufferError, BytesRequired, WrappedConstantSize};
 use bytes::{BufMut, BytesMut};
 
 /// Extension trait for BytesMut for easier interaction with stuff we can buffer.
@@ -48,5 +48,15 @@ pub trait Buffer: BufferSize {
 impl<T: WrappedConstantSize> Buffer for T {
     fn buffer_ref<U: BufMut>(&self, buf: &mut U) -> std::result::Result<(), BufferUnbufferError> {
         self.get().buffer_ref(buf)
+    }
+}
+
+/// Check whether a buffer has enough bytes remaining to unbuffer a given length
+pub fn check_buffer_remaining<T: BufMut>(buf: &mut T, required_len: usize) -> BufferResult {
+    let bytes_len = buf.remaining_mut();
+    if bytes_len < required_len {
+        Err(BufferUnbufferError::OutOfBuffer)
+    } else {
+        Ok(())
     }
 }

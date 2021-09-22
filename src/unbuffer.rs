@@ -112,35 +112,14 @@ impl<T: UnbufferOutput> OutputResultExtras<T> for std::result::Result<T, BufferU
     }
 }
 
-// pub trait BytesExtras
-// where
-//     Self: Source,
-// {
-//     fn unbuffer<T>(self) -> Result<(T, Self)>
-//     where
-//         T: Unbuffer;
-// }
-// impl BytesExtras for Bytes {
-//     fn unbuffer<T>(self) -> Result<(T, Self)>
-//     where
-//         T: Unbuffer,
-//     {
-//         let mut buf = self;
-//         let v = T::unbuffer_ref(&mut buf)?;
-//         Ok((v, buf))
-//     }
-// }
-
-/// Check whether a buffer has enough bytes remaining
-pub fn check_remaining<T: Buf>(
+/// Check whether a buffer has enough bytes remaining to unbuffer a given length
+pub fn check_unbuffer_remaining<T: Buf>(
     buf: &T,
     required_len: usize,
 ) -> std::result::Result<(), BufferUnbufferError> {
     let bytes_len = buf.remaining();
     if bytes_len < required_len {
-        Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
-            required_len - bytes_len,
-        )))
+        Err(BytesRequired::Exactly(required_len - bytes_len).into())
     } else {
         Ok(())
     }
@@ -161,7 +140,7 @@ pub fn consume_expected<T: Buf>(
     expected: &'static [u8],
 ) -> std::result::Result<(), BufferUnbufferError> {
     let expected_len = expected.len();
-    check_remaining(buf, expected_len)?;
+    check_unbuffer_remaining(buf, expected_len)?;
 
     let my_bytes = buf.copy_to_bytes(expected_len);
     if my_bytes == expected {

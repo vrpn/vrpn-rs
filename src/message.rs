@@ -5,10 +5,12 @@
 //! Message types and message size computations.
 
 use crate::{
-    buffer::BufferResult, constants::ALIGN, unbuffer::UnbufferResult, Buffer, BufferSize,
-    BufferUnbufferError, BytesMutExtras, BytesRequired, Error, IdType, IntoId, OutputResultExtras,
-    Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer,
-    WrappedConstantSize,
+    buffer::{check_buffer_remaining, BufferResult},
+    constants::ALIGN,
+    unbuffer::{check_unbuffer_remaining, UnbufferResult},
+    Buffer, BufferSize, BufferUnbufferError, BytesMutExtras, BytesRequired, Error, IdType, IntoId,
+    OutputResultExtras, Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId,
+    TypeSafeId, Unbuffer, WrappedConstantSize,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::{convert::TryFrom, mem::size_of};
@@ -220,9 +222,8 @@ impl Buffer for SequencedMessage<GenericBody> {
     /// Serialize to a buffer.
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         let size = generic_message_size(self);
-        if buf.remaining_mut() < size.padded_message_size() {
-            return Err(BufferUnbufferError::OutOfBuffer);
-        }
+        check_buffer_remaining(buf, size.padded_message_size())?;
+
         let length_field = size.length_field() as u32;
 
         Buffer::buffer_ref(&length_field, buf)?;
@@ -248,12 +249,8 @@ impl Unbuffer for SequencedMessage<GenericBody> {
 
         // Subtracting the length of the u32 we already unbuffered.
         let expected_remaining_bytes = size.padded_message_size() - size_of::<u32>();
+        check_unbuffer_remaining(buf, expected_remaining_bytes)?;
 
-        if buf.remaining() < expected_remaining_bytes {
-            return Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
-                expected_remaining_bytes - buf.remaining(),
-            )));
-        }
         let time = TimeVal::unbuffer_ref(buf)?;
         let sender = SenderId::unbuffer_ref(buf)?;
         let message_type = TypeId::unbuffer_ref(buf)?;
@@ -444,9 +441,7 @@ impl BufferSize for GenericBody {
 }
 impl Buffer for GenericBody {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        if buf.remaining_mut() < self.inner.len() {
-            return Err(BufferUnbufferError::OutOfBuffer);
-        }
+        check_buffer_remaining(buf, self.inner.len())?;
         buf.put(self.inner.clone());
         Ok(())
     }

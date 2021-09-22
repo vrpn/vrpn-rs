@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::buffer::BufferResult;
+use crate::buffer::{check_buffer_remaining, BufferResult};
 use crate::prelude::*;
+use crate::unbuffer::check_unbuffer_remaining;
 use crate::{unbuffer::consume_expected, Buffer, BufferUnbufferError, BytesRequired, Unbuffer};
 use bytes::{Buf, BufMut, Bytes};
 use std::mem::size_of;
@@ -41,9 +42,8 @@ pub fn buffer_string<T: BufMut>(
     null_in_len: LengthBehavior,
 ) -> BufferResult {
     let mut buf_size = buffer_size(s, termination);
-    if buf.remaining_mut() < buf_size {
-        return Err(BufferUnbufferError::OutOfBuffer);
-    }
+
+    check_buffer_remaining(buf, buf_size)?;
     if termination == NullTermination::AddTrailingNull && null_in_len == LengthBehavior::ExcludeNull
     {
         // Decrement the length that we transmit if we're adding a null terminator but not including it in the length.
@@ -62,11 +62,7 @@ pub fn unbuffer_string<T: Buf>(buf: &mut T) -> std::result::Result<Bytes, Buffer
     let buf_size = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
 
     let buf_size = buf_size as usize;
-    if buf.remaining() < buf_size {
-        return Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
-            buf_size - buf.remaining(),
-        )));
-    }
+    check_unbuffer_remaining(buf, buf_size)?;
     assert_ne!(
         buf_size, 0,
         "length-prefixed string size is expected to be greater than 0"
