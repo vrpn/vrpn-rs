@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+//! Types related to the `vrpn_Tracker` device class
+
 use crate::{
     Buffer, ConstantBufferSize, EmptyResult, MessageTypeIdentifier, Quat, Result, Sensor,
     StaticTypeName, TypedMessageBody, Unbuffer, Vec3,
@@ -11,8 +13,11 @@ use bytes::{Buf, BufMut};
 /// Position and orientation for trackers.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PoseReport {
+    /// Sensor id
     pub sensor: Sensor,
+    /// Position
     pub pos: Vec3,
+    /// Orientation
     pub quat: Quat,
 }
 
