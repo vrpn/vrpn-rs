@@ -10,11 +10,10 @@ extern crate tokio;
 extern crate vrpn;
 
 use std::{sync::Arc, time::Duration};
-use tokio::{time::Interval};
+use tokio::time::Interval;
 use vrpn::{
-    prelude::*,
-    tracker::PoseReport,
-    ClassOfService, Error, LocalId, Quat, Result, SenderId, Sensor, StaticSenderName, Vec3,
+    tracker::PoseReport, ClassOfService, Error, LocalId, Quat, Result, SenderId, Sensor,
+    StaticSenderName, Vec3,
 };
 #[derive(Debug)]
 struct ConnectionAndServer {

@@ -7,7 +7,7 @@ use crate::async_io::cookie::*;
 use crate::{ClassOfService, Endpoint, GenericMessage, Result, SystemCommand, TranslationTables};
 use futures::channel::mpsc;
 use std::fs;
-use tokio::{fs::File};
+use tokio::fs::File;
 use tokio_util::codec::{Decoder, Framed};
 
 pub struct EndpointFile {
