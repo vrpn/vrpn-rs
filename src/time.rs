@@ -1,17 +1,28 @@
-// Copyright 2018, Collabora, Ltd.
+// Copyright 2018-2021, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{error::*, prelude::*, Buffer, ConstantBufferSize, Unbuffer, WrappedConstantSize};
+/*!
+ * Structures corresponding to time related types used by the original c++ implementation of VRPN.
+ */
+
+use crate::{error::*, Buffer, ConstantBufferSize, Unbuffer, WrappedConstantSize};
 use bytes::{Buf, BufMut};
-use std::time::{Duration, SystemTime};
+use std::{
+    fmt::{Debug, Display},
+    time::{Duration, SystemTime},
+};
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct Seconds(pub i32);
-
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct Microseconds(pub i32);
-
+/// Structure corresponding to the C struct time_val type.
+///
+/// Conversions to and from native rust types are provided.
+///
+/// ```
+/// use vrpn::time::TimeVal;
+/// let tv = TimeVal::get_time_of_day();
+/// println!("{}s, {}us since the Unix epoch", tv.seconds(), tv.microseconds());
+/// println!("{}s since the Unix epoch", tv);
+/// ```
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct TimeVal {
     sec: Seconds,
@@ -36,6 +47,7 @@ impl TimeVal {
         self.usec
     }
 
+    /// Get now as this type: equivalent to `vrpn_gettimeofday`
     pub fn get_time_of_day() -> TimeVal {
         TimeVal::from(SystemTime::now())
     }
@@ -67,6 +79,41 @@ impl From<TimeVal> for SystemTime {
     }
 }
 
+/// TimeVal is constant size
+impl ConstantBufferSize for TimeVal {
+    fn constant_buffer_size() -> usize {
+        Seconds::constant_buffer_size() + Microseconds::constant_buffer_size()
+    }
+}
+
+impl Buffer for TimeVal {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
+        self.seconds().buffer_ref(buf)?;
+        self.microseconds().buffer_ref(buf)
+    }
+}
+
+impl Unbuffer for TimeVal {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
+        Seconds::unbuffer_ref(buf)
+            .and_then(|sec| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
+            .map(|(usec, sec)| TimeVal::new(sec, usec))
+    }
+}
+
+impl Display for TimeVal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.sec, self.usec)
+    }
+}
+
+/// Wrapper for an integer type for seconds
+///
+/// For use in `TimeVal`.
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+pub struct Seconds(pub i32);
+
+/// Buffer and unbuffer seconds just like the corresponding integer
 impl WrappedConstantSize for Seconds {
     type WrappedType = i32;
     fn get(&self) -> Self::WrappedType {
@@ -77,6 +124,19 @@ impl WrappedConstantSize for Seconds {
     }
 }
 
+impl Display for Seconds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+/// Wrapper for an integer type for microseconds.
+///
+/// For use in `TimeVal`.
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+pub struct Microseconds(pub i32);
+
+/// Buffer and unbuffer microseconds just like the corresponding integer
 impl WrappedConstantSize for Microseconds {
     type WrappedType = i32;
     fn get(&self) -> Self::WrappedType {
@@ -87,23 +147,8 @@ impl WrappedConstantSize for Microseconds {
     }
 }
 
-impl ConstantBufferSize for TimeVal {
-    fn constant_buffer_size() -> usize {
-        Seconds::constant_buffer_size() + Microseconds::constant_buffer_size()
-    }
-}
-
-impl Buffer for TimeVal {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
-        buf.buffer(self.seconds())
-            .and_then(|buf| self.microseconds().buffer_ref(buf))
-    }
-}
-
-impl Unbuffer for TimeVal {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
-        Seconds::unbuffer_ref(buf)
-            .and_then(|sec| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
-            .map(|(usec, sec)| TimeVal::new(sec, usec))
+impl Display for Microseconds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:06}", self.0)
     }
 }
