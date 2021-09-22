@@ -164,9 +164,9 @@ mod tests {
     #[test]
     fn make_endpoint_channel() {
         let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
-        let connectionResults = tokio_test::block_on(connect(server))
+        let connection_results = tokio_test::block_on(connect(server))
             .expect("should be able to create connection future");
-        let ConnectResults { tcp, udp: _ } = connectionResults;
+        let ConnectResults { tcp, udp: _ } = connection_results;
         todo!();
         // let chan = EndpointChannel::new(apply_message_framing(tcp.unwrap()));
         // for _i in 0..4 {
