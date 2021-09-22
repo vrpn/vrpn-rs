@@ -37,7 +37,10 @@ pub type BufferResult = std::result::Result<(), BufferUnbufferError>;
 /// Trait for types that can be "buffered" (serialized to a byte buffer)
 pub trait Buffer: BufferSize {
     /// Serialize to a buffer (taken as a mutable reference)
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> std::result::Result<(), BufferUnbufferError>;
+    ///
+    /// Implementations must call `check_buffer_remaining(...)?;` first
+    /// or otherwise avoid modifying the buffer if the whole message cannot fit!
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult;
 
     /// Get the number of bytes required to serialize this to a buffer.
     fn required_buffer_size(&self) -> usize {
@@ -46,7 +49,7 @@ pub trait Buffer: BufferSize {
 }
 
 impl<T: WrappedConstantSize> Buffer for T {
-    fn buffer_ref<U: BufMut>(&self, buf: &mut U) -> std::result::Result<(), BufferUnbufferError> {
+    fn buffer_ref<U: BufMut>(&self, buf: &mut U) -> BufferResult {
         self.get().buffer_ref(buf)
     }
 }

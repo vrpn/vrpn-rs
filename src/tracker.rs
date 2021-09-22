@@ -5,9 +5,11 @@
 //! Types related to the `vrpn_Tracker` device class
 
 use crate::{
-    buffer::BufferResult, error::BytesRequired, unbuffer::UnbufferResult, Buffer,
-    BufferUnbufferError, ConstantBufferSize, MessageTypeIdentifier, Quat, Sensor, StaticTypeName,
-    TypedMessageBody, Unbuffer, Vec3,
+    buffer::{check_buffer_remaining, BufferResult},
+    error::BytesRequired,
+    unbuffer::{check_unbuffer_remaining, UnbufferResult},
+    Buffer, BufferUnbufferError, ConstantBufferSize, MessageTypeIdentifier, Quat, Sensor,
+    StaticTypeName, TypedMessageBody, Unbuffer, Vec3,
 };
 use bytes::{Buf, BufMut};
 
@@ -37,6 +39,7 @@ impl ConstantBufferSize for PoseReport {
 
 impl Buffer for PoseReport {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
+        check_buffer_remaining(buf, Self::constant_buffer_size())?;
         self.sensor.buffer_ref(buf)?;
         // padding
         self.sensor.buffer_ref(buf)?;
@@ -48,18 +51,12 @@ impl Buffer for PoseReport {
 
 impl Unbuffer for PoseReport {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
-        {
-            if buf.remaining() < Self::constant_buffer_size() {
-                return Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
-                    Self::constant_buffer_size() - buf.remaining(),
-                )));
-            }
-            let sensor = Sensor::unbuffer_ref(buf)?;
-            let _ = Sensor::unbuffer_ref(buf)?;
-            let pos = Vec3::unbuffer_ref(buf)?;
-            let quat = Quat::unbuffer_ref(buf)?;
-            Ok(PoseReport { sensor, pos, quat })
-        }
+        check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
+        let sensor = Sensor::unbuffer_ref(buf)?;
+        let _ = Sensor::unbuffer_ref(buf)?;
+        let pos = Vec3::unbuffer_ref(buf)?;
+        let quat = Quat::unbuffer_ref(buf)?;
+        Ok(PoseReport { sensor, pos, quat })
     }
 }
 

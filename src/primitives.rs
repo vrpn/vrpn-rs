@@ -17,6 +17,7 @@ macro_rules! buffer_primitive {
 
         impl Buffer for $t {
             fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
+                check_buffer_remaining(buf, Self::constant_buffer_size())?;
                 buf.$put(*self);
                 Ok(())
             }
@@ -64,6 +65,7 @@ impl ConstantBufferSize for Vec3 {
         std::mem::size_of::<f64>() * 3
     }
 }
+
 impl Buffer for Vec3 {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         check_buffer_remaining(buf, Self::constant_buffer_size())?;

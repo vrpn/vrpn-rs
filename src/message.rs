@@ -6,7 +6,9 @@
 
 use crate::{
     buffer::{check_buffer_remaining, BufferResult},
+    codec::peek_u32,
     constants::ALIGN,
+    size::ConstantBufferSize,
     unbuffer::{check_unbuffer_remaining, UnbufferResult},
     Buffer, BufferSize, BufferUnbufferError, BytesMutExtras, BytesRequired, Error, IdType, IntoId,
     OutputResultExtras, Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId,
@@ -149,7 +151,7 @@ impl<T: TypedMessageBody + Unbuffer> Message<T> {
     }
 }
 
-// FIXME: The following should work! but it doesn't.
+// todo The following should work! but it doesn't.
 // impl<T> TryFrom<T> for GenericBody
 // where
 //     T: TypedMessageBody + Buffer,
@@ -174,7 +176,7 @@ impl<T: TypedMessageBody + Buffer> Message<T> {
     ///
     /// # Errors
     /// If buffering fails.
-    // FIXME: deprecate this in favor of the TryFrom above once it works...
+    // todo: deprecate this in favor of the TryFrom above once it works...
     pub fn try_into_generic(self) -> Result<GenericMessage> {
         let old_body = self.body;
         let header = self.header;
@@ -244,12 +246,14 @@ impl Unbuffer for SequencedMessage<GenericBody> {
     /// Deserialize from a buffer.
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<SequencedMessage<GenericBody>> {
         let initial_remaining = buf.remaining();
-        let length_field = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
+        let length_field = peek_u32(buf).ok_or(BufferUnbufferError::from(
+            BytesRequired::AtLeast(u32::constant_buffer_size()),
+        ))?;
         let size = MessageSize::from_length_field(length_field);
+        check_unbuffer_remaining(buf, size.padded_message_size())?;
 
-        // Subtracting the length of the u32 we already unbuffered.
-        let expected_remaining_bytes = size.padded_message_size() - size_of::<u32>();
-        check_unbuffer_remaining(buf, expected_remaining_bytes)?;
+        // now we can actually unbuffer the length since we checked to make sure we have it.
+        let _ = u32::unbuffer_ref(buf)?;
 
         let time = TimeVal::unbuffer_ref(buf)?;
         let sender = SenderId::unbuffer_ref(buf)?;
@@ -428,6 +432,7 @@ fn generic_message_size(msg: &SequencedGenericMessage) -> MessageSize {
 }
 
 impl Unbuffer for GenericBody {
+    /// This takes all the bytes!
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<GenericBody> {
         let my_bytes = buf.copy_to_bytes(buf.remaining());
         Ok(GenericBody::new(my_bytes))

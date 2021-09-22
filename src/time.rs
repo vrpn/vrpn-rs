@@ -7,8 +7,9 @@
  */
 
 use crate::{
-    buffer::BufferResult, unbuffer::UnbufferResult, Buffer, ConstantBufferSize, Unbuffer,
-    WrappedConstantSize,
+    buffer::{check_buffer_remaining, BufferResult},
+    unbuffer::{check_unbuffer_remaining, UnbufferResult},
+    Buffer, ConstantBufferSize, Unbuffer, WrappedConstantSize,
 };
 use bytes::{Buf, BufMut};
 use std::{
@@ -91,6 +92,7 @@ impl ConstantBufferSize for TimeVal {
 
 impl Buffer for TimeVal {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
+        check_buffer_remaining(buf, Self::constant_buffer_size())?;
         self.seconds().buffer_ref(buf)?;
         self.microseconds().buffer_ref(buf)
     }
@@ -98,9 +100,10 @@ impl Buffer for TimeVal {
 
 impl Unbuffer for TimeVal {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
-        Seconds::unbuffer_ref(buf)
-            .and_then(|sec| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
-            .map(|(usec, sec)| TimeVal::new(sec, usec))
+        check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
+        let sec = Seconds::unbuffer_ref(buf)?;
+        let usec = Microseconds::unbuffer_ref(buf)?;
+        Ok(TimeVal::new(sec, usec))
     }
 }
 

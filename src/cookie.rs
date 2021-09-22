@@ -3,9 +3,9 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    buffer::check_buffer_remaining,
+    buffer::{check_buffer_remaining, BufferResult},
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
-    unbuffer::{consume_expected, UnbufferResult},
+    unbuffer::{check_unbuffer_remaining, consume_expected, UnbufferResult},
     Buffer, BufferUnbufferError, ConstantBufferSize, EmptyResult, Error, LogMode, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes};
@@ -68,7 +68,7 @@ impl ConstantBufferSize for CookieData {
 }
 
 impl Buffer for CookieData {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> std::result::Result<(), BufferUnbufferError> {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         check_buffer_remaining(buf, Self::constant_buffer_size())?;
         buf.put(self.to_string().as_bytes());
         buf.put(COOKIE_PADDING);
@@ -94,6 +94,8 @@ fn u8_to_log_mode(v: u8) -> LogMode {
 
 impl Unbuffer for CookieData {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
+        check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
+
         // remove "vrpn: ver. "
         consume_expected(buf, MAGIC_PREFIX)?;
 

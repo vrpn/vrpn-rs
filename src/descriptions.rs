@@ -178,7 +178,7 @@ impl<T: BaseTypeSafeId> Unbuffer for InnerDescription<T> {
 impl Unbuffer for UdpInnerDescription {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         let mut ip_buf: Vec<u8> = Vec::default();
-        // ok to unwrap: a buf reader is infallible.
+        // ok to unwrap: a buf reader is infallible. The reader also prevents us from modifying the buffer state.
         let length = buf.reader().read_until(0, &mut ip_buf).unwrap();
         // let ip_buf: Vec<u8> = buf.into_iter().take_while(|b| **b != 0).cloned().collect();
         let ip_str = String::from_utf8_lossy(&ip_buf);
@@ -197,7 +197,7 @@ impl BufferSize for UdpInnerDescription {
 impl Buffer for UdpInnerDescription {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         let addr_str = self.address.to_string();
-        check_buffer_remaining(buf, (addr_str.len() + 1))?;
+        check_buffer_remaining(buf, addr_str.len() + 1)?;
         buf.put(addr_str.as_bytes());
         buf.put_u8(0);
         Ok(())

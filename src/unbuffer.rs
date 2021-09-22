@@ -49,24 +49,20 @@ pub trait UnbufferConstantSize: Sized + ConstantBufferSize {
 }
 
 /// Blanket impl for types implementing UnbufferConstantSize.
+// TODO implement unbuffer_constant_size everywhere we're checking remaining against Self::constant_buffer_size
 impl<T: UnbufferConstantSize> Unbuffer for T {
     fn unbuffer_ref<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
         let len = Self::constant_buffer_size();
-        if buf.remaining() < len {
-            Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
-                buf.remaining() - len,
-            )))
-        } else {
-            let mut buf_subset = buf.take(len);
-            let mut bytes_subset = buf_subset.copy_to_bytes(len);
-            let result = Self::unbuffer_constant_size(&mut bytes_subset);
-            // don't advance if we need more data
-            if let Err(BufferUnbufferError::NeedMoreData(n)) = result {
-                return Err(BufferUnbufferError::NeedMoreData(n));
-            }
-            buf.advance(len);
-            result
+        check_unbuffer_remaining(buf, len)?;
+        let mut buf_subset = buf.take(len);
+        let mut bytes_subset = buf_subset.copy_to_bytes(len);
+        let result = Self::unbuffer_constant_size(&mut bytes_subset);
+        // don't advance if we need more data
+        if let Err(BufferUnbufferError::NeedMoreData(n)) = result {
+            return Err(BufferUnbufferError::NeedMoreData(n));
         }
+        buf.advance(len);
+        result
     }
 }
 
