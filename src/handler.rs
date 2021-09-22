@@ -6,7 +6,7 @@ pub use crate::type_dispatcher::HandlerHandle;
 use crate::{
     EmptyMessage, GenericMessage, Message, MessageHeader, Result, TypedMessageBody, Unbuffer,
 };
-use std::fmt;
+use std::{convert::TryFrom, fmt};
 
 /// Return from a Handler (or its related traits),
 /// indicating whether the handler that just executed should be kept around for the future.
@@ -39,7 +39,7 @@ where
     T: TypedHandler,
 {
     fn handle(&mut self, msg: &GenericMessage) -> Result<HandlerCode> {
-        let typed_msg: Message<T::Item> = Message::try_from_generic(msg)?;
+        let typed_msg: Message<T::Item> = Message::try_from(msg)?;
         self.handle_typed(&typed_msg)
     }
 }

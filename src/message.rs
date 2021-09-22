@@ -11,7 +11,7 @@ use crate::{
     TypeSafeId, Unbuffer, WrappedConstantSize,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use std::{convert::TryFrom, mem::size_of};
+use std::{convert::{TryFrom, TryInto}, mem::size_of};
 
 /// Empty trait used to indicate types that can be placed in a message body.
 pub trait MessageBody /*: Buffer + Unbuffer */ {}
@@ -147,20 +147,51 @@ impl<T: TypedMessageBody + Unbuffer> Message<T> {
     }
 }
 
-impl<T: TypedMessageBody + Buffer> Message<T> {
-    /// Try converting a typed message into a generic message
-    ///
-    /// # Errors
-    /// If buffering fails.
-    pub fn try_into_generic(self) -> Result<GenericMessage> {
-        let old_body = self.body;
-        let header = self.header;
-        let generic = BytesMut::new().allocate_and_buffer(old_body).map(|body| {
-            GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
-        })?;
-        Ok(generic)
-    }
-}
+// impl<T> TryInto<GenericMessage> for Message<T> where T: TypedMessageBody + Buffer {
+//     type Error= crate::Error;
+
+//     fn try_into(self) -> std::result::Result<GenericMessage, Self::Error> {
+//         let old_body = self.body;
+//         let header = self.header;
+//         let generic = BytesMut::new().allocate_and_buffer(old_body).map(|body| {
+//             GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
+//         })?;
+//         Ok(generic)
+//     }
+// }
+
+// impl<T> TryFrom<Message<T>> for GenericMessage where T: TypedMessageBody + Buffer {
+    
+//     type Error = crate::Error;
+
+//     /// Try converting a typed message into a generic message
+//     ///
+//     /// # Errors
+//     /// If buffering fails.
+//     fn try_from(value: Message<T>) -> std::result::Result<Self, Self::Error> {
+//         let old_body = value.body;
+//         let header = value.header;
+//         let generic = BytesMut::new().allocate_and_buffer(old_body).map(|body| {
+//             GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
+//         })?;
+//         Ok(generic)
+//     }
+// }
+
+// impl<T: TypedMessageBody + Buffer> Message<T> {
+//     /// Try converting a typed message into a generic message
+//     ///
+//     /// # Errors
+//     /// If buffering fails.
+//     pub fn try_into_generic(self) -> Result<GenericMessage> {
+//         let old_body = self.body;
+//         let header = self.header;
+//         let generic = BytesMut::new().allocate_and_buffer(old_body).map(|body| {
+//             GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
+//         })?;
+//         Ok(generic)
+//     }
+// }
 
 /// A message with header information and sequence number, ready to be buffered to the wire.
 ///
@@ -436,7 +467,7 @@ impl Buffer for GenericBody {
 pub fn unbuffer_typed_message_body<T: Unbuffer + TypedMessageBody>(
     msg: &GenericMessage,
 ) -> Result<Message<T>> {
-    let typed_msg: Message<T> = Message::try_from_generic(msg)?;
+    let typed_msg: Message<T> = Message::try_from(msg)?;
     Ok(typed_msg)
 }
 
