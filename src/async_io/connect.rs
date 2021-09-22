@@ -1,4 +1,4 @@
-// Copyright 2018, Collabora, Ltd.
+// Copyright 2018-2021, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
@@ -19,7 +19,6 @@ use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
 };
 use tokio::io::AsyncWriteExt;
-use tokio::time::Sleep;
 use tokio::{
     io,
     net::{TcpListener, UdpSocket},
@@ -393,7 +392,6 @@ pub(crate) async fn finish_connecting(
 ) -> Result<ConnectResults> {
     let mut full_state = Some(state);
     let mut udp_connect = udp_connect;
-    let delay: Option<Sleep> = None;
 
     let mut stream: Option<tokio::net::TcpStream> = None;
     async fn delay_before_retry() {
@@ -434,26 +432,6 @@ pub(crate) async fn finish_connecting(
                 delay_before_retry().await;
                 eprintln!("Delay completed.");
                 *state = State::Connecting;
-                // match connect_future.poll_unpin(cx) {
-                //     Poll::Pending => {
-                //         *state = State::Connecting(Box::new(connect_future));
-                //         return Poll::Pending;
-
-                //     }
-                //     Poll::Ready(Err(e))=> {
-                //         eprintln!("Delay completed but still could not connect to server: {}", e);
-                //         self.delay_before_retry();
-                //         return Poll::Pending;
-                //     }
-                //     Poll::Ready(Ok(connect_future)) => {
-                //         eprintln!("Delay completed, and we were able to connect.");
-                //     }
-                //     Err(e) => {
-                //                         eprintln!("Delay completed but still could not connect to server: {}", e);
-                //                         set_delay(&mut self.delay);
-                //                         return Poll::Pending;
-                //                     }
-                // }
             }
 
             State::WaitingForConnection(conn_stream) => {
@@ -466,7 +444,7 @@ pub(crate) async fn finish_connecting(
                     .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
                     .freeze();
                 while cookie_buf.has_remaining() {
-                    stream.as_mut().unwrap().write_buf(&mut cookie_buf).await;
+                    stream.as_mut().unwrap().write_buf(&mut cookie_buf).await?;
                 }
                 let cookie_size = CookieData::constant_buffer_size();
                 let buf = BytesMut::with_capacity(cookie_size);
