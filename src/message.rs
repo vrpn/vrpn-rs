@@ -4,10 +4,7 @@
 
 //! Message types and message size computations.
 
-use crate::{
-    constants::ALIGN, Buffer, BufferSize, BytesRequired, EmptyResult, Error, IdType, IntoId,
-    Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer,
-};
+use crate::{Buffer, BufferSize, BytesMutExtras, BytesRequired, EmptyResult, Error, IdType, IntoId, OutputResultExtras, Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer, WrappedConstantSize, constants::ALIGN};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::mem::size_of;
 
