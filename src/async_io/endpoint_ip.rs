@@ -117,7 +117,7 @@ impl Endpoint for EndpointIp {
     }
 
     fn buffer_generic_message(&mut self, msg: GenericMessage, class: ClassOfService) -> Result<()> {
-        if class.contains(ClassOfService::Reliable) || self.low_latency_channel.is_none() {
+        if class.contains(ClassOfService::RELIABLE) || self.low_latency_channel.is_none() {
             // We either need reliable, or don't have low-latency
             let mut channel = self
                 .reliable_channel

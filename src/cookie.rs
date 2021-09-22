@@ -134,9 +134,9 @@ impl Display for LogMode {
             write!(f, "no logging")
         } else if self.is_all() {
             write!(f, "incoming and outgoing logging")
-        } else if self.contains(LogMode::Incoming) {
+        } else if self.contains(LogMode::INCOMING) {
             write!(f, "incoming logging")
-        } else if self.contains(LogMode::Outgoing) {
+        } else if self.contains(LogMode::OUTGOING) {
             write!(f, "outgoing logging")
         } else {
             write!(f, "unrecognized logging")
@@ -151,7 +151,7 @@ impl Display for CookieData {
             "{}{}  {}",
             String::from_utf8_lossy(MAGIC_PREFIX),
             self.version,
-            (self.log_mode.unwrap_or(LogMode::None)).bits()
+            (self.log_mode.unwrap_or(LogMode::NONE)).bits()
         )
     }
 }
@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(MAGIC_DATA.to_string().len(), MAGICLEN - MAGIC_PREFIX.len());
 
         let mut magic_cookie = CookieData::from(MAGIC_DATA);
-        magic_cookie.log_mode = Some(LogMode::None);
+        magic_cookie.log_mode = Some(LogMode::NONE);
         assert_eq!(magic_cookie.required_buffer_size(), COOKIE_SIZE);
 
         let mut buf = Vec::new();
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn roundtrip() {
         let mut magic_cookie = CookieData::from(MAGIC_DATA);
-        magic_cookie.log_mode = Some(LogMode::None);
+        magic_cookie.log_mode = Some(LogMode::NONE);
         let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
         magic_cookie
             .buffer_ref(&mut buf)
@@ -231,7 +231,7 @@ mod tests {
     #[test]
     fn roundtrip_bytesmut() {
         let mut magic_cookie = CookieData::from(MAGIC_DATA);
-        magic_cookie.log_mode = Some(LogMode::Incoming);
+        magic_cookie.log_mode = Some(LogMode::INCOMING);
 
         let mut buf = BytesMut::new()
             .allocate_and_buffer(magic_cookie)

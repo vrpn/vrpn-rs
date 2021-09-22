@@ -161,7 +161,7 @@ impl<T: Connection + 'static> Client<T> {
     fn send_ping(&self) -> Result<()> {
         let msg = Message::new(None, self.ping_type, self.sender, Pong::default());
         self.connection
-            .pack_message(msg, ClassOfService::Reliable)?;
+            .pack_message(msg, ClassOfService::RELIABLE)?;
         Ok(())
     }
 }
@@ -180,7 +180,7 @@ impl<T: Connection + Send> TypedBodylessHandler for PingHandler<T> {
         match self.connection.upgrade() {
             Some(connection) => {
                 let msg = Message::new(None, self.pong_type, self.sender, Pong::default());
-                connection.pack_message(msg, ClassOfService::Reliable)?;
+                connection.pack_message(msg, ClassOfService::RELIABLE)?;
                 Ok(HandlerCode::ContinueProcessing)
             }
             None => Ok(HandlerCode::RemoveThisHandler),

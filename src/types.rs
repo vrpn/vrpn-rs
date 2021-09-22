@@ -144,11 +144,11 @@ where
 }
 bitflags! {
     pub struct ClassOfService : u32 {
-        const Reliable = (1 << 0);
-        const FixedLatency = (1 << 1);
-        const LowLatency = (1 << 2);
-        const FixedThroughput = (1 << 3);
-        const HighThroughput = (1 << 4);
+        const RELIABLE = (1 << 0);
+        const FIXED_LATENCY = (1 << 1);
+        const LOW_LATENCY = (1 << 2);
+        const FIXED_THROUGHPUT = (1 << 3);
+        const HIGH_THROUGHPUT = (1 << 4);
     }
 }
 
