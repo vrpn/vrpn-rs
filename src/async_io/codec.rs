@@ -1,12 +1,14 @@
-// Copyright 2018-2019, Collabora, Ltd.
+// Copyright 2018-2021, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{codec::decode_one, Buffer, Error, Result, SequencedGenericMessage};
-use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::{AsyncRead, AsyncWrite};
+use bytes::{Buf, BytesMut};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
+/// Codec providing VRPN message framing.
+///
+/// Serializes/deserializes generic messages.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FramedMessageCodec;
 
