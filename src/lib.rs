@@ -61,7 +61,7 @@ pub mod types;
 pub mod unbuffer;
 
 pub use crate::{
-    buffer::{BufMutExtras, Buffer, BytesMutExtras},
+    buffer::{Buffer, BytesMutExtras},
     connection::{Connection, ConnectionStatus},
     cookie::{CookieData, Version},
     descriptions::{Description, UdpDescription},
