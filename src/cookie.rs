@@ -4,7 +4,7 @@
 
 use crate::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
-    unbuffer::check_expected,
+    unbuffer::consume_expected,
     Buffer, ConstantBufferSize, EmptyResult, Error, LogMode, Result, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes};
@@ -91,23 +91,23 @@ fn u8_to_log_mode(v: u8) -> LogMode {
 impl Unbuffer for CookieData {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
         // remove "vrpn: ver. "
-        check_expected(buf, MAGIC_PREFIX)?;
+        consume_expected(buf, MAGIC_PREFIX)?;
 
         let major: u8 = dec_digits(buf, 2)?;
 
         // remove dot
-        check_expected(buf, b".")?;
+        consume_expected(buf, b".")?;
 
         let minor: u8 = dec_digits(buf, 2)?;
 
         // remove spaces
-        check_expected(buf, b"  ")?;
+        consume_expected(buf, b"  ")?;
 
         let log_mode: u8 = dec_digits(buf, 1)?;
         let log_mode = u8_to_log_mode(log_mode);
 
         // remove padding
-        check_expected(buf, COOKIE_PADDING)?;
+        consume_expected(buf, COOKIE_PADDING)?;
 
         Ok(CookieData {
             version: Version { major, minor },

@@ -4,7 +4,7 @@
 
 use crate::prelude::*;
 use crate::{
-    unbuffer::check_expected, Buffer, BytesRequired, EmptyResult, Error, Result, Unbuffer,
+    unbuffer::consume_expected, Buffer, BytesRequired, EmptyResult, Error, Result, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes};
 use std::mem::size_of;
@@ -77,6 +77,6 @@ pub fn unbuffer_string<T: Buf>(buf: &mut T) -> Result<Bytes> {
 
     let s = buf.copy_to_bytes(buf_size);
     // Grab null terminator
-    check_expected(buf, b"\0")?;
+    consume_expected(buf, b"\0")?;
     Ok(s)
 }

@@ -125,8 +125,17 @@ impl<T: UnbufferOutput> OutputResultExtras<T> for Result<T> {
 //     }
 // }
 
-/// Check that the buffer begins with the expected string.
-pub fn check_expected<T: Buf>(buf: &mut T, expected: &'static [u8]) -> Result<()> {
+/// Consume the expected static byte string from the buffer.
+///
+/// ```
+/// use vrpn::unbuffer::consume_expected;
+/// use bytes::Buf;
+/// let mut buf = &b"hello world"[..];
+/// assert_eq!(buf.remaining(), 11);
+/// assert!(consume_expected(&mut buf, &b"hello"[..]).is_ok());
+/// assert_eq!(buf.remaining(), 6);
+/// ```
+pub fn consume_expected<T: Buf>(buf: &mut T, expected: &'static [u8]) -> Result<()> {
     let bytes_len = buf.remaining();
     let expected_len = expected.len();
     if bytes_len < expected_len {

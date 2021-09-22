@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    constants::LOG_DESCRIPTION, unbuffer::check_expected, Buffer, BufferSize, BytesRequired,
+    constants::LOG_DESCRIPTION, unbuffer::consume_expected, Buffer, BufferSize, BytesRequired,
     ConstantBufferSize, EmptyResult, Error, MessageTypeIdentifier, Result, TypedMessageBody,
     Unbuffer,
 };
@@ -181,7 +181,7 @@ fn unbuffer_logname<T: Buf>(len: usize, buf: &mut T) -> Result<Option<Bytes>> {
         None
     };
 
-    check_expected(buf, b"\0")?;
+    consume_expected(buf, b"\0")?;
     Ok(name)
 }
 
