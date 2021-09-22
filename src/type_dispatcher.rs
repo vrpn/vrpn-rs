@@ -77,7 +77,7 @@ impl MsgCallbackEntry {
     }
 
     /// Invokes the callback with the given msg, if the sender filter (if not None) matches.
-    pub fn call<'a>(&mut self, msg: &'a GenericMessage) -> Result<HandlerCode> {
+    pub fn call(&mut self, msg: &GenericMessage) -> Result<HandlerCode> {
         if id_filter_matches(self.sender_filter, LocalId(msg.header.sender)) {
             self.handler.handle(msg)
         } else {
@@ -209,10 +209,10 @@ impl TypeDispatcher {
 
     /// Get a mutable borrow of the CallbackCollection associated with the supplied TypeId
     /// (or the generic callbacks for None)
-    fn get_type_callbacks_mut<'a>(
-        &'a mut self,
+    fn get_type_callbacks_mut(
+        &'_ mut self,
         type_id_filter: Option<LocalId<TypeId>>,
-    ) -> Result<&'a mut CallbackCollection> {
+    ) -> Result<&'_ mut CallbackCollection> {
         match type_id_filter {
             Some(i) => {
                 let index = message_type_into_index(i.into_id(), self.types.len())?;

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use std::convert::TryFrom;
+
 use crate::{
     constants,
     descriptions::{InnerDescription, UdpDescription, UdpInnerDescription},
@@ -56,21 +58,21 @@ pub trait Endpoint: Downcast {
         }
         match msg.header.message_type {
             constants::TYPE_DESCRIPTION => {
-                let msg: Message<InnerDescription<TypeId>> = Message::try_from_generic(&msg)?;
+                let msg: Message<InnerDescription<TypeId>> = Message::try_from(&msg)?;
                 self.send_system_change(SystemCommand::TypeDescription(msg.into()))?;
             }
             constants::SENDER_DESCRIPTION => {
-                let msg: Message<InnerDescription<SenderId>> = Message::try_from_generic(&msg)?;
+                let msg: Message<InnerDescription<SenderId>> = Message::try_from(&msg)?;
                 self.send_system_change(SystemCommand::SenderDescription(msg.into()))?;
             }
             constants::UDP_DESCRIPTION => {
-                let msg: Message<UdpInnerDescription> = Message::try_from_generic(&msg)?;
+                let msg: Message<UdpInnerDescription> = Message::try_from(&msg)?;
                 self.send_system_change(SystemCommand::Extended(
                     ExtendedSystemCommand::UdpDescription(msg.into()),
                 ))?;
             }
             constants::LOG_DESCRIPTION => {
-                let msg: Message<LogFileNames> = Message::try_from_generic(&msg)?;
+                let msg: Message<LogFileNames> = Message::try_from(&msg)?;
                 self.send_system_change(SystemCommand::Extended(
                     ExtendedSystemCommand::LogDescription(msg.body),
                 ))?;

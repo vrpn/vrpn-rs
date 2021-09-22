@@ -6,15 +6,12 @@
 
 use crate::{
     buffer::BufferResult, constants::ALIGN, unbuffer::UnbufferResult, Buffer, BufferSize,
-    BufferUnbufferError, BytesMutExtras, BytesRequired, EmptyResult, Error, IdType, IntoId,
-    OutputResultExtras, Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId,
-    TypeSafeId, Unbuffer, WrappedConstantSize,
+    BufferUnbufferError, BytesMutExtras, BytesRequired, Error, IdType, IntoId, OutputResultExtras,
+    Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer,
+    WrappedConstantSize,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use std::{
-    convert::{TryFrom, TryInto},
-    mem::size_of,
-};
+use std::{convert::TryFrom, mem::size_of};
 
 /// Empty trait used to indicate types that can be placed in a message body.
 pub trait MessageBody /*: Buffer + Unbuffer */ {}

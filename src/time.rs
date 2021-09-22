@@ -7,7 +7,7 @@
  */
 
 use crate::{
-    buffer::BufferResult, error::*, unbuffer::UnbufferResult, Buffer, ConstantBufferSize, Unbuffer,
+    buffer::BufferResult, unbuffer::UnbufferResult, Buffer, ConstantBufferSize, Unbuffer,
     WrappedConstantSize,
 };
 use bytes::{Buf, BufMut};

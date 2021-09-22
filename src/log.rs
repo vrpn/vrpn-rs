@@ -6,8 +6,8 @@ use crate::{
     buffer::BufferResult,
     constants::LOG_DESCRIPTION,
     unbuffer::{consume_expected, UnbufferResult},
-    Buffer, BufferSize, BufferUnbufferError, BytesRequired, ConstantBufferSize, EmptyResult, Error,
-    MessageTypeIdentifier, Result, TypedMessageBody, Unbuffer,
+    Buffer, BufferSize, BufferUnbufferError, BytesRequired, ConstantBufferSize,
+    MessageTypeIdentifier, TypedMessageBody, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes};
 

@@ -4,11 +4,9 @@
 
 //! Traits, etc. related to unbuffering types
 
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
-use crate::{
-    error::BufferUnbufferError, BytesRequired, ConstantBufferSize, Result, WrappedConstantSize,
-};
+use crate::{error::BufferUnbufferError, BytesRequired, ConstantBufferSize, WrappedConstantSize};
 use bytes::{Buf, Bytes};
 
 pub type UnbufferResult<T> = std::result::Result<T, BufferUnbufferError>;
@@ -162,7 +160,6 @@ pub fn consume_expected<T: Buf>(
     buf: &mut T,
     expected: &'static [u8],
 ) -> std::result::Result<(), BufferUnbufferError> {
-    let bytes_len = buf.remaining();
     let expected_len = expected.len();
     check_remaining(buf, expected_len)?;
 

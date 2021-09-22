@@ -5,7 +5,7 @@
 use crate::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
     unbuffer::{consume_expected, UnbufferResult},
-    Buffer, BufferUnbufferError, ConstantBufferSize, EmptyResult, Error, LogMode, Result, Unbuffer,
+    Buffer, BufferUnbufferError, ConstantBufferSize, EmptyResult, Error, LogMode, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes};
 use std::{

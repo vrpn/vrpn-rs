@@ -4,10 +4,7 @@
 
 use crate::buffer::BufferResult;
 use crate::prelude::*;
-use crate::{
-    unbuffer::consume_expected, Buffer, BufferUnbufferError, BytesRequired, EmptyResult, Error,
-    Result, Unbuffer,
-};
+use crate::{unbuffer::consume_expected, Buffer, BufferUnbufferError, BytesRequired, Unbuffer};
 use bytes::{Buf, BufMut, Bytes};
 use std::mem::size_of;
 
