@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::prelude::*;
+//! Message types and message size computations.
+
 use crate::{
     constants::ALIGN, Buffer, BufferSize, BytesRequired, EmptyResult, Error, IdType, IntoId,
     Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId, Unbuffer,
@@ -22,12 +23,11 @@ pub enum MessageTypeIdentifier {
 
     /// System message types are identified by a constant, negative message type ID.
     ///
-    /// TODO: find a way to assert/enforce that this is negative - maybe a SystemTypeId type?
+    // TODO: find a way to assert/enforce that this is negative - maybe a SystemTypeId type?
     SystemMessageId(TypeId),
 }
 
 /// Trait for typed message bodies.
-///
 pub trait TypedMessageBody: std::fmt::Debug {
     /// The name string (for user messages) or type ID (for system messages) used to identify this message type.
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier;
@@ -44,6 +44,7 @@ pub struct MessageHeader {
 }
 
 impl MessageHeader {
+    /// Constructor for a message header
     pub fn new(
         time: Option<TimeVal>,
         message_type: impl IntoId<BaseId = TypeId>,
@@ -64,6 +65,7 @@ pub struct Message<T: MessageBody> {
     pub body: T,
 }
 
+/// A special type of message, with just an (exact-size) buffer as the body.
 pub type GenericMessage = Message<GenericBody>;
 
 impl<T: MessageBody> Message<T> {
@@ -98,7 +100,18 @@ impl<T: MessageBody> Message<T> {
     }
 }
 
+impl<T: MessageBody> From<SequencedMessage<T>> for Message<T> {
+    fn from(v: SequencedMessage<T>) -> Message<T> {
+        v.message
+    }
+}
+
 impl<T: TypedMessageBody + Unbuffer> Message<T> {
+    /// Try parsing a generic message into a typed message
+    ///
+    /// # Errors
+    /// - If the unbuffering of the given type fails
+    /// - If the generic message's body isn't fully consumed by the typed message body
     pub fn try_from_generic(msg: &GenericMessage) -> Result<Message<T>> {
         let mut buf = msg.body.inner.clone();
         let body = T::unbuffer_ref(&mut buf)
@@ -115,6 +128,10 @@ impl<T: TypedMessageBody + Unbuffer> Message<T> {
 }
 
 impl<T: TypedMessageBody + Buffer> Message<T> {
+    /// Try converting a typed message into a generic message
+    ///
+    /// # Errors
+    /// If buffering fails.
     pub fn try_into_generic(self) -> Result<GenericMessage> {
         let old_body = self.body;
         let header = self.header;
@@ -125,12 +142,15 @@ impl<T: TypedMessageBody + Buffer> Message<T> {
 }
 
 /// A message with header information and sequence number, ready to be buffered to the wire.
+///
+/// Wraps `Message<T>`
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SequencedMessage<T: MessageBody> {
     pub message: Message<T>,
     pub sequence_number: SequenceNumber,
 }
 
+/// A special type of sequenced message, with just an (exact-size) buffer as the body.
 pub type SequencedGenericMessage = SequencedMessage<GenericBody>;
 
 impl<T: MessageBody> SequencedMessage<T> {
@@ -148,159 +168,6 @@ impl<T: MessageBody> SequencedMessage<T> {
     }
 }
 
-impl<T: MessageBody> From<SequencedMessage<T>> for Message<T> {
-    fn from(v: SequencedMessage<T>) -> Message<T> {
-        v.message
-    }
-}
-
-/// Generic body struct used in unbuffering process, before dispatch on type to fully decode.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct GenericBody {
-    pub inner: Bytes,
-}
-
-impl GenericBody {
-    pub fn new(inner: Bytes) -> GenericBody {
-        GenericBody { inner }
-    }
-}
-
-impl Default for GenericBody {
-    fn default() -> GenericBody {
-        GenericBody::new(Bytes::default())
-    }
-}
-
-impl MessageBody for GenericBody {}
-
-impl WrappedConstantSize for SequenceNumber {
-    type WrappedType = u32;
-    fn get(&self) -> Self::WrappedType {
-        self.0
-    }
-    fn new(v: Self::WrappedType) -> Self {
-        SequenceNumber(v)
-    }
-}
-
-impl WrappedConstantSize for SenderId {
-    type WrappedType = IdType;
-    fn get(&self) -> Self::WrappedType {
-        TypeSafeId::get(self)
-    }
-    fn new(v: Self::WrappedType) -> Self {
-        SenderId(v)
-    }
-}
-
-impl WrappedConstantSize for TypeId {
-    type WrappedType = IdType;
-    fn get(&self) -> Self::WrappedType {
-        TypeSafeId::get(self)
-    }
-    fn new(v: Self::WrappedType) -> Self {
-        TypeId(v)
-    }
-}
-
-#[inline]
-const fn compute_padding(len: usize) -> usize {
-    let remainder = len % ALIGN;
-    if remainder != 0 {
-        ALIGN - remainder
-    } else {
-        0
-    }
-}
-
-#[inline]
-const fn padded(len: usize) -> usize {
-    len + compute_padding(len)
-}
-
-/// Simple struct for wrapping all calculations related to Message<T> size.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct MessageSize {
-    // The unpadded size of a message body only
-    pub unpadded_body_size: usize,
-}
-
-pub type LengthField = u32;
-
-impl MessageSize {
-    const UNPADDED_HEADER_SIZE: usize = 5 * 4;
-
-    /// Get a MessageSize from the unpadded size of a message body only.
-    #[inline]
-    pub const fn from_unpadded_body_size(unpadded_body_size: usize) -> MessageSize {
-        MessageSize { unpadded_body_size }
-    }
-
-    /// Get a MessageSize from the total unpadded size of a message (header plus body)
-    #[inline]
-    pub const fn from_unpadded_message_size(unpadded_message_size: usize) -> MessageSize {
-        MessageSize::from_unpadded_body_size(
-            unpadded_message_size - MessageSize::UNPADDED_HEADER_SIZE,
-        )
-    }
-    /// Get a MessageSize from the length field of a message (padded header plus unpadded body)
-    #[inline]
-    pub const fn from_length_field(length_field: LengthField) -> MessageSize {
-        MessageSize::from_unpadded_body_size(
-            length_field as usize - padded(MessageSize::UNPADDED_HEADER_SIZE),
-        )
-    }
-
-    /// The unpadded size of just the message body.
-    #[inline]
-    pub const fn unpadded_body_size(&self) -> usize {
-        self.unpadded_body_size
-    }
-
-    /// The padded header size plus the unpadded body size.
-    ///
-    /// This is the value put in the message header's length field.
-    #[inline]
-    pub const fn length_field(&self) -> LengthField {
-        (self.unpadded_body_size + padded(MessageSize::UNPADDED_HEADER_SIZE)) as LengthField
-    }
-
-    /// The size of the body plus padding (multiple of ALIGN)
-    #[inline]
-    pub const fn padded_body_size(&self) -> usize {
-        padded(self.unpadded_body_size)
-    }
-
-    /// The number of padding bytes required to follow the message body.
-    #[inline]
-    pub const fn body_padding(&self) -> usize {
-        compute_padding(self.unpadded_body_size)
-    }
-
-    /// The total padded size of a message (header plus body, padding applied individually).
-    ///
-    /// This is the size of buffer actually required for this message.
-    #[inline]
-    pub const fn padded_message_size(&self) -> usize {
-        self.padded_body_size() + padded(MessageSize::UNPADDED_HEADER_SIZE)
-    }
-}
-
-// Header is 5 i32s (padded to vrpn_ALIGN):
-// - padded header size + unpadded body size
-// - time stamp
-// - sender
-// - type
-//
-// The four bytes of "padding" are actually the sequence number,
-// which are not "officially" part of the header.
-//
-// body is padded out to vrpn_ALIGN
-
-fn generic_message_size(msg: &SequencedGenericMessage) -> MessageSize {
-    MessageSize::from_unpadded_body_size(msg.message.body.inner.len())
-}
 impl BufferSize for SequencedMessage<GenericBody> {
     fn buffer_size(&self) -> usize {
         generic_message_size(self).padded_message_size()
@@ -372,6 +239,155 @@ impl Unbuffer for SequencedMessage<GenericBody> {
     }
 }
 
+/// Generic body struct used in unbuffering process, before dispatch on type to fully decode.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct GenericBody {
+    pub inner: Bytes,
+}
+
+impl GenericBody {
+    pub fn new(inner: Bytes) -> GenericBody {
+        GenericBody { inner }
+    }
+}
+
+impl Default for GenericBody {
+    fn default() -> GenericBody {
+        GenericBody::new(Bytes::default())
+    }
+}
+
+impl MessageBody for GenericBody {}
+
+impl WrappedConstantSize for SequenceNumber {
+    type WrappedType = u32;
+    fn get(&self) -> Self::WrappedType {
+        self.0
+    }
+    fn new(v: Self::WrappedType) -> Self {
+        SequenceNumber(v)
+    }
+}
+
+impl WrappedConstantSize for SenderId {
+    type WrappedType = IdType;
+    fn get(&self) -> Self::WrappedType {
+        TypeSafeId::get(self)
+    }
+    fn new(v: Self::WrappedType) -> Self {
+        SenderId(v)
+    }
+}
+
+impl WrappedConstantSize for TypeId {
+    type WrappedType = IdType;
+    fn get(&self) -> Self::WrappedType {
+        TypeSafeId::get(self)
+    }
+    fn new(v: Self::WrappedType) -> Self {
+        TypeId(v)
+    }
+}
+
+#[inline]
+const fn compute_padding(len: usize) -> usize {
+    let remainder = len % ALIGN;
+    if remainder != 0 {
+        ALIGN - remainder
+    } else {
+        0
+    }
+}
+
+#[inline]
+const fn padded(len: usize) -> usize {
+    len + compute_padding(len)
+}
+
+/// Simple struct for wrapping all calculations related to Message<T> size.
+///
+/// Header is 5 i32s (padded to `vrpn_ALIGN`):
+/// - padded header size + unpadded body size
+/// - time stamp
+/// - sender
+/// - type
+///
+/// The four bytes of "padding" are actually the sequence number,
+/// which are not "officially" part of the header.
+///
+/// body is padded out to `vrpn_ALIGN`
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct MessageSize {
+    // The unpadded size of a message body only
+    pub unpadded_body_size: usize,
+}
+
+/// The type of the length field in the header.
+pub type LengthField = u32;
+
+impl MessageSize {
+    const UNPADDED_HEADER_SIZE: usize = 5 * 4;
+
+    /// Get a MessageSize from the unpadded size of a message body only.
+    #[inline]
+    pub const fn from_unpadded_body_size(unpadded_body_size: usize) -> MessageSize {
+        MessageSize { unpadded_body_size }
+    }
+
+    /// Get a MessageSize from the total unpadded size of a message (header plus body)
+    #[inline]
+    pub const fn from_unpadded_message_size(unpadded_message_size: usize) -> MessageSize {
+        MessageSize::from_unpadded_body_size(
+            unpadded_message_size - MessageSize::UNPADDED_HEADER_SIZE,
+        )
+    }
+    /// Get a MessageSize from the length field of a message (padded header plus unpadded body)
+    #[inline]
+    pub const fn from_length_field(length_field: LengthField) -> MessageSize {
+        MessageSize::from_unpadded_body_size(
+            length_field as usize - padded(MessageSize::UNPADDED_HEADER_SIZE),
+        )
+    }
+
+    /// The unpadded size of just the message body.
+    #[inline]
+    pub const fn unpadded_body_size(&self) -> usize {
+        self.unpadded_body_size
+    }
+
+    /// The padded header size plus the unpadded body size.
+    ///
+    /// This is the value put in the message header's length field.
+    #[inline]
+    pub const fn length_field(&self) -> LengthField {
+        (self.unpadded_body_size + padded(MessageSize::UNPADDED_HEADER_SIZE)) as LengthField
+    }
+
+    /// The size of the body plus padding (multiple of ALIGN)
+    #[inline]
+    pub const fn padded_body_size(&self) -> usize {
+        padded(self.unpadded_body_size)
+    }
+
+    /// The number of padding bytes required to follow the message body.
+    #[inline]
+    pub const fn body_padding(&self) -> usize {
+        compute_padding(self.unpadded_body_size)
+    }
+
+    /// The total padded size of a message (header plus body, padding applied individually).
+    ///
+    /// This is the size of buffer actually required for this message.
+    #[inline]
+    pub const fn padded_message_size(&self) -> usize {
+        self.padded_body_size() + padded(MessageSize::UNPADDED_HEADER_SIZE)
+    }
+}
+
+fn generic_message_size(msg: &SequencedGenericMessage) -> MessageSize {
+    MessageSize::from_unpadded_body_size(msg.message.body.inner.len())
+}
+
 impl Unbuffer for GenericBody {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<GenericBody> {
         let my_bytes = buf.copy_to_bytes(buf.remaining());
@@ -394,6 +410,8 @@ impl Buffer for GenericBody {
     }
 }
 
+/// Turn a generic message into a typed message, if possible.
+#[deprecated]
 pub fn unbuffer_typed_message_body<T: Unbuffer + TypedMessageBody>(
     msg: &GenericMessage,
 ) -> Result<Message<T>> {
