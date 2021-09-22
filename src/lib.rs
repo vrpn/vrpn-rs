@@ -66,7 +66,7 @@ pub use crate::{
     cookie::{CookieData, Version},
     descriptions::{Description, UdpDescription},
     endpoint::*,
-    error::*,
+    error::{BufferUnbufferError, BytesRequired, EmptyResult, Error, Result},
     handler::{Handler, TypedBodylessHandler, TypedHandler},
     log::{LogFileNames, LogMode},
     message::{

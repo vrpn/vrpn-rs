@@ -5,12 +5,13 @@
 //! Message types and message size computations.
 
 use crate::{
-    constants::ALIGN, Buffer, BufferSize, BytesMutExtras, BytesRequired, EmptyResult, Error,
-    IdType, IntoId, OutputResultExtras, Result, SenderId, SequenceNumber, StaticTypeName, TimeVal,
-    TypeId, TypeSafeId, Unbuffer, WrappedConstantSize,
+    buffer::BufferResult, constants::ALIGN, unbuffer::UnbufferResult, Buffer, BufferSize,
+    BufferUnbufferError, BytesMutExtras, BytesRequired, EmptyResult, Error, IdType, IntoId,
+    OutputResultExtras, Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId,
+    TypeSafeId, Unbuffer, WrappedConstantSize,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use std::mem::size_of;
+use std::{convert::TryFrom, mem::size_of};
 
 /// Empty trait used to indicate types that can be placed in a message body.
 pub trait MessageBody /*: Buffer + Unbuffer */ {}
@@ -106,17 +107,35 @@ impl<T: MessageBody> From<SequencedMessage<T>> for Message<T> {
         v.message
     }
 }
+impl<T: TypedMessageBody + Unbuffer> TryFrom<&GenericMessage> for Message<T> {
+    type Error = Error;
 
-impl<T: TypedMessageBody + Unbuffer> Message<T> {
     /// Try parsing a generic message into a typed message
     ///
     /// # Errors
     /// - If the unbuffering of the given type fails
     /// - If the generic message's body isn't fully consumed by the typed message body
+    fn try_from(msg: &GenericMessage) -> std::result::Result<Self, Self::Error> {
+        let mut buf = msg.body.inner.clone();
+        let body = T::unbuffer_ref(&mut buf)
+            .map_err(BufferUnbufferError::map_bytes_required_to_size_mismatch)?;
+        if !buf.is_empty() {
+            return Err(Error::OtherMessage(format!(
+                "message body length was indicated as {}, but {} bytes remain unconsumed",
+                msg.body.inner.len(),
+                buf.len()
+            )));
+        }
+        Ok(Message::from_header_and_body(msg.header.clone(), body))
+    }
+}
+
+impl<T: TypedMessageBody + Unbuffer> Message<T> {
+    #[deprecated]
     pub fn try_from_generic(msg: &GenericMessage) -> Result<Message<T>> {
         let mut buf = msg.body.inner.clone();
         let body = T::unbuffer_ref(&mut buf)
-            .map_need_more_err_to_generic_parse_err("parsing message body")?;
+            .map_err(BufferUnbufferError::map_bytes_required_to_size_mismatch)?;
         if !buf.is_empty() {
             return Err(Error::OtherMessage(format!(
                 "message body length was indicated as {}, but {} bytes remain unconsumed",
@@ -136,9 +155,10 @@ impl<T: TypedMessageBody + Buffer> Message<T> {
     pub fn try_into_generic(self) -> Result<GenericMessage> {
         let old_body = self.body;
         let header = self.header;
-        BytesMut::new().allocate_and_buffer(old_body).map(|body| {
+        let generic = BytesMut::new().allocate_and_buffer(old_body).map(|body| {
             GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
-        })
+        })?;
+        Ok(generic)
     }
 }
 
@@ -177,10 +197,10 @@ impl BufferSize for SequencedMessage<GenericBody> {
 
 impl Buffer for SequencedMessage<GenericBody> {
     /// Serialize to a buffer.
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         let size = generic_message_size(self);
         if buf.remaining_mut() < size.padded_message_size() {
-            return Err(Error::OutOfBuffer);
+            return Err(BufferUnbufferError::OutOfBuffer);
         }
         let length_field = size.length_field() as u32;
 
@@ -200,7 +220,7 @@ impl Buffer for SequencedMessage<GenericBody> {
 
 impl Unbuffer for SequencedMessage<GenericBody> {
     /// Deserialize from a buffer.
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<SequencedMessage<GenericBody>> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<SequencedMessage<GenericBody>> {
         let initial_remaining = buf.remaining();
         let length_field = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
         let size = MessageSize::from_length_field(length_field);
@@ -209,7 +229,7 @@ impl Unbuffer for SequencedMessage<GenericBody> {
         let expected_remaining_bytes = size.padded_message_size() - size_of::<u32>();
 
         if buf.remaining() < expected_remaining_bytes {
-            return Err(Error::NeedMoreData(BytesRequired::Exactly(
+            return Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
                 expected_remaining_bytes - buf.remaining(),
             )));
         }
@@ -390,7 +410,7 @@ fn generic_message_size(msg: &SequencedGenericMessage) -> MessageSize {
 }
 
 impl Unbuffer for GenericBody {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<GenericBody> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<GenericBody> {
         let my_bytes = buf.copy_to_bytes(buf.remaining());
         Ok(GenericBody::new(my_bytes))
     }
@@ -402,9 +422,9 @@ impl BufferSize for GenericBody {
     }
 }
 impl Buffer for GenericBody {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         if buf.remaining_mut() < self.inner.len() {
-            return Err(Error::OutOfBuffer);
+            return Err(BufferUnbufferError::OutOfBuffer);
         }
         buf.put(self.inner.clone());
         Ok(())

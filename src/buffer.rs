@@ -4,7 +4,7 @@
 
 //! Extension traits related to buffering types.
 
-use crate::{BufferSize, EmptyResult, Result, WrappedConstantSize};
+use crate::{BufferSize, BufferUnbufferError, WrappedConstantSize};
 use bytes::{BufMut, BytesMut};
 
 /// Extension trait for BytesMut for easier interaction with stuff we can buffer.
@@ -16,21 +16,28 @@ where
     ///
     /// # Errors
     /// If buffering fails.
-    fn allocate_and_buffer<T: Buffer>(self, v: T) -> Result<Self>;
+    fn allocate_and_buffer<T: Buffer>(self, v: T)
+        -> std::result::Result<Self, BufferUnbufferError>;
 }
 
 impl BytesMutExtras for BytesMut {
-    fn allocate_and_buffer<T: Buffer>(mut self, v: T) -> Result<Self> {
+    fn allocate_and_buffer<T: Buffer>(
+        mut self,
+        v: T,
+    ) -> std::result::Result<Self, BufferUnbufferError> {
         self.reserve(v.buffer_size());
         v.buffer_ref(&mut self)?;
         Ok(self)
     }
 }
 
+/// Shorthand name for what a buffering operation should return.
+pub type BufferResult = std::result::Result<(), BufferUnbufferError>;
+
 /// Trait for types that can be "buffered" (serialized to a byte buffer)
 pub trait Buffer: BufferSize {
     /// Serialize to a buffer (taken as a mutable reference)
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult;
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> std::result::Result<(), BufferUnbufferError>;
 
     /// Get the number of bytes required to serialize this to a buffer.
     fn required_buffer_size(&self) -> usize {
@@ -39,7 +46,7 @@ pub trait Buffer: BufferSize {
 }
 
 impl<T: WrappedConstantSize> Buffer for T {
-    fn buffer_ref<U: BufMut>(&self, buf: &mut U) -> EmptyResult {
+    fn buffer_ref<U: BufMut>(&self, buf: &mut U) -> std::result::Result<(), BufferUnbufferError> {
         self.get().buffer_ref(buf)
     }
 }

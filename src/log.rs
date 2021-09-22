@@ -3,9 +3,11 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    constants::LOG_DESCRIPTION, unbuffer::consume_expected, Buffer, BufferSize, BytesRequired,
-    ConstantBufferSize, EmptyResult, Error, MessageTypeIdentifier, Result, TypedMessageBody,
-    Unbuffer,
+    buffer::BufferResult,
+    constants::LOG_DESCRIPTION,
+    unbuffer::{consume_expected, UnbufferResult},
+    Buffer, BufferSize, BufferUnbufferError, BytesRequired, ConstantBufferSize, EmptyResult, Error,
+    MessageTypeIdentifier, Result, TypedMessageBody, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes};
 
@@ -153,9 +155,9 @@ impl BufferSize for LogFileNames {
 }
 
 impl Buffer for LogFileNames {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         if buf.remaining_mut() < self.buffer_size() {
-            return Err(Error::OutOfBuffer);
+            return Err(BufferUnbufferError::OutOfBuffer);
         }
         for filename in self.filenames_iter() {
             (filename_len(filename) as i32).buffer_ref(buf)?;
@@ -174,7 +176,7 @@ impl TypedMessageBody for LogFileNames {
         MessageTypeIdentifier::SystemMessageId(LOG_DESCRIPTION);
 }
 
-fn unbuffer_logname<T: Buf>(len: usize, buf: &mut T) -> Result<Option<Bytes>> {
+fn unbuffer_logname<T: Buf>(len: usize, buf: &mut T) -> UnbufferResult<Option<Bytes>> {
     let name = if len > 0 {
         Some(buf.copy_to_bytes(len))
     } else {
@@ -186,10 +188,10 @@ fn unbuffer_logname<T: Buf>(len: usize, buf: &mut T) -> Result<Option<Bytes>> {
 }
 
 impl Unbuffer for LogFileNames {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         let min_size = 2 * u32::constant_buffer_size() + 2;
         if buf.remaining() < min_size {
-            return Err(Error::NeedMoreData(BytesRequired::AtLeast(
+            return Err(BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(
                 min_size - buf.remaining(),
             )));
         }

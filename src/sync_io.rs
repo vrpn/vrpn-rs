@@ -11,7 +11,7 @@ extern crate bytes;
 use crate::{
     codec::peek_u32,
     endpoint::SystemCommand,
-    error::{BytesRequired, Error},
+    error::{BufferUnbufferError, BytesRequired, Error},
     message::MessageSize,
     prelude::*,
     translation_table::Tables as TranslationTables,
@@ -20,6 +20,7 @@ use crate::{
 };
 use bytes::BytesMut;
 use std::{
+    convert::TryFrom,
     io::{self, Read, Write},
     net::TcpStream,
     sync::{
@@ -81,7 +82,9 @@ impl EndpointSyncTcp {
         if let Err(e) = self.stream.peek(buf.as_mut()) {
             match e.kind() {
                 io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => {
-                    return Err(Error::NeedMoreData(BytesRequired::Unknown))
+                    return Err(Error::BufferUnbuffer(BufferUnbufferError::NeedMoreData(
+                        BytesRequired::Unknown,
+                    )));
                 }
                 // Not a "need more data"
                 _ => return Err(Error::Other(Box::new(e))),
@@ -89,7 +92,7 @@ impl EndpointSyncTcp {
         }
 
         // Peek the size field, to compute the MessageSize.
-        let total_len = peek_u32(&buf.clone().freeze())?.unwrap();
+        let total_len = peek_u32(&buf.clone().freeze()).unwrap();
         let size = MessageSize::from_length_field(total_len);
 
         // Read the body of the message
@@ -99,7 +102,8 @@ impl EndpointSyncTcp {
         let mut msg_buf = msg_buf.freeze();
 
         // Unbuffer the message.
-        SequencedGenericMessage::unbuffer_ref(&mut msg_buf)
+        let result = SequencedGenericMessage::unbuffer_ref(&mut msg_buf)?;
+        Ok(result)
     }
 
     pub fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Result<()> {
@@ -111,10 +115,12 @@ impl EndpointSyncTcp {
                         dispatcher.call(&msg)?;
                     }
                 }
-                Err(Error::NeedMoreData(_)) => {
-                    break;
+                Err(e) => {
+                    if BytesRequired::try_from(&e).is_ok() {
+                        break;
+                    }
+                    return Err(e);
                 }
-                Err(e) => return Err(e),
             }
         }
         // Now, process the system commands that have been queued.

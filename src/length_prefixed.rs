@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use crate::buffer::BufferResult;
 use crate::prelude::*;
 use crate::{
-    unbuffer::consume_expected, Buffer, BytesRequired, EmptyResult, Error, Result, Unbuffer,
+    unbuffer::consume_expected, Buffer, BufferUnbufferError, BytesRequired, EmptyResult, Error,
+    Result, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes};
 use std::mem::size_of;
@@ -40,10 +42,10 @@ pub fn buffer_string<T: BufMut>(
     buf: &mut T,
     termination: NullTermination,
     null_in_len: LengthBehavior,
-) -> EmptyResult {
+) -> BufferResult {
     let mut buf_size = buffer_size(s, termination);
     if buf.remaining_mut() < buf_size {
-        return Err(Error::OutOfBuffer);
+        return Err(BufferUnbufferError::OutOfBuffer);
     }
     if termination == NullTermination::AddTrailingNull && null_in_len == LengthBehavior::ExcludeNull
     {
@@ -59,12 +61,12 @@ pub fn buffer_string<T: BufMut>(
 }
 
 /// Unbuffer a string, preceded by its length and followed by a null bytes.
-pub fn unbuffer_string<T: Buf>(buf: &mut T) -> Result<Bytes> {
+pub fn unbuffer_string<T: Buf>(buf: &mut T) -> std::result::Result<Bytes, BufferUnbufferError> {
     let buf_size = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
 
     let buf_size = buf_size as usize;
     if buf.remaining() < buf_size {
-        return Err(Error::NeedMoreData(BytesRequired::Exactly(
+        return Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
             buf_size - buf.remaining(),
         )));
     }

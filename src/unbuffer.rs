@@ -4,23 +4,29 @@
 
 //! Traits, etc. related to unbuffering types
 
-use crate::{BytesRequired, ConstantBufferSize, Error, Result, WrappedConstantSize};
+use std::convert::{TryFrom, TryInto};
+
+use crate::{
+    error::BufferUnbufferError, BytesRequired, ConstantBufferSize, Result, WrappedConstantSize,
+};
 use bytes::{Buf, Bytes};
+
+pub type UnbufferResult<T> = std::result::Result<T, BufferUnbufferError>;
 
 /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
 pub trait Unbuffer: Sized {
     /// Tries to unbuffer, advancing the buffer position only if successful.
     ///
-    /// Returns `Err(Error::NeedMoreData(n))` if not enough data.
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self>;
+    /// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self>;
 }
 
 /// Tries to unbuffer from a mutable reference to a buffer.
 ///
 /// Delegates to `Unbuffer::unbuffer_ref()`.
-/// Returns `Err(Error::NeedMoreData(n))` if not enough data.
+/// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
 #[deprecated]
-pub fn unbuffer_ref<T: Unbuffer, U: Buf>(buf: &mut U) -> Result<T> {
+pub fn unbuffer_ref<T: Unbuffer, U: Buf>(buf: &mut U) -> UnbufferResult<T> {
     T::unbuffer_ref(buf)
 }
 
@@ -29,9 +35,9 @@ pub fn unbuffer_ref<T: Unbuffer, U: Buf>(buf: &mut U) -> Result<T> {
 /// Should no longer be neccessary now that futures don't require you to consume and return streams
 /// with every call.
 ///
-/// Returns `Err(Error::NeedMoreData(n))` if not enough data.
+/// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
 #[deprecated]
-pub fn unbuffer_from<T: Unbuffer>(buf: Bytes) -> Result<(T, Bytes)> {
+pub fn unbuffer_from<T: Unbuffer>(buf: Bytes) -> UnbufferResult<(T, Bytes)> {
     let mut buf = buf;
     let v = T::unbuffer_ref(&mut buf)?;
     Ok((v, buf))
@@ -41,15 +47,15 @@ pub fn unbuffer_from<T: Unbuffer>(buf: Bytes) -> Result<(T, Bytes)> {
 /// used by the blanket implementation of Unbuffer.
 pub trait UnbufferConstantSize: Sized + ConstantBufferSize {
     /// Perform the unbuffering: only called with at least as many bytes as needed.
-    fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> Result<Self>;
+    fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> UnbufferResult<Self>;
 }
 
 /// Blanket impl for types implementing UnbufferConstantSize.
 impl<T: UnbufferConstantSize> Unbuffer for T {
-    fn unbuffer_ref<U: Buf>(buf: &mut U) -> Result<Self> {
+    fn unbuffer_ref<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
         let len = Self::constant_buffer_size();
         if buf.remaining() < len {
-            Err(Error::NeedMoreData(BytesRequired::Exactly(
+            Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
                 buf.remaining() - len,
             )))
         } else {
@@ -57,8 +63,8 @@ impl<T: UnbufferConstantSize> Unbuffer for T {
             let mut bytes_subset = buf_subset.copy_to_bytes(len);
             let result = Self::unbuffer_constant_size(&mut bytes_subset);
             // don't advance if we need more data
-            if let Err(Error::NeedMoreData(n)) = result {
-                return Err(Error::NeedMoreData(n));
+            if let Err(BufferUnbufferError::NeedMoreData(n)) = result {
+                return Err(BufferUnbufferError::NeedMoreData(n));
             }
             buf.advance(len);
             result
@@ -67,7 +73,7 @@ impl<T: UnbufferConstantSize> Unbuffer for T {
 }
 
 impl<T: WrappedConstantSize> UnbufferConstantSize for T {
-    fn unbuffer_constant_size<U: Buf>(buf: &mut U) -> Result<Self> {
+    fn unbuffer_constant_size<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
         T::WrappedType::unbuffer_constant_size(buf).map(T::new)
     }
 }
@@ -80,11 +86,6 @@ pub trait OutputResultExtras<T> {
     /// Used when a variable-buffer-size type begins its work by
     /// unbuffering a fixed-size type, like a "length" field.
     fn map_exactly_err_to_at_least(self) -> Self;
-
-    /// Map the result that additional bytes are required to a
-    /// generic parse error with the byte count in the message,
-    /// for instances where more bytes are logically unavailable.
-    fn map_need_more_err_to_generic_parse_err(self, task: &str) -> Self;
 }
 
 /// A trait identifying a structure that can be unbuffered, or a pair of something that can be unbuffered and something else.
@@ -95,27 +96,21 @@ pub trait UnbufferOutput {}
 impl<T> UnbufferOutput for T where T: Unbuffer {}
 impl<T, U> UnbufferOutput for (T, U) where T: Unbuffer {}
 
-impl<T: UnbufferOutput> OutputResultExtras<T> for Result<T> {
+fn expand_bytes_required<T>(val: T) -> T
+where
+    T: Copy + From<BytesRequired>,
+    BytesRequired: TryFrom<T>,
+{
+    match BytesRequired::try_from(val) {
+        Ok(required) => T::from(required.expand()),
+        Err(_) => val,
+    }
+}
+
+impl<T: UnbufferOutput> OutputResultExtras<T> for std::result::Result<T, BufferUnbufferError> {
     /// Convert an error that you need exactly some amount of bytes, into the error that you need at least that much.
     fn map_exactly_err_to_at_least(self) -> Self {
-        match self {
-            Ok(v) => Ok(v),
-            Err(Error::NeedMoreData(BytesRequired::Exactly(n))) => {
-                Err(Error::NeedMoreData(BytesRequired::AtLeast(n)))
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    fn map_need_more_err_to_generic_parse_err(self, task: &str) -> Self {
-        match self {
-            Ok(v) => Ok(v),
-            Err(Error::NeedMoreData(n)) => Err(Error::OtherMessage(format!(
-                "when {}, ran out of data - needed {} additional bytes",
-                task, n
-            ))),
-            Err(e) => Err(e),
-        }
+        self.map_err(BufferUnbufferError::expand_bytes_required)
     }
 }
 
@@ -138,6 +133,21 @@ impl<T: UnbufferOutput> OutputResultExtras<T> for Result<T> {
 //     }
 // }
 
+/// Check whether a buffer has enough bytes remaining
+pub fn check_remaining<T: Buf>(
+    buf: &T,
+    required_len: usize,
+) -> std::result::Result<(), BufferUnbufferError> {
+    let bytes_len = buf.remaining();
+    if bytes_len < required_len {
+        Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
+            required_len - bytes_len,
+        )))
+    } else {
+        Ok(())
+    }
+}
+
 /// Consume the expected static byte string from the buffer.
 ///
 /// ```
@@ -148,20 +158,19 @@ impl<T: UnbufferOutput> OutputResultExtras<T> for Result<T> {
 /// assert!(consume_expected(&mut buf, &b"hello"[..]).is_ok());
 /// assert_eq!(buf.remaining(), 6);
 /// ```
-pub fn consume_expected<T: Buf>(buf: &mut T, expected: &'static [u8]) -> Result<()> {
+pub fn consume_expected<T: Buf>(
+    buf: &mut T,
+    expected: &'static [u8],
+) -> std::result::Result<(), BufferUnbufferError> {
     let bytes_len = buf.remaining();
     let expected_len = expected.len();
-    if bytes_len < expected_len {
-        return Err(Error::NeedMoreData(BytesRequired::Exactly(
-            expected_len - bytes_len,
-        )));
-    }
+    check_remaining(buf, expected_len)?;
 
     let my_bytes = buf.copy_to_bytes(expected_len);
     if my_bytes == expected {
         Ok(())
     } else {
-        Err(Error::UnexpectedAsciiData(
+        Err(BufferUnbufferError::UnexpectedAsciiData(
             my_bytes,
             Bytes::from_static(expected),
         ))

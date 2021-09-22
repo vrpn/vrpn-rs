@@ -4,11 +4,14 @@
 
 use crate::{
     constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
-    unbuffer::consume_expected,
-    Buffer, ConstantBufferSize, EmptyResult, Error, LogMode, Result, Unbuffer,
+    unbuffer::{consume_expected, UnbufferResult},
+    Buffer, BufferUnbufferError, ConstantBufferSize, EmptyResult, Error, LogMode, Result, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes};
-use std::fmt::{self, Display, Formatter};
+use std::{
+    fmt::{self, Display, Formatter},
+    num::ParseIntError,
+};
 
 const COOKIE_PADDING: &[u8] = b"\0\0\0\0\0";
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -64,9 +67,9 @@ impl ConstantBufferSize for CookieData {
 }
 
 impl Buffer for CookieData {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> std::result::Result<(), BufferUnbufferError> {
         if buf.remaining_mut() < Self::constant_buffer_size() {
-            return Err(Error::OutOfBuffer);
+            return Err(BufferUnbufferError::OutOfBuffer);
         }
         buf.put(self.to_string().as_bytes());
         buf.put(COOKIE_PADDING);
@@ -75,13 +78,15 @@ impl Buffer for CookieData {
 }
 
 #[inline]
-fn from_dec(input: Bytes) -> Result<u8> {
-    str::parse::<u8>(&String::from_utf8_lossy(&input)).map_err(Error::from)
+fn from_dec(input: Bytes) -> std::result::Result<u8, ParseIntError> {
+    str::parse::<u8>(&String::from_utf8_lossy(&input))
 }
 
 #[inline]
-fn dec_digits<T: Buf>(buf: &mut T, n: usize) -> Result<u8> {
-    from_dec(buf.copy_to_bytes(n))
+fn dec_digits<T: Buf>(buf: &mut T, n: usize) -> UnbufferResult<u8> {
+    let val = from_dec(buf.copy_to_bytes(n))?;
+
+    Ok(val)
 }
 
 fn u8_to_log_mode(v: u8) -> LogMode {
@@ -89,7 +94,7 @@ fn u8_to_log_mode(v: u8) -> LogMode {
 }
 
 impl Unbuffer for CookieData {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         // remove "vrpn: ver. "
         consume_expected(buf, MAGIC_PREFIX)?;
 

@@ -5,9 +5,9 @@
 //! Types related to the `vrpn_Tracker` device class
 
 use crate::{
-    error::{BytesRequired, Error},
-    Buffer, ConstantBufferSize, EmptyResult, MessageTypeIdentifier, Quat, Result, Sensor,
-    StaticTypeName, TypedMessageBody, Unbuffer, Vec3,
+    buffer::BufferResult, error::BytesRequired, unbuffer::UnbufferResult, Buffer,
+    BufferUnbufferError, ConstantBufferSize, MessageTypeIdentifier, Quat, Sensor, StaticTypeName,
+    TypedMessageBody, Unbuffer, Vec3,
 };
 use bytes::{Buf, BufMut};
 
@@ -36,7 +36,7 @@ impl ConstantBufferSize for PoseReport {
 }
 
 impl Buffer for PoseReport {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         self.sensor.buffer_ref(buf)?;
         // padding
         self.sensor.buffer_ref(buf)?;
@@ -47,10 +47,10 @@ impl Buffer for PoseReport {
 }
 
 impl Unbuffer for PoseReport {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         {
             if buf.remaining() < Self::constant_buffer_size() {
-                return Err(Error::NeedMoreData(BytesRequired::Exactly(
+                return Err(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(
                     Self::constant_buffer_size() - buf.remaining(),
                 )));
             }

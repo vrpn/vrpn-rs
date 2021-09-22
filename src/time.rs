@@ -6,7 +6,10 @@
  * Structures corresponding to time related types used by the original c++ implementation of VRPN.
  */
 
-use crate::{error::*, Buffer, ConstantBufferSize, Unbuffer, WrappedConstantSize};
+use crate::{
+    buffer::BufferResult, error::*, unbuffer::UnbufferResult, Buffer, ConstantBufferSize, Unbuffer,
+    WrappedConstantSize,
+};
 use bytes::{Buf, BufMut};
 use std::{
     fmt::{Debug, Display},
@@ -87,14 +90,14 @@ impl ConstantBufferSize for TimeVal {
 }
 
 impl Buffer for TimeVal {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> EmptyResult {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         self.seconds().buffer_ref(buf)?;
         self.microseconds().buffer_ref(buf)
     }
 }
 
 impl Unbuffer for TimeVal {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> Result<Self> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         Seconds::unbuffer_ref(buf)
             .and_then(|sec| Microseconds::unbuffer_ref(buf).map(|v| (v, sec)))
             .map(|(usec, sec)| TimeVal::new(sec, usec))

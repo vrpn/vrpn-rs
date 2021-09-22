@@ -2,18 +2,23 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{message::MessageSize, Error, Result, SequencedGenericMessage, Unbuffer};
+use crate::{
+    error::BufferUnbufferError,
+    message::MessageSize,
+    unbuffer::{check_remaining, UnbufferResult},
+    Error, Result, SequencedGenericMessage, Unbuffer,
+};
 use bytes::{Buf, Bytes, BytesMut};
 
-pub fn peek_u32<T: Buf>(buf: &T) -> Result<Option<u32>> {
+pub fn peek_u32<T: Buf>(buf: &T) -> Option<u32> {
     const SIZE_LEN: usize = std::mem::size_of::<u32>();
     if buf.remaining() < SIZE_LEN {
         eprintln!("Not enough remaining bytes for the size.");
-        return Ok(None);
+        return None;
     }
     let mut just_enough = Bytes::copy_from_slice(buf.chunk());
     let peeked = just_enough.get_u32();
-    Ok(Some(peeked))
+    Some(peeked)
 }
 
 pub(crate) fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
@@ -27,13 +32,13 @@ pub(crate) fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
 }
 
 /// Decode exactly 1 message. Returns Ok(None) if we don't have enough data.
-pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> Result<Option<SequencedGenericMessage>> {
+pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<SequencedGenericMessage>> {
     let initial_len = buf.remaining();
     // Peek the length field if possible
-    if let Some(combined_size) = peek_u32(&buf)? {
+    if let Some(combined_size) = peek_u32(&buf) {
         let size = MessageSize::from_length_field(combined_size);
-        if initial_len < size.padded_message_size() {
-            // Not enough data in the buffer
+        if let Err(_) = check_remaining(buf, size.padded_message_size()) {
+            // Not enough data in the buffer - here, that's not an error.
             return Ok(None);
         }
 
@@ -45,7 +50,7 @@ pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> Result<Option<SequencedGenericM
                 buf.advance(size.padded_message_size());
                 Ok(Some(v))
             }
-            Err(Error::NeedMoreData(_)) => {
+            Err(BufferUnbufferError::NeedMoreData(_)) => {
                 unreachable!();
             }
             Err(e) => Err(e),
@@ -70,7 +75,7 @@ pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> Result<Option<SequencedGenericM
 //                 Buf::advance(&mut buf, size.padded_message_size());
 //                 Ok(Some(v))
 //             }
-//             Err(Error::NeedMoreData(_)) => {
+//             Err(BufferUnbufferError::NeedMoreData(_)) => {
 //                 unreachable!();
 //             }
 //             Err(e) => Err(e),

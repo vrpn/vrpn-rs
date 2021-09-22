@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{codec::decode_one, Buffer, Error, Result, SequencedGenericMessage};
+use crate::{
+    codec::decode_one, Buffer, BufferUnbufferError, Error, Result, SequencedGenericMessage,
+};
 use bytes::{Buf, BytesMut};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
@@ -34,10 +36,14 @@ impl Decoder for FramedMessageCodec {
 }
 
 impl Encoder<SequencedGenericMessage> for FramedMessageCodec {
-    type Error = Error;
-    fn encode(&mut self, item: SequencedGenericMessage, dst: &mut BytesMut) -> Result<()> {
+    type Error = crate::Error;
+    fn encode(
+        &mut self,
+        item: SequencedGenericMessage,
+        dst: &mut BytesMut,
+    ) -> std::result::Result<(), Self::Error> {
         dst.reserve(item.required_buffer_size());
-        item.buffer_ref(dst)
+        item.buffer_ref(dst).map_err(|e| Self::Error::from(e))
     }
 }
 
