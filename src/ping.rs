@@ -1,12 +1,13 @@
-// Copyright 2018, Collabora, Ltd.
+// Copyright 2018-2021, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
+
+//! Types and functions for the periodic ping/pong messages in the VRPN protocol.
 
 use crate::{
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
     ClassOfService, Connection, EmptyMessage, LocalId, Message, MessageHeader,
-    MessageTypeIdentifier, Result, SenderId, SenderName, StaticTypeName, TypeId, TypeSafeId,
-    TypedMessageBody,
+    MessageTypeIdentifier, Result, SenderId, SenderName, StaticTypeName, TypeId, TypedMessageBody,
 };
 use chrono::{prelude::*, Duration};
 use std::{
@@ -14,6 +15,9 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 
+/// Periodic "Ping" message.
+///
+/// Has no body.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Ping;
 const PING_MESSAGE: StaticTypeName = StaticTypeName(b"vrpn_Base ping_message");
@@ -28,6 +32,9 @@ impl TypedMessageBody for Ping {
         MessageTypeIdentifier::UserMessageName(PING_MESSAGE);
 }
 
+/// "Pong" message, sent in reply to a `Ping` message
+///
+/// Has no body.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Pong;
 const PONG_MESSAGE: StaticTypeName = StaticTypeName(b"vrpn_Base pong_message");
