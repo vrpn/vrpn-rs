@@ -1,4 +1,4 @@
-// Copyright 2018-2019, Collabora, Ltd.
+// Copyright 2018-2021, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
@@ -6,34 +6,38 @@ use crate::{message::MessageSize, Error, Result, SequencedGenericMessage, Unbuff
 use bytes::{Buf, Bytes, BytesMut};
 
 pub fn peek_u32<T: Buf>(buf: &T) -> Result<Option<u32>> {
-    const size_len: usize = std::mem::size_of::<u32>();
-    if buf.remaining() < size_len {
+    const SIZE_LEN: usize = std::mem::size_of::<u32>();
+    if buf.remaining() < SIZE_LEN {
         eprintln!("Not enough remaining bytes for the size.");
         return Ok(None);
     }
     let mut just_enough = Bytes::copy_from_slice(buf.chunk());
-    // let mut just_enough = buf.clone().copy_to_bytes(size_len);
     let peeked = just_enough.get_u32();
     Ok(Some(peeked))
 }
 
-pub fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
-    const size_len: usize = std::mem::size_of::<u32>();
-    if buf.remaining() < size_len {
+pub(crate) fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
+    const SIZE_LEN: usize = std::mem::size_of::<u32>();
+    if buf.remaining() < SIZE_LEN {
         eprintln!("Not enough remaining bytes for the size.");
         return Ok(None);
     }
-    let peeked = (&buf[..size_len]).get_u32();
+    let peeked = (&buf[..SIZE_LEN]).get_u32();
     Ok(Some(peeked))
 }
 
+/// Decode exactly 1 message. Returns Ok(None) if we don't have enough data.
 pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> Result<Option<SequencedGenericMessage>> {
     let initial_len = buf.remaining();
+    // Peek the length field if possible
     if let Some(combined_size) = peek_u32(&buf)? {
         let size = MessageSize::from_length_field(combined_size);
         if initial_len < size.padded_message_size() {
+            // Not enough data in the buffer
             return Ok(None);
         }
+
+        // Make an interface to take exactly what we need from the buffer
         let mut taken_buf = buf.take(size.padded_message_size());
         let unbuffered = SequencedGenericMessage::unbuffer_ref(&mut taken_buf);
         match unbuffered {
@@ -81,12 +85,12 @@ mod tests {
 
     #[test]
     fn individual_decode_one() {
-        const msg1: [u8; 48]= hex!("00 00 00 29 5b eb 33 2e 00 0c 58 b1 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 0d 56 52 50 4e 20 43 6f 6e 74 72 6f 6c 00 00 00 00 00 00 00 00");
-        const msg2: [u8; 40] = hex!("00 00 00 25 5b eb 33 2e 00 0c 58 b1 00 00 00 01 ff ff ff ff 00 00 00 01 00 00 00 09 54 72 61 63 6b 65 72 30 00 00 00 00");
-        const msg3: [u8; 72] = hex!("00 00 00 41 5b eb 33 2e 00 0c 58 b2 00 00 00 00 ff ff ff fe 00 00 00 02 00 00 00 25 56 52 50 4e 5f 43 6f 6e 6e 65 63 74 69 6f 6e 5f 47 6f 74 5f 46 69 72 73 74 5f 43 6f 6e 6e 65 63 74 69 6f 6e 00 00 00 00 00 00 00 00");
+        const MSG1: [u8; 48]= hex!("00 00 00 29 5b eb 33 2e 00 0c 58 b1 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 0d 56 52 50 4e 20 43 6f 6e 74 72 6f 6c 00 00 00 00 00 00 00 00");
+        const MSG2: [u8; 40] = hex!("00 00 00 25 5b eb 33 2e 00 0c 58 b1 00 00 00 01 ff ff ff ff 00 00 00 01 00 00 00 09 54 72 61 63 6b 65 72 30 00 00 00 00");
+        const MSG3: [u8; 72] = hex!("00 00 00 41 5b eb 33 2e 00 0c 58 b2 00 00 00 00 ff ff ff fe 00 00 00 02 00 00 00 25 56 52 50 4e 5f 43 6f 6e 6e 65 63 74 69 6f 6e 5f 47 6f 74 5f 46 69 72 73 74 5f 43 6f 6e 6e 65 63 74 69 6f 6e 00 00 00 00 00 00 00 00");
 
         // const test_messages = ;
-        for msg_bytes in [Vec::from(msg1), Vec::from(msg2), Vec::from(msg3)] {
+        for msg_bytes in [Vec::from(MSG1), Vec::from(MSG2), Vec::from(MSG3)] {
             let mut data = Bytes::copy_from_slice(&msg_bytes);
             let decoded = decode_one(&mut data);
             assert!(decoded.is_ok());
