@@ -6,7 +6,7 @@ use crate::{
     error::BufferUnbufferError,
     message::MessageSize,
     unbuffer::{check_remaining, UnbufferResult},
-    Error, Result, SequencedGenericMessage, Unbuffer,
+    Result, SequencedGenericMessage, Unbuffer,
 };
 use bytes::{Buf, Bytes, BytesMut};
 
@@ -33,11 +33,10 @@ pub(crate) fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
 
 /// Decode exactly 1 message. Returns Ok(None) if we don't have enough data.
 pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<SequencedGenericMessage>> {
-    let initial_len = buf.remaining();
     // Peek the length field if possible
     if let Some(combined_size) = peek_u32(&buf) {
         let size = MessageSize::from_length_field(combined_size);
-        if let Err(_) = check_remaining(buf, size.padded_message_size()) {
+        if check_remaining(buf, size.padded_message_size()).is_err() {
             // Not enough data in the buffer - here, that's not an error.
             return Ok(None);
         }

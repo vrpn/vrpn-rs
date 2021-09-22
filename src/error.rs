@@ -5,7 +5,7 @@
 use crate::{IdType, Version};
 use bytes::Bytes;
 use std::{
-    convert::{TryFrom, TryInto},
+    convert::TryFrom,
     fmt::{self, Display},
     net::AddrParseError,
     num::ParseIntError,
@@ -117,24 +117,17 @@ impl TryFrom<&BufferUnbufferError> for BytesRequired {
     type Error = DoesNotContainBytesRequired;
 
     fn try_from(value: &BufferUnbufferError) -> std::result::Result<Self, Self::Error> {
-        BytesRequired::try_from(value.clone())
+        if let BufferUnbufferError::NeedMoreData(required) = value {
+            Ok(*required)
+        } else {
+            Err(DoesNotContainBytesRequired(()))
+        }
     }
 }
 
-// impl TryInto<BytesRequired> for BufferUnbufferError {
-//     type Error = DoesNotContainBytesRequired;
-
-//     fn try_into(self) -> std::result::Result<BytesRequired, Self::Error> {
-//         if let BufferUnbufferError::NeedMoreData(required) = self {
-//             Ok(required)
-//         } else {
-//             Err(DoesNotContainBytesRequired(()))
-//         }
-//     }
-// }
-
 impl BufferUnbufferError {
-    /// Maps `BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(n))` to `BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(n))`
+    /// Maps `BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(n))` to
+    /// `BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(n))`
     pub fn expand_bytes_required(self) -> BufferUnbufferError {
         if let BufferUnbufferError::NeedMoreData(required) = self {
             return BufferUnbufferError::NeedMoreData(required.expand());
@@ -226,7 +219,11 @@ impl TryFrom<&Error> for BytesRequired {
     type Error = DoesNotContainBytesRequired;
 
     fn try_from(value: &Error) -> std::result::Result<Self, Self::Error> {
-        BytesRequired::try_from(value.clone())
+        if let Error::BufferUnbuffer(buf_unbuf) = value {
+            BytesRequired::try_from(buf_unbuf)
+        } else {
+            Err(DoesNotContainBytesRequired(()))
+        }
     }
 }
 
@@ -237,7 +234,8 @@ impl From<BytesRequired> for Error {
 }
 
 impl Error {
-    /// Maps `Error::BufferUnbuffer(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(n)))` to `Error::BufferUnbuffer((BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(n)))`
+    /// Maps `Error::BufferUnbuffer(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(n)))` to
+    /// `Error::BufferUnbuffer((BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(n)))`
     pub fn expand_bytes_required(self) -> Error {
         if let Error::BufferUnbuffer(err) = self {
             return Error::BufferUnbuffer(err.expand_bytes_required());
@@ -259,7 +257,7 @@ impl Error {
     // }
 
     pub fn is_need_more_data(&self) -> bool {
-        BytesRequired::try_from(self.clone()).is_ok()
+        BytesRequired::try_from(self).is_ok()
     }
 
     // pub fn contains_need_more_data(&self) -> bool {
