@@ -3,9 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    buffer_unbuffer::{Buffer, BufferUnbufferError},
-    codec::decode_one,
-    data_types::message::SequencedGenericMessage,
+    buffer_unbuffer::Buffer, codec::decode_one, data_types::message::SequencedGenericMessage,
     Result, VrpnError,
 };
 use bytes::{Buf, BytesMut};

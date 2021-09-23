@@ -15,9 +15,7 @@ use bytes::Bytes;
 use std::net::{SocketAddr, TcpStream};
 use vrpn::{
     buffer_unbuffer::Unbuffer,
-    data_types::{
-        constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible, CookieData, Message,
-    },
+    data_types::{cookie::check_ver_nonfile_compatible, CookieData, Message},
     handler::{HandlerCode, TypedHandler},
     sync_io::{read_cookie, write_cookie, EndpointSyncTcp},
     tracker::PoseReport,

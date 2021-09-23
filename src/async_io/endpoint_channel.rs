@@ -154,12 +154,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     use crate::{
-        async_io::{
-            apply_message_framing,
-            connect::{connect, ConnectResults},
-        },
+        async_io::connect::{connect, ConnectResults},
         ServerInfo,
     };
     #[test]
@@ -167,7 +164,7 @@ mod tests {
         let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
         let connection_results = tokio_test::block_on(connect(server))
             .expect("should be able to create connection future");
-        let ConnectResults { tcp, udp: _ } = connection_results;
+        let ConnectResults { tcp: _, udp: _ } = connection_results;
         todo!();
         // let chan = EndpointChannel::new(apply_message_framing(tcp.unwrap()));
         // for _i in 0..4 {

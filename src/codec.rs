@@ -2,25 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Buf, BytesMut};
+use bytes::Buf;
 
 use crate::{
     buffer_unbuffer::{
         check_unbuffer_remaining, peek_u32, BufferUnbufferError, Unbuffer, UnbufferResult,
     },
     data_types::{MessageSize, SequencedGenericMessage},
-    Result,
 };
-
-pub(crate) fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
-    const SIZE_LEN: usize = std::mem::size_of::<u32>();
-    if buf.remaining() < SIZE_LEN {
-        eprintln!("Not enough remaining bytes for the size.");
-        return Ok(None);
-    }
-    let peeked = (&buf[..SIZE_LEN]).get_u32();
-    Ok(Some(peeked))
-}
 
 /// Decode exactly 1 message. Returns Ok(None) if we don't have enough data.
 pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<SequencedGenericMessage>> {

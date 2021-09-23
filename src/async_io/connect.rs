@@ -3,10 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use super::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie};
-use crate::prelude::*;
 use crate::{
-    buffer_unbuffer::Unbuffer,
-    constants,
+    buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, Unbuffer},
     data_types::{cookie::check_ver_nonfile_compatible, CookieData},
     Result, Scheme, ServerInfo, VrpnError,
 };

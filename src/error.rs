@@ -111,7 +111,7 @@ impl<T> From<std::sync::PoisonError<T>> for VrpnError {
     }
 }
 
-#[deprecated(note = "Use std::result::Result with explicit error type instead")]
+// #[deprecated(note = "Use std::result::Result with explicit error type instead")]
 pub type Result<T> = std::result::Result<T, VrpnError>;
 
 #[deprecated(note = "You probably want crate::buffer_unbuffer::buffer::BufferResult")]

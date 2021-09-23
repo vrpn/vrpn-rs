@@ -4,10 +4,7 @@
 
 use crate::{
     buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, Unbuffer},
-    data_types::{
-        constants::{FILE_MAGIC_DATA, MAGIC_DATA},
-        cookie::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData},
-    },
+    data_types::cookie::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData},
     VrpnError,
 };
 use bytes::{Bytes, BytesMut};
