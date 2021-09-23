@@ -11,10 +11,11 @@ use crate::{
     buffer_unbuffer::Buffer,
     data_types::{
         constants,
-        descriptions::{InnerDescription, UdpInnerDescription},
+        descriptions::{IdWithDescription, InnerDescription, UdpInnerDescription},
         id_types::*,
-        BaseTypeSafeIdName, ClassOfService, Description, GenericMessage, LogFileNames, Message,
-        MessageHeader, SenderName, TypeId, TypeName, TypedMessageBody, UdpDescription,
+        ClassOfService, Description, GenericMessage, IdWithName, LogFileNames, Message,
+        MessageHeader, MessageTypeId, MessageTypeName, SenderName, TypedMessageBody,
+        UdpDescription,
     },
     MatchingTable, Result, TranslationTables, TypeDispatcher, VrpnError,
 };
@@ -27,7 +28,7 @@ use crate::{
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum SystemCommand {
     SenderDescription(Description<SenderId>),
-    TypeDescription(Description<TypeId>),
+    TypeDescription(Description<MessageTypeId>),
     Extended(ExtendedSystemCommand),
 }
 
@@ -62,7 +63,7 @@ pub trait Endpoint: Downcast {
         }
         match msg.header.message_type {
             constants::TYPE_DESCRIPTION => {
-                let msg: Message<InnerDescription<TypeId>> = Message::try_from(&msg)?;
+                let msg: Message<InnerDescription<MessageTypeId>> = Message::try_from(&msg)?;
                 self.send_system_change(SystemCommand::TypeDescription(msg.into()))?;
             }
             constants::SENDER_DESCRIPTION => {
@@ -132,7 +133,9 @@ pub trait Endpoint: Downcast {
                 Ok(None)
             }
             SystemCommand::TypeDescription(desc) => {
-                let local_id = dispatcher.register_type(TypeName(desc.name.clone()))?.get();
+                let local_id = dispatcher
+                    .register_type(MessageTypeName(desc.name.clone()))?
+                    .get();
                 eprintln!(
                     "Registering type {:?}: local {:?} = remote {:?}",
                     desc.name, local_id, desc.which
@@ -180,26 +183,26 @@ pub trait EndpointGeneric: Endpoint {
 
     fn pack_description_impl<T>(&mut self, name: Bytes, local_id: LocalId<T>) -> Result<()>
     where
-        T: BaseTypeSafeId,
+        T: UnwrappedId + IdWithDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>;
 
     fn pack_description<T>(&mut self, local_id: LocalId<T>) -> Result<()>
     where
-        T: BaseTypeSafeId,
+        T: UnwrappedId + IdWithDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>;
 
     fn new_local_id<T, V>(&mut self, name: V, local_id: LocalId<T>) -> Result<()>
     where
-        T: BaseTypeSafeIdName + BaseTypeSafeId,
+        T: IdWithName + UnwrappedId + IdWithDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
-        V: Into<<T as BaseTypeSafeIdName>::Name>;
+        V: Into<<T as IdWithName>::Name>;
 
     fn map_to_local_id<T>(&self, remote_id: RemoteId<T>) -> Option<LocalId<T>>
     where
-        T: BaseTypeSafeId,
+        T: UnwrappedId,
         TranslationTables: MatchingTable<T>;
 
     fn map_remote_message_to_local(&self, msg: GenericMessage) -> Result<GenericMessage>;
@@ -218,7 +221,7 @@ where
     }
     fn pack_description_impl<T>(&mut self, name: Bytes, local_id: LocalId<T>) -> Result<()>
     where
-        T: BaseTypeSafeId,
+        T: IdWithDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
     {
@@ -229,7 +232,7 @@ where
 
     fn pack_description<T>(&mut self, local_id: LocalId<T>) -> Result<()>
     where
-        T: BaseTypeSafeId,
+        T: IdWithDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
     {
@@ -244,12 +247,12 @@ where
 
     fn new_local_id<T, V>(&mut self, name: V, local_id: LocalId<T>) -> Result<()>
     where
-        T: BaseTypeSafeIdName + BaseTypeSafeId,
+        T: IdWithName + IdWithDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
-        V: Into<<T as BaseTypeSafeIdName>::Name>,
+        V: Into<<T as IdWithName>::Name>,
     {
-        let name: <T as BaseTypeSafeIdName>::Name = name.into();
+        let name: <T as IdWithName>::Name = name.into();
         let name: Bytes = name.into();
         self.translation_tables_mut()
             .add_local_id(name.clone(), local_id);
@@ -259,7 +262,7 @@ where
     /// Convert remote sender/type ID to local sender/type ID
     fn map_to_local_id<T>(&self, remote_id: RemoteId<T>) -> Option<LocalId<T>>
     where
-        T: BaseTypeSafeId,
+        T: UnwrappedId,
         TranslationTables: MatchingTable<T>,
     {
         self.translation_tables()

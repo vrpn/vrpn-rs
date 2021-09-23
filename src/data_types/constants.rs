@@ -8,23 +8,24 @@
 
 use crate::buffer_unbuffer::constants::ALIGN;
 
-use super::{StaticSenderName, StaticTypeName, TypeId, Version};
+use super::{MessageTypeId, StaticMessageTypeName, StaticSenderName, Version};
 
-pub const GOT_FIRST_CONNECTION: StaticTypeName =
-    StaticTypeName(b"VRPN_Connection_Got_First_Connection");
-pub const GOT_CONNECTION: StaticTypeName = StaticTypeName(b"VRPN_Connection_Got_Connection");
-pub const DROPPED_CONNECTION: StaticTypeName =
-    StaticTypeName(b"VRPN_Connection_Dropped_Connection");
-pub const DROPPED_LAST_CONNECTION: StaticTypeName =
-    StaticTypeName(b"VRPN_Connection_Dropped_Last_Connection");
+pub const GOT_FIRST_CONNECTION: StaticMessageTypeName =
+    StaticMessageTypeName(b"VRPN_Connection_Got_First_Connection");
+pub const GOT_CONNECTION: StaticMessageTypeName =
+    StaticMessageTypeName(b"VRPN_Connection_Got_Connection");
+pub const DROPPED_CONNECTION: StaticMessageTypeName =
+    StaticMessageTypeName(b"VRPN_Connection_Dropped_Connection");
+pub const DROPPED_LAST_CONNECTION: StaticMessageTypeName =
+    StaticMessageTypeName(b"VRPN_Connection_Dropped_Last_Connection");
 
 pub const CONTROL: StaticSenderName = StaticSenderName(b"VRPN Control");
 
-pub const SENDER_DESCRIPTION: TypeId = TypeId(-1);
-pub const TYPE_DESCRIPTION: TypeId = TypeId(-2);
-pub const UDP_DESCRIPTION: TypeId = TypeId(-3);
-pub const LOG_DESCRIPTION: TypeId = TypeId(-4);
-pub const DISCONNECT_MESSAGE: TypeId = TypeId(-5);
+pub const SENDER_DESCRIPTION: MessageTypeId = MessageTypeId(-1);
+pub const TYPE_DESCRIPTION: MessageTypeId = MessageTypeId(-2);
+pub const UDP_DESCRIPTION: MessageTypeId = MessageTypeId(-3);
+pub const LOG_DESCRIPTION: MessageTypeId = MessageTypeId(-4);
+pub const DISCONNECT_MESSAGE: MessageTypeId = MessageTypeId(-5);
 
 // Based on vrpn_MAGIC_DATA
 pub const MAGIC_DATA: Version = Version {

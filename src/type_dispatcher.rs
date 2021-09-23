@@ -8,7 +8,7 @@ use crate::{
         constants,
         id_types::*,
         message::{GenericMessage, MessageTypeIdentifier, TypedMessageBody},
-        name_types::{SenderName, TypeName},
+        name_types::{MessageTypeName, SenderName},
     },
     handler::*,
     Result, VrpnError,
@@ -17,14 +17,14 @@ use bytes::Bytes;
 use std::{collections::HashMap, fmt, hash::Hash};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub enum RegisterMapping<T: BaseTypeSafeId> {
+pub enum RegisterMapping<T: UnwrappedId> {
     /// This was an existing mapping with the given ID
     Found(LocalId<T>),
     /// This was a new mapping, which has been registered and received the given ID
     NewMapping(LocalId<T>),
 }
 
-impl<T: BaseTypeSafeId> RegisterMapping<T> {
+impl<T: UnwrappedId> RegisterMapping<T> {
     /// Access the wrapped ID, no matter if it was new or not.
     pub fn get(&self) -> LocalId<T> {
         match self {
@@ -40,7 +40,10 @@ type HandlerHandleInnerType = IdType;
 struct HandlerHandleInner(HandlerHandleInnerType);
 
 impl HandlerHandleInner {
-    fn into_handler_handle(self, message_type_filter: Option<LocalId<TypeId>>) -> HandlerHandle {
+    fn into_handler_handle(
+        self,
+        message_type_filter: Option<LocalId<MessageTypeId>>,
+    ) -> HandlerHandle {
         HandlerHandle(message_type_filter, self.0)
     }
 }
@@ -48,7 +51,7 @@ impl HandlerHandleInner {
 /// A way to refer uniquely to a single added handler in a TypeDispatcher, in case
 /// you want to remove it in the future.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct HandlerHandle(Option<LocalId<TypeId>>, HandlerHandleInnerType);
+pub struct HandlerHandle(Option<LocalId<MessageTypeId>>, HandlerHandleInnerType);
 
 /// Type storing a boxed callback function, an optional sender ID filter,
 /// and the unique-per-CallbackCollection handle that can be used to unregister a handler.
@@ -153,7 +156,7 @@ impl CallbackCollection {
     }
 }
 
-fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
+fn message_type_into_index(message_type: MessageTypeId, len: usize) -> Result<usize> {
     use RangedId::*;
     match determine_id_range(message_type, len) {
         BelowZero(v) => Err(VrpnError::InvalidId(v)),
@@ -176,7 +179,7 @@ struct Name(Bytes);
 pub struct TypeDispatcher {
     /// Index is the local type ID
     types: Vec<CallbackCollection>,
-    types_by_name: HashMap<Name, LocalId<TypeId>>,
+    types_by_name: HashMap<Name, LocalId<MessageTypeId>>,
     generic_callbacks: CallbackCollection,
     /// Index is the local sender ID
     senders: Vec<SenderName>,
@@ -212,11 +215,11 @@ impl TypeDispatcher {
         disp
     }
 
-    /// Get a mutable borrow of the CallbackCollection associated with the supplied TypeId
+    /// Get a mutable borrow of the CallbackCollection associated with the supplied MessageTypeId
     /// (or the generic callbacks for None)
     fn get_type_callbacks_mut(
         &'_ mut self,
-        type_id_filter: Option<LocalId<TypeId>>,
+        type_id_filter: Option<LocalId<MessageTypeId>>,
     ) -> Result<&'_ mut CallbackCollection> {
         match type_id_filter {
             Some(i) => {
@@ -227,13 +230,13 @@ impl TypeDispatcher {
         }
     }
 
-    fn add_type(&mut self, name: impl Into<TypeName>) -> Result<LocalId<TypeId>> {
+    fn add_type(&mut self, name: impl Into<MessageTypeName>) -> Result<LocalId<MessageTypeId>> {
         if self.types.len() > MAX_VEC_USIZE {
             return Err(VrpnError::TooManyMappings);
         }
         let name = name.into();
         self.types.push(CallbackCollection::new(name.clone().0));
-        let id = LocalId(TypeId((self.types.len() - 1) as IdType));
+        let id = LocalId(MessageTypeId((self.types.len() - 1) as IdType));
         self.types_by_name.insert(Name(name.0), id);
         Ok(id)
     }
@@ -250,19 +253,22 @@ impl TypeDispatcher {
     }
 
     /// Returns the ID for the type name, if found.
-    pub fn get_type_id<T>(&self, name: T) -> Option<LocalId<TypeId>>
+    pub fn get_type_id<T>(&self, name: T) -> Option<LocalId<MessageTypeId>>
     where
-        T: Into<TypeName>,
+        T: Into<MessageTypeName>,
     {
-        let name: TypeName = name.into();
+        let name: MessageTypeName = name.into();
         let name: Bytes = name.into();
         self.types_by_name.get(&Name(name)).cloned()
     }
 
     /// Calls add_type if get_type_id() returns None.
-    /// Returns the corresponding TypeId in all cases.
-    pub fn register_type(&mut self, name: impl Into<TypeName>) -> Result<RegisterMapping<TypeId>> {
-        let name: TypeName = name.into();
+    /// Returns the corresponding MessageTypeId in all cases.
+    pub fn register_type(
+        &mut self,
+        name: impl Into<MessageTypeName>,
+    ) -> Result<RegisterMapping<MessageTypeId>> {
+        let name: MessageTypeName = name.into();
         match self.get_type_id(name.clone()) {
             Some(i) => Ok(RegisterMapping::Found(i)),
             None => self.add_type(name).map(RegisterMapping::NewMapping),
@@ -291,7 +297,7 @@ impl TypeDispatcher {
     pub fn add_handler(
         &mut self,
         handler: Box<dyn Handler + Send>,
-        message_type_filter: Option<LocalId<TypeId>>,
+        message_type_filter: Option<LocalId<MessageTypeId>>,
         sender_filter: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandle> {
         self.get_type_callbacks_mut(message_type_filter)?
@@ -337,11 +343,15 @@ impl TypeDispatcher {
             .enumerate()
             .map(|(i, name)| (LocalId(SenderId(i as i32)), name))
     }
-    pub fn types_iter(&'_ self) -> impl Iterator<Item = (LocalId<TypeId>, TypeName)> + '_ {
-        self.types
-            .iter()
-            .enumerate()
-            .map(|(i, callbacks)| (LocalId(TypeId(i as i32)), TypeName(callbacks.name.clone())))
+    pub fn types_iter(
+        &'_ self,
+    ) -> impl Iterator<Item = (LocalId<MessageTypeId>, MessageTypeName)> + '_ {
+        self.types.iter().enumerate().map(|(i, callbacks)| {
+            (
+                LocalId(MessageTypeId(i as i32)),
+                MessageTypeName(callbacks.name.clone()),
+            )
+        })
     }
 }
 #[cfg(test)]
@@ -389,7 +399,7 @@ mod tests {
             .unwrap();
         let msg = GenericMessage::new(
             Some(TimeVal::get_time_of_day()),
-            TypeId(0),
+            MessageTypeId(0),
             SenderId(0),
             GenericBody::default(),
         );
@@ -439,7 +449,7 @@ mod tests {
             .unwrap();
         let msg = GenericMessage::new(
             Some(TimeVal::get_time_of_day()),
-            TypeId(0),
+            MessageTypeId(0),
             SenderId(0),
             GenericBody::default(),
         );

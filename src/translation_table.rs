@@ -6,13 +6,13 @@ use crate::{data_types::id_types::*, Result, VrpnError};
 use bytes::Bytes;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Entry<T: BaseTypeSafeId> {
+pub struct Entry<T: UnwrappedId> {
     name: Bytes,
     local_id: LocalId<T>,
     remote_id: RemoteId<T>,
 }
 
-impl<T: BaseTypeSafeId> Entry<T> {
+impl<T: UnwrappedId> Entry<T> {
     fn new(name: Bytes, local_id: LocalId<T>, remote_id: RemoteId<T>) -> Entry<T> {
         Entry {
             name,
@@ -36,17 +36,17 @@ impl<T: BaseTypeSafeId> Entry<T> {
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct Table<T: BaseTypeSafeId> {
+pub struct Table<T: UnwrappedId> {
     entries: Vec<Option<Entry<T>>>,
 }
 
-impl<T: BaseTypeSafeId> Default for Table<T> {
+impl<T: UnwrappedId> Default for Table<T> {
     fn default() -> Table<T> {
         Table::new()
     }
 }
 
-impl<T: BaseTypeSafeId> Table<T> {
+impl<T: UnwrappedId> Table<T> {
     /// Create a translation table
     pub fn new() -> Table<T> {
         Table {
@@ -141,7 +141,7 @@ impl<T: BaseTypeSafeId> Table<T> {
 
 #[derive(Debug)]
 pub struct Tables {
-    pub types: Table<TypeId>,
+    pub types: Table<MessageTypeId>,
     pub senders: Table<SenderId>,
 }
 
@@ -168,7 +168,7 @@ impl Default for Tables {
 /// Trait for type-based dispatching/access of the two translation tables.
 ///
 /// Uniform interface for treating Tables just like the appropriate Table<T>
-pub trait MatchingTable<T: BaseTypeSafeId> {
+pub trait MatchingTable<T: UnwrappedId> {
     /// Borrow the correctly-typed translation table
     fn table(&self) -> &Table<T>;
     /// Mutably borrow the correctly-typed translation table
@@ -209,16 +209,16 @@ impl MatchingTable<SenderId> for Tables {
     }
 }
 
-impl MatchingTable<TypeId> for Tables {
-    fn table(&self) -> &Table<TypeId> {
+impl MatchingTable<MessageTypeId> for Tables {
+    fn table(&self) -> &Table<MessageTypeId> {
         &self.types
     }
-    fn table_mut(&mut self) -> &mut Table<TypeId> {
+    fn table_mut(&mut self) -> &mut Table<MessageTypeId> {
         &mut self.types
     }
 }
 
-impl<T: BaseTypeSafeId> MatchingTable<T> for Table<T> {
+impl<T: UnwrappedId> MatchingTable<T> for Table<T> {
     fn table(&self) -> &Table<T> {
         self
     }

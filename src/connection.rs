@@ -7,8 +7,10 @@ use std::sync::{Arc, Mutex};
 use crate::{
     buffer_unbuffer::Buffer,
     data_types::{
-        descriptions::InnerDescription, id_types::*, ClassOfService, LogFileNames, Message,
-        MessageTypeIdentifier, SenderName, TimeVal, TypeId, TypeName, TypedMessageBody,
+        descriptions::{IdWithDescription, InnerDescription},
+        id_types::*,
+        ClassOfService, LogFileNames, Message, MessageTypeId, MessageTypeIdentifier,
+        MessageTypeName, SenderName, TimeVal, TypedMessageBody,
     },
     type_dispatcher::HandlerHandle,
     Endpoint, EndpointGeneric, Handler, MatchingTable, RegisterMapping, Result, TranslationTables,
@@ -42,12 +44,12 @@ pub trait Connection: Send + Sync {
     /// Register a message type name string and get a local ID for it.
     ///
     /// If the string is already registered, the returned ID will be the previously-assigned one.
-    fn register_type<T>(&self, name: T) -> Result<LocalId<TypeId>>
+    fn register_type<T>(&self, name: T) -> Result<LocalId<MessageTypeId>>
     where
-        T: Into<TypeName> + Clone,
+        T: Into<MessageTypeName> + Clone,
     {
         let mut dispatcher = self.connection_core().type_dispatcher.lock()?;
-        let name: TypeName = name.into();
+        let name: MessageTypeName = name.into();
         match dispatcher.register_type(name.clone())? {
             RegisterMapping::Found(id) => Ok(id),
             RegisterMapping::NewMapping(id) => {
@@ -87,7 +89,7 @@ pub trait Connection: Send + Sync {
     fn add_handler(
         &self,
         handler: Box<dyn Handler + Send>,
-        message_type_filter: Option<LocalId<TypeId>>,
+        message_type_filter: Option<LocalId<MessageTypeId>>,
         sender_filter: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandle> {
         let mut dispatcher = self.connection_core().type_dispatcher.lock()?;
@@ -165,7 +167,7 @@ pub trait Connection: Send + Sync {
     /// May not actually send immediately, might need to poll the connection somehow.
     fn pack_description<T>(&self, id: LocalId<T>) -> Result<()>
     where
-        T: BaseTypeSafeId,
+        T: UnwrappedId + IdWithDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
     {

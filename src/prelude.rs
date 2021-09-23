@@ -8,5 +8,5 @@ pub use crate::{
         BytesMutExtras,
     },
     connection::Connection,
-    data_types::id_types::{BaseTypeSafeId, TypeSafeId},
+    data_types::id_types::{Id, UnwrappedId},
 };

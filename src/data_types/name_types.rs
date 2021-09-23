@@ -6,8 +6,13 @@
 
 use bytes::Bytes;
 
-/// A named ID, extending `BaseTypeSafeID`
-pub trait BaseTypeSafeIdName
+use super::{
+    id_types::{SenderId, UnwrappedId},
+    MessageTypeId,
+};
+
+/// A named, unwrapped ID
+pub trait IdWithName: UnwrappedId
 where
     Self::Name: Into<Bytes>,
 {
@@ -71,50 +76,58 @@ impl std::cmp::PartialEq<StaticSenderName> for SenderName {
 ///
 /// Convertible to `TypeName`
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct StaticTypeName(pub &'static [u8]);
+pub struct StaticMessageTypeName(pub &'static [u8]);
 
-impl From<&'static [u8]> for StaticTypeName {
-    fn from(val: &'static [u8]) -> StaticTypeName {
-        StaticTypeName(val)
+impl From<&'static [u8]> for StaticMessageTypeName {
+    fn from(val: &'static [u8]) -> StaticMessageTypeName {
+        StaticMessageTypeName(val)
     }
 }
 
-impl From<StaticTypeName> for Bytes {
-    fn from(val: StaticTypeName) -> Bytes {
+impl From<StaticMessageTypeName> for Bytes {
+    fn from(val: StaticMessageTypeName) -> Bytes {
         Bytes::from_static(val.0)
     }
 }
 
-impl std::cmp::PartialEq<TypeName> for StaticTypeName {
-    fn eq(&self, other: &TypeName) -> bool {
+impl std::cmp::PartialEq<MessageTypeName> for StaticMessageTypeName {
+    fn eq(&self, other: &MessageTypeName) -> bool {
         Bytes::from_static(self.0) == other.0
     }
 }
 
-/// Wrapper for an arbitrary type name.
+/// Wrapper for an arbitrary message type name.
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub struct TypeName(pub Bytes);
+pub struct MessageTypeName(pub Bytes);
 
-impl From<&'static [u8]> for TypeName {
-    fn from(val: &'static [u8]) -> TypeName {
-        TypeName(Bytes::from_static(val))
+impl From<&'static [u8]> for MessageTypeName {
+    fn from(val: &'static [u8]) -> MessageTypeName {
+        MessageTypeName(Bytes::from_static(val))
     }
 }
 
-impl From<StaticTypeName> for TypeName {
-    fn from(val: StaticTypeName) -> TypeName {
-        TypeName(Bytes::from(val))
+impl From<StaticMessageTypeName> for MessageTypeName {
+    fn from(val: StaticMessageTypeName) -> MessageTypeName {
+        MessageTypeName(Bytes::from(val))
     }
 }
 
-impl From<TypeName> for Bytes {
-    fn from(val: TypeName) -> Bytes {
+impl From<MessageTypeName> for Bytes {
+    fn from(val: MessageTypeName) -> Bytes {
         val.0
     }
 }
 
-impl std::cmp::PartialEq<StaticTypeName> for TypeName {
-    fn eq(&self, other: &StaticTypeName) -> bool {
+impl std::cmp::PartialEq<StaticMessageTypeName> for MessageTypeName {
+    fn eq(&self, other: &StaticMessageTypeName) -> bool {
         self.0 == Bytes::from_static(other.0)
     }
+}
+
+impl IdWithName for MessageTypeId {
+    type Name = MessageTypeName;
+}
+
+impl IdWithName for SenderId {
+    type Name = SenderName;
 }

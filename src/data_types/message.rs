@@ -16,7 +16,7 @@ use crate::{
     Result, VrpnError,
 };
 
-use super::{id_types::*, name_types::StaticTypeName, TimeVal};
+use super::{id_types::*, name_types::StaticMessageTypeName, TimeVal};
 
 /// Empty trait used to indicate types that can be placed in a message body.
 pub trait MessageBody /*: Buffer + Unbuffer */ {}
@@ -26,12 +26,12 @@ pub trait MessageBody /*: Buffer + Unbuffer */ {}
 pub enum MessageTypeIdentifier {
     /// User message types are identified by a string which is dynamically associated
     /// with an ID on each side.
-    UserMessageName(StaticTypeName),
+    UserMessageName(StaticMessageTypeName),
 
     /// System message types are identified by a constant, negative message type ID.
     ///
     // TODO: find a way to assert/enforce that this is negative - maybe a SystemTypeId type?
-    SystemMessageId(TypeId),
+    SystemMessageId(MessageTypeId),
 }
 
 /// Trait for typed message bodies.
@@ -46,7 +46,7 @@ impl<T> MessageBody for T where T: TypedMessageBody /*+ Buffer + Unbuffer*/ {}
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct MessageHeader {
     pub time: TimeVal,
-    pub message_type: TypeId,
+    pub message_type: MessageTypeId,
     pub sender: SenderId,
 }
 
@@ -54,7 +54,7 @@ impl MessageHeader {
     /// Constructor for a message header
     pub fn new(
         time: Option<TimeVal>,
-        message_type: impl IntoId<BaseId = TypeId>,
+        message_type: impl IntoId<BaseId = MessageTypeId>,
         sender: impl IntoId<BaseId = SenderId>,
     ) -> MessageHeader {
         MessageHeader {
@@ -78,7 +78,7 @@ pub type GenericMessage = Message<GenericBody>;
 impl<T: MessageBody> Message<T> {
     pub fn new(
         time: Option<TimeVal>,
-        message_type: impl IntoId<BaseId = TypeId>,
+        message_type: impl IntoId<BaseId = MessageTypeId>,
         sender: impl IntoId<BaseId = SenderId>,
         body: T,
     ) -> Message<T> {
@@ -206,7 +206,7 @@ pub type SequencedGenericMessage = SequencedMessage<GenericBody>;
 impl<T: MessageBody> SequencedMessage<T> {
     pub fn new(
         time: Option<TimeVal>,
-        message_type: TypeId,
+        message_type: MessageTypeId,
         sender: SenderId,
         body: T,
         sequence_number: SequenceNumber,
@@ -263,7 +263,7 @@ impl unbuffer::Unbuffer for SequencedMessage<GenericBody> {
 
         let time = TimeVal::unbuffer_ref(buf)?;
         let sender = SenderId::unbuffer_ref(buf)?;
-        let message_type = TypeId::unbuffer_ref(buf)?;
+        let message_type = MessageTypeId::unbuffer_ref(buf)?;
         let sequence_number = SequenceNumber::unbuffer_ref(buf)?;
 
         // Assert that handling the sequence number meant we're now aligned again.
@@ -325,20 +325,20 @@ impl WrappedConstantSize for SequenceNumber {
 impl WrappedConstantSize for SenderId {
     type WrappedType = IdType;
     fn get(&self) -> Self::WrappedType {
-        TypeSafeId::get(self)
+        Id::get(self)
     }
     fn new(v: Self::WrappedType) -> Self {
         SenderId(v)
     }
 }
 
-impl WrappedConstantSize for TypeId {
+impl WrappedConstantSize for MessageTypeId {
     type WrappedType = IdType;
     fn get(&self) -> Self::WrappedType {
-        TypeSafeId::get(self)
+        Id::get(self)
     }
     fn new(v: Self::WrappedType) -> Self {
-        TypeId(v)
+        MessageTypeId(v)
     }
 }
 
@@ -502,7 +502,7 @@ mod tests {
         let computed_size = len_size
             + TimeVal::constant_buffer_size()
             + SenderId::constant_buffer_size()
-            + TypeId::constant_buffer_size();
+            + MessageTypeId::constant_buffer_size();
         assert_eq!(MessageSize::UNPADDED_HEADER_SIZE,
             computed_size,
             "The constant for header size should match the actual size of the fields in the header.");

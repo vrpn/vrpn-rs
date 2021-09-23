@@ -14,17 +14,39 @@ use crate::buffer_unbuffer::{
 };
 
 use super::{
-    constants, id_types::*, length_prefixed, Message, MessageTypeIdentifier, TypedMessageBody,
+    constants, id_types::*, length_prefixed, IdWithName, Message, MessageTypeIdentifier,
+    TypedMessageBody,
 };
+
+/// Trait for the base type safe ID, extending `TypeSafeId`.
+///
+/// This is implemented only by `MessageTypeId` and `SenderId`, not their local/remote wrappers.
+pub trait IdWithDescription:
+    UnwrappedId + Clone + Copy + std::fmt::Debug + PartialEq + Eq + IdWithName
+{
+    fn description_message_type() -> MessageTypeId;
+}
+
+impl IdWithDescription for MessageTypeId {
+    fn description_message_type() -> MessageTypeId {
+        constants::TYPE_DESCRIPTION
+    }
+}
+
+impl IdWithDescription for SenderId {
+    fn description_message_type() -> MessageTypeId {
+        constants::SENDER_DESCRIPTION
+    }
+}
 
 /// Body struct for use in Message<T> for sender/type descriptions
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct InnerDescription<T: BaseTypeSafeId> {
+pub struct InnerDescription<T: IdWithDescription> {
     pub(crate) name: Bytes,
     phantom: PhantomData<T>,
 }
 
-impl<T: BaseTypeSafeId> InnerDescription<T> {
+impl<T: IdWithDescription> InnerDescription<T> {
     pub fn new(name: Bytes) -> InnerDescription<T> {
         InnerDescription {
             name,
@@ -37,14 +59,14 @@ impl TypedMessageBody for InnerDescription<SenderId> {
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
         MessageTypeIdentifier::SystemMessageId(constants::SENDER_DESCRIPTION);
 }
-impl TypedMessageBody for InnerDescription<TypeId> {
+impl TypedMessageBody for InnerDescription<MessageTypeId> {
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
         MessageTypeIdentifier::SystemMessageId(constants::TYPE_DESCRIPTION);
 }
 
 impl<T> Message<InnerDescription<T>>
 where
-    T: BaseTypeSafeId,
+    T: IdWithDescription,
     InnerDescription<T>: TypedMessageBody,
 {
     fn which(&self) -> T {
@@ -54,7 +76,7 @@ where
 
 impl<T> From<Message<InnerDescription<T>>> for Description<T>
 where
-    T: BaseTypeSafeId,
+    T: IdWithDescription,
     InnerDescription<T>: TypedMessageBody,
 {
     fn from(v: Message<InnerDescription<T>>) -> Description<T> {
@@ -67,14 +89,14 @@ where
 ///
 /// Converted to a Message<InnerDescription> before being sent.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct Description<T: BaseTypeSafeId> {
+pub struct Description<T: IdWithDescription> {
     /// The ID
     pub which: T,
     /// The name associated with the ID (no null termination in this string)
     pub name: Bytes,
 }
 
-impl<T: BaseTypeSafeId> Description<T> {
+impl<T: IdWithDescription> Description<T> {
     pub fn new(which: T, name: Bytes) -> Description<T> {
         Description { which, name }
     }
@@ -82,13 +104,13 @@ impl<T: BaseTypeSafeId> Description<T> {
 
 impl<T> From<Description<T>> for Message<InnerDescription<T>>
 where
-    T: BaseTypeSafeId,
+    T: IdWithDescription,
     InnerDescription<T>: TypedMessageBody,
 {
     fn from(v: Description<T>) -> Message<InnerDescription<T>> {
         Message::new(
             None,
-            T::description_type(),
+            T::description_message_type(),
             SenderId(v.which.get()),
             InnerDescription::new(v.name),
         )
@@ -151,7 +173,7 @@ impl From<UdpDescription> for Message<UdpInnerDescription> {
     }
 }
 
-impl<T: BaseTypeSafeId> BufferSize for InnerDescription<T> {
+impl<T: IdWithDescription> BufferSize for InnerDescription<T> {
     fn buffer_size(&self) -> usize {
         length_prefixed::buffer_size(
             self.name.as_ref(),
@@ -160,7 +182,7 @@ impl<T: BaseTypeSafeId> BufferSize for InnerDescription<T> {
     }
 }
 
-impl<U: BaseTypeSafeId> Buffer for InnerDescription<U> {
+impl<U: IdWithDescription> Buffer for InnerDescription<U> {
     fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         length_prefixed::buffer_string(
             self.name.as_ref(),
@@ -171,7 +193,7 @@ impl<U: BaseTypeSafeId> Buffer for InnerDescription<U> {
     }
 }
 
-impl<T: BaseTypeSafeId> Unbuffer for InnerDescription<T> {
+impl<T: IdWithDescription> Unbuffer for InnerDescription<T> {
     fn unbuffer_ref<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
         length_prefixed::unbuffer_string(buf).map(InnerDescription::new)
     }

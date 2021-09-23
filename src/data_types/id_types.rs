@@ -6,46 +6,35 @@
 
 use crate::buffer_unbuffer::WrappedConstantSize;
 
-use super::{
-    constants,
-    name_types::{BaseTypeSafeIdName, SenderName, TypeName},
-};
-
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
 
 pub const MAX_VEC_USIZE: usize = (IdType::max_value() - 2) as usize;
 
-/// Trait for types that wrap an integer to treat it as an ID, namely `TypeId` and `SenderId`
+/// Trait for types that wrap an integer to treat it as an ID, namely `MessageTypeId` and `SenderId`
 ///
 /// Provides easy, uniform construction and retrieval.
-pub trait TypeSafeId: Copy + Clone + Eq + PartialEq + Ord + PartialOrd {
-    fn get(&self) -> IdType;
-    fn new(val: IdType) -> Self;
+pub trait Id: Copy + Clone + Eq + PartialEq + Ord + PartialOrd {
+    fn get(&self) -> i32;
+    fn new(val: i32) -> Self;
 }
 
 /// Trait for things that can be converted into an ID.
 ///
-/// Implemented for all types satisfying `BaseTypeSafeId` (so, `TypeId` and `SenderId`)
+/// Implemented for all types satisfying `UnwrappedId` (so, `MessageTypeId` and `SenderId`)
 /// as well as the `LocalId<T>` and `RemoteId<T>` wrappers.
-pub trait IntoId: TypeSafeId {
+pub trait IntoId: Id {
     /// Base ID type. Self in the case of BaseTypeSafeId, otherwise the thing that's being wrapped.
-    type BaseId: BaseTypeSafeId;
+    type BaseId: Id;
     fn into_id(self) -> Self::BaseId;
 }
 
-/// Trait for the base type safe ID, extending `TypeSafeId`.
-///
-/// This is implemented only by `TypeId` and `SenderId`, not their local/remote wrappers.
-pub trait BaseTypeSafeId:
-    TypeSafeId + Clone + Copy + std::fmt::Debug + PartialEq + Eq + BaseTypeSafeIdName
-{
-    fn description_type() -> TypeId;
-}
+/// Trait for only (`MessageTypeId` and `SenderId`)
+pub trait UnwrappedId: Id {}
 
-/// All `BaseTypeSafeId` are a TypeSafeId so conversion is trivial.
-impl<T: BaseTypeSafeId> IntoId for T {
+impl<T: UnwrappedId> IntoId for T {
     type BaseId = T;
+
     fn into_id(self) -> Self::BaseId {
         self
     }
@@ -53,10 +42,10 @@ impl<T: BaseTypeSafeId> IntoId for T {
 
 /// Local-side ID in the translation table
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct LocalId<T: BaseTypeSafeId>(pub T);
+pub struct LocalId<T: UnwrappedId>(pub T);
 
-/// Implement `TypeSafeId` for all LocalId types wrapping a `BaseTypeSafeId`
-impl<T: BaseTypeSafeId> TypeSafeId for LocalId<T> {
+/// Implement `Id` for all LocalId types wrapping a `BaseTypeSafeId`
+impl<T: UnwrappedId> Id for LocalId<T> {
     fn get(&self) -> IdType {
         self.0.get()
     }
@@ -66,7 +55,7 @@ impl<T: BaseTypeSafeId> TypeSafeId for LocalId<T> {
 }
 
 /// Implement `IntoId` by unwrapping the ID type.
-impl<T: BaseTypeSafeId> IntoId for LocalId<T> {
+impl<T: UnwrappedId> IntoId for LocalId<T> {
     type BaseId = T;
     fn into_id(self) -> Self::BaseId {
         self.0
@@ -75,16 +64,16 @@ impl<T: BaseTypeSafeId> IntoId for LocalId<T> {
 
 /// Remote-side ID in the translation table
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct RemoteId<T: BaseTypeSafeId>(pub T);
+pub struct RemoteId<T: UnwrappedId>(pub T);
 
-impl<T: BaseTypeSafeId> IntoId for RemoteId<T> {
+impl<T: UnwrappedId> IntoId for RemoteId<T> {
     type BaseId = T;
     fn into_id(self) -> Self::BaseId {
         self.0
     }
 }
 
-impl<T: BaseTypeSafeId> TypeSafeId for RemoteId<T> {
+impl<T: UnwrappedId> Id for RemoteId<T> {
     fn get(&self) -> IdType {
         self.0.get()
     }
@@ -95,9 +84,9 @@ impl<T: BaseTypeSafeId> TypeSafeId for RemoteId<T> {
 
 /// ID for a message type
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct TypeId(pub IdType);
+pub struct MessageTypeId(pub IdType);
 
-impl TypeId {
+impl MessageTypeId {
     /// Identifies if this is a system message.
     ///
     /// If false, it's a normal (user) message.
@@ -106,30 +95,21 @@ impl TypeId {
     }
 }
 
-impl TypeSafeId for TypeId {
+impl Id for MessageTypeId {
     fn get(&self) -> IdType {
         self.0
     }
-    fn new(val: IdType) -> TypeId {
-        TypeId(val)
+    fn new(val: IdType) -> MessageTypeId {
+        MessageTypeId(val)
     }
 }
-
-impl BaseTypeSafeId for TypeId {
-    fn description_type() -> TypeId {
-        constants::TYPE_DESCRIPTION
-    }
-}
-
-impl BaseTypeSafeIdName for TypeId {
-    type Name = TypeName;
-}
+impl UnwrappedId for MessageTypeId {}
 
 /// ID for a sender
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SenderId(pub IdType);
 
-impl TypeSafeId for SenderId {
+impl Id for SenderId {
     fn get(&self) -> IdType {
         self.0
     }
@@ -138,15 +118,7 @@ impl TypeSafeId for SenderId {
     }
 }
 
-impl BaseTypeSafeId for SenderId {
-    fn description_type() -> TypeId {
-        constants::SENDER_DESCRIPTION
-    }
-}
-
-impl BaseTypeSafeIdName for SenderId {
-    type Name = SenderName;
-}
+impl UnwrappedId for SenderId {}
 
 /// Check for a match against an optional filter.
 ///
@@ -161,7 +133,7 @@ impl BaseTypeSafeIdName for SenderId {
 /// ```
 pub fn id_filter_matches<T>(filter: Option<T>, other: T) -> bool
 where
-    T: TypeSafeId,
+    T: Id,
 {
     match filter {
         None => true,
@@ -198,7 +170,7 @@ pub(crate) enum RangedId {
 /// Typically, calling code will then match on the result and make one or more
 /// of the variants produce an error. However, which ones are errors vary between
 /// functions.
-pub(crate) fn determine_id_range<T: BaseTypeSafeId>(id: T, len: usize) -> RangedId {
+pub(crate) fn determine_id_range<T: UnwrappedId>(id: T, len: usize) -> RangedId {
     let id = id.get();
     if id < 0 {
         RangedId::BelowZero(id)

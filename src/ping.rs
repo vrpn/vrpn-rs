@@ -7,8 +7,8 @@
 use crate::{
     buffer_unbuffer::EmptyMessage,
     data_types::{
-        id_types::*, ClassOfService, Message, MessageHeader, MessageTypeIdentifier, SenderName,
-        StaticTypeName, TypeId, TypedMessageBody,
+        id_types::*, ClassOfService, Message, MessageHeader, MessageTypeId, MessageTypeIdentifier,
+        SenderName, StaticMessageTypeName, TypedMessageBody,
     },
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
     Connection, VrpnError,
@@ -24,7 +24,7 @@ use std::{
 /// Has no body.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Ping;
-const PING_MESSAGE: StaticTypeName = StaticTypeName(b"vrpn_Base ping_message");
+const PING_MESSAGE: StaticMessageTypeName = StaticMessageTypeName(b"vrpn_Base ping_message");
 impl Default for Ping {
     fn default() -> Ping {
         Ping
@@ -42,7 +42,7 @@ impl TypedMessageBody for Ping {
 /// Has no body.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Pong;
-const PONG_MESSAGE: StaticTypeName = StaticTypeName(b"vrpn_Base pong_message");
+const PONG_MESSAGE: StaticMessageTypeName = StaticMessageTypeName(b"vrpn_Base pong_message");
 impl Default for Pong {
     fn default() -> Pong {
         Pong
@@ -88,7 +88,7 @@ impl TypedBodylessHandler for PongHandler {
 pub struct Client<T: Connection + 'static> {
     connection: Arc<T>,
     inner: Arc<Mutex<ClientInner>>,
-    ping_type: LocalId<TypeId>,
+    ping_type: LocalId<MessageTypeId>,
     sender: LocalId<SenderId>,
 }
 
@@ -181,7 +181,7 @@ impl<T: Connection + 'static> Client<T> {
 #[derive(Debug)]
 struct PingHandler<T: Connection> {
     connection: Weak<T>,
-    pong_type: LocalId<TypeId>,
+    pong_type: LocalId<MessageTypeId>,
     sender: LocalId<SenderId>,
 }
 

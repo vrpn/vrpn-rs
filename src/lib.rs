@@ -43,6 +43,7 @@ pub mod error;
 pub mod handler;
 mod parse_name;
 pub mod ping;
+#[deprecated]
 pub mod prelude;
 pub mod sync_io;
 pub mod tracker;

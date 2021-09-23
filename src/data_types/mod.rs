@@ -23,13 +23,15 @@ pub use crate::data_types::{
     time::TimeVal,
 };
 pub use crate::data_types::{
-    id_types::TypeId,
+    id_types::MessageTypeId,
     message::{
         GenericBody, GenericMessage, Message, MessageBody, MessageHeader, MessageSize,
         MessageTypeIdentifier, MessageTypeIdentifier::UserMessageName, SequencedGenericMessage,
         SequencedMessage, TypedMessageBody,
     },
-    name_types::{BaseTypeSafeIdName, SenderName, StaticSenderName, StaticTypeName, TypeName},
+    name_types::{
+        IdWithName, MessageTypeName, SenderName, StaticMessageTypeName, StaticSenderName,
+    },
 };
 
 pub(crate) use crate::data_types::log::{LogFileNames, LogMode};

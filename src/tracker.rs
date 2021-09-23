@@ -13,7 +13,7 @@ use crate::{
     data_types::{
         id_types::Sensor,
         message::{MessageTypeIdentifier, TypedMessageBody},
-        name_types::StaticTypeName,
+        name_types::StaticMessageTypeName,
         Quat, Vec3,
     },
 };
@@ -32,7 +32,7 @@ pub struct PoseReport {
 
 impl TypedMessageBody for PoseReport {
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-        MessageTypeIdentifier::UserMessageName(StaticTypeName(b"vrpn_Tracker Pos_Quat"));
+        MessageTypeIdentifier::UserMessageName(StaticMessageTypeName(b"vrpn_Tracker Pos_Quat"));
 }
 
 impl ConstantBufferSize for PoseReport {
@@ -77,7 +77,7 @@ pub struct VelocityReport {
 
 impl TypedMessageBody for VelocityReport {
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-        MessageTypeIdentifier::UserMessageName(StaticTypeName(b"vrpn_Tracker Velocity"));
+        MessageTypeIdentifier::UserMessageName(StaticMessageTypeName(b"vrpn_Tracker Velocity"));
 }
 
 /// Linear and angular acceleration for trackers.
@@ -91,5 +91,5 @@ pub struct AccelReport {
 
 impl TypedMessageBody for AccelReport {
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-        MessageTypeIdentifier::UserMessageName(StaticTypeName(b"vrpn_Tracker Acceleration"));
+        MessageTypeIdentifier::UserMessageName(StaticMessageTypeName(b"vrpn_Tracker Acceleration"));
 }
