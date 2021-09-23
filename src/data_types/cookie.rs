@@ -182,6 +182,8 @@ pub fn check_ver_file_compatible(ver: Version) -> Result<(), VersionMismatch> {
 mod tests {
     use bytes::BytesMut;
 
+    use crate::buffer_unbuffer::BytesMutExtras;
+
     use super::*;
 
     #[test]

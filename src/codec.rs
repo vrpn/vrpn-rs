@@ -5,7 +5,9 @@
 use bytes::{Buf, Bytes, BytesMut};
 
 use crate::{
-    buffer_unbuffer::{check_unbuffer_remaining, peek_u32, BufferUnbufferError, UnbufferResult},
+    buffer_unbuffer::{
+        check_unbuffer_remaining, peek_u32, BufferUnbufferError, Unbuffer, UnbufferResult,
+    },
     data_types::{MessageSize, SequencedGenericMessage},
     Result,
 };

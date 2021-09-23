@@ -5,7 +5,11 @@
 use bytes::{Buf, BufMut, Bytes};
 use std::mem::size_of;
 
-use crate::buffer_unbuffer::{buffer, size_requirement::*, unbuffer};
+use crate::buffer_unbuffer::{
+    buffer::{self, Buffer},
+    size_requirement::*,
+    unbuffer::{self, Unbuffer},
+};
 
 /// Does the "length prefix" value include a trailing null character (strlen() + 1)?
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]

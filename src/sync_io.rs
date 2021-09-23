@@ -10,17 +10,17 @@ extern crate bytes;
 
 use crate::{
     buffer_unbuffer::{
-        peek_u32, size_requirement::MayContainSizeRequirement, BufferUnbufferError,
+        peek_u32, size_requirement::MayContainSizeRequirement, BufferUnbufferError, BytesMutExtras,
         ConstantBufferSize, SizeRequirement, Unbuffer,
     },
     data_types::{
-        flags::ClassOfService, id_types::SequenceNumber, CookieData, GenericMessage, MessageSize,
+        self, id_types::SequenceNumber, CookieData, GenericMessage, MessageSize,
         SequencedGenericMessage,
     },
     endpoint::SystemCommand,
     error::Error,
     translation_table::Tables as TranslationTables,
-    Endpoint, EndpointGeneric, Result, TypeDispatcher,
+    Endpoint, EndpointGeneric, TypeDispatcher,
 };
 use bytes::BytesMut;
 use std::{
@@ -34,7 +34,7 @@ use std::{
 };
 
 /// Write a cookie to a synchronous sink implementing Write.
-pub fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<()>
+pub fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), Error>
 where
     T: Write,
 {
@@ -44,7 +44,7 @@ where
 }
 
 /// Read a cookie from a synchronous source implementing Read.
-pub fn read_cookie<T>(stream: &mut T) -> Result<Vec<u8>>
+pub fn read_cookie<T>(stream: &mut T) -> Result<Vec<u8>, Error>
 where
     T: Read,
 {
@@ -74,7 +74,7 @@ impl EndpointSyncTcp {
         }
     }
 
-    fn read_single_message(&mut self) -> Result<SequencedGenericMessage> {
+    fn read_single_message(&mut self) -> Result<SequencedGenericMessage, Error> {
         self.stream
             .set_read_timeout(Some(Duration::from_millis(1)))?;
         let mut buf = BytesMut::new();
@@ -109,7 +109,7 @@ impl EndpointSyncTcp {
         Ok(result)
     }
 
-    pub fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Result<()> {
+    pub fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Result<(), Error> {
         loop {
             match self.read_single_message() {
                 Ok(msg) => {
@@ -157,7 +157,7 @@ impl Endpoint for EndpointSyncTcp {
         &mut self.translation
     }
 
-    fn send_system_change(&self, message: SystemCommand) -> Result<()> {
+    fn send_system_change(&self, message: SystemCommand) -> Result<(), Error> {
         println!("send_system_change {:?}", message);
         self.system_tx
             .send(message)
@@ -165,7 +165,11 @@ impl Endpoint for EndpointSyncTcp {
         Ok(())
     }
 
-    fn buffer_generic_message(&mut self, msg: GenericMessage, _: ClassOfService) -> Result<()> {
+    fn buffer_generic_message(
+        &mut self,
+        msg: GenericMessage,
+        class: data_types::ClassOfService,
+    ) -> Result<(), Error> {
         // Ignore class of service here
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
         let sequenced = msg.into_sequenced_message(SequenceNumber(seq as u32));

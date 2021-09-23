@@ -203,8 +203,7 @@ pub(crate) fn determine_id_range<T: BaseTypeSafeId>(id: T, len: usize) -> Ranged
     if id < 0 {
         RangedId::BelowZero(id)
     } else {
-        let id = id as usize;
-        if id < len {
+        if (id as usize) < len {
             RangedId::InArray(id)
         } else {
             RangedId::AboveArray(id)

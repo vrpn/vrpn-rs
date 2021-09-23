@@ -9,7 +9,9 @@ use std::convert::TryFrom;
 
 use crate::{
     buffer_unbuffer::{
-        buffer, size_requirement::*, unbuffer, BufferSize, BufferUnbufferError, WrappedConstantSize,
+        buffer::{self, BytesMutExtras},
+        size_requirement::*,
+        unbuffer, BufferSize, BufferUnbufferError, ConstantBufferSize, WrappedConstantSize,
     },
     Error, Result,
 };
@@ -489,7 +491,7 @@ pub fn make_sequenced_message_body_generic<T: buffer::Buffer + TypedMessageBody>
 mod tests {
     use std::mem::size_of;
 
-    use crate::buffer_unbuffer::constants::ALIGN;
+    use crate::buffer_unbuffer::{constants::ALIGN, ConstantBufferSize};
 
     use super::*;
 

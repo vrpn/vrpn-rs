@@ -4,15 +4,30 @@
 
 //! Math types used across VRPN.
 
-use super::{constants, id_types::IdType};
-use crate::buffer_unbuffer::{buffer, unbuffer, ConstantBufferSize, WrappedConstantSize};
-use bytes::{Buf, BufMut, Bytes};
+use crate::buffer_unbuffer::{buffer, unbuffer, ConstantBufferSize};
+use bytes::{Buf, BufMut};
 
 /// A 3D vector of 64-bit floats
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Vec3 {
     pub x: f64,
     pub y: f64,
     pub z: f64,
+}
+impl Vec3 {
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Vec3 { x, y, z }
+    }
+}
+
+impl Default for Vec3 {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
 }
 
 impl ConstantBufferSize for Vec3 {
@@ -38,6 +53,18 @@ impl unbuffer::Unbuffer for Vec3 {
         let y = f64::unbuffer_ref(buf)?;
         let z = f64::unbuffer_ref(buf)?;
         Ok(Vec3::new(x, y, z))
+    }
+}
+
+impl From<cgmath::Vector3<f64>> for Vec3 {
+    fn from(v: cgmath::Vector3<f64>) -> Self {
+        Vec3::new(v.x, v.y, v.z)
+    }
+}
+
+impl From<Vec3> for cgmath::Vector3<f64> {
+    fn from(v: Vec3) -> Self {
+        cgmath::Vector3::new(v.x, v.y, v.z)
     }
 }
 
@@ -97,12 +124,15 @@ impl unbuffer::Unbuffer for Quat {
 
 impl From<cgmath::Quaternion<f64>> for Quat {
     fn from(q: cgmath::Quaternion<f64>) -> Self {
-        Quat { s: q.s, v: q.v }
+        Quat {
+            s: q.s,
+            v: q.v.into(),
+        }
     }
 }
 
 impl From<Quat> for cgmath::Quaternion<f64> {
     fn from(q: Quat) -> Self {
-        cgmath::Quaternion::from_sv(q.s, q.v)
+        cgmath::Quaternion::from_sv(q.s, q.v.into())
     }
 }

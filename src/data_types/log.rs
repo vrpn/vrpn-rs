@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::buffer_unbuffer::{
-    buffer, size_requirement::*, unbuffer, BufferSize, BufferUnbufferError,
+    buffer, size_requirement::*, unbuffer, BufferSize, BufferUnbufferError, ConstantBufferSize,
 };
 use bytes::{Buf, BufMut, Bytes};
 
