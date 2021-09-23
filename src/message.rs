@@ -10,9 +10,9 @@ use crate::{
     constants::ALIGN,
     size::ConstantBufferSize,
     unbuffer::{check_unbuffer_remaining, UnbufferResult},
-    Buffer, BufferSize, BufferUnbufferError, BytesMutExtras, BytesRequired, Error, IdType, IntoId,
-    OutputResultExtras, Result, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId,
-    TypeSafeId, Unbuffer, WrappedConstantSize,
+    Buffer, BufferSize, BufferUnbufferError, BytesMutExtras, Error, IdType, IntoId,
+    OutputResultExtras, Result, SenderId, SequenceNumber, SizeRequirement, StaticTypeName, TimeVal,
+    TypeId, TypeSafeId, Unbuffer, WrappedConstantSize,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::{convert::TryFrom, mem::size_of};
@@ -171,6 +171,9 @@ impl<T: TypedMessageBody + Unbuffer> Message<T> {
 //     }
 // }
 
+extern crate static_assertions;
+static_assertions::assert_not_impl_any!(GenericBody: TypedMessageBody);
+
 impl<T: TypedMessageBody + Buffer> Message<T> {
     /// Try converting a typed message into a generic message
     ///
@@ -247,7 +250,7 @@ impl Unbuffer for SequencedMessage<GenericBody> {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<SequencedMessage<GenericBody>> {
         let initial_remaining = buf.remaining();
         let length_field = peek_u32(buf).ok_or(BufferUnbufferError::from(
-            BytesRequired::AtLeast(u32::constant_buffer_size()),
+            SizeRequirement::AtLeast(u32::constant_buffer_size()),
         ))?;
         let size = MessageSize::from_length_field(length_field);
         check_unbuffer_remaining(buf, size.padded_message_size())?;

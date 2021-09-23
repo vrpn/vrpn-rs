@@ -6,7 +6,7 @@
 
 use crate::{
     buffer::{check_buffer_remaining, BufferResult},
-    error::BytesRequired,
+    error::SizeRequirement,
     unbuffer::{check_unbuffer_remaining, UnbufferResult},
     Buffer, BufferUnbufferError, ConstantBufferSize, MessageTypeIdentifier, Quat, Sensor,
     StaticTypeName, TypedMessageBody, Unbuffer, Vec3,

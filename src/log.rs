@@ -6,8 +6,8 @@ use crate::{
     buffer::{check_buffer_remaining, BufferResult},
     constants::LOG_DESCRIPTION,
     unbuffer::{consume_expected, UnbufferResult},
-    Buffer, BufferSize, BufferUnbufferError, BytesRequired, ConstantBufferSize,
-    MessageTypeIdentifier, TypedMessageBody, Unbuffer,
+    Buffer, BufferSize, BufferUnbufferError, ConstantBufferSize, MessageTypeIdentifier,
+    SizeRequirement, TypedMessageBody, Unbuffer,
 };
 use bytes::{Buf, BufMut, Bytes};
 
@@ -189,7 +189,7 @@ impl Unbuffer for LogFileNames {
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         let min_size = 2 * u32::constant_buffer_size() + 2;
         if buf.remaining() < min_size {
-            return Err(BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(
+            return Err(BufferUnbufferError::NeedMoreData(SizeRequirement::AtLeast(
                 min_size - buf.remaining(),
             )));
         }

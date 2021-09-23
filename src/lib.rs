@@ -33,7 +33,6 @@ extern crate tokio;
 pub mod async_io;
 
 pub mod buffer;
-mod bytes_required;
 pub mod codec;
 pub mod connection;
 pub mod constants;
@@ -50,6 +49,7 @@ pub mod ping;
 pub mod prelude;
 pub mod primitives;
 pub mod size;
+mod size_requirement;
 pub mod sync_io;
 pub mod time;
 pub mod tracker;
@@ -60,7 +60,6 @@ pub mod unbuffer;
 
 pub use crate::{
     buffer::{Buffer, BytesMutExtras},
-    bytes_required::BytesRequired,
     connection::{Connection, ConnectionStatus},
     cookie::{CookieData, Version},
     descriptions::{Description, UdpDescription},
@@ -76,6 +75,7 @@ pub use crate::{
     parse_name::{Scheme, ServerInfo},
     primitives::*,
     size::{BufferSize, ConstantBufferSize, EmptyMessage, WrappedConstantSize},
+    size_requirement::SizeRequirement,
     time::TimeVal,
     type_dispatcher::{RegisterMapping, TypeDispatcher},
     types::*,

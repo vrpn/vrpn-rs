@@ -5,7 +5,7 @@
 use crate::buffer::{check_buffer_remaining, BufferResult};
 use crate::prelude::*;
 use crate::unbuffer::check_unbuffer_remaining;
-use crate::{unbuffer::consume_expected, Buffer, BufferUnbufferError, BytesRequired, Unbuffer};
+use crate::{unbuffer::consume_expected, Buffer, BufferUnbufferError, SizeRequirement, Unbuffer};
 use bytes::{Buf, BufMut, Bytes};
 use std::mem::size_of;
 

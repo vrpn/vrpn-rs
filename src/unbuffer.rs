@@ -6,7 +6,7 @@
 
 use std::convert::TryFrom;
 
-use crate::{error::BufferUnbufferError, BytesRequired, ConstantBufferSize, WrappedConstantSize};
+use crate::{error::BufferUnbufferError, ConstantBufferSize, SizeRequirement, WrappedConstantSize};
 use bytes::{Buf, Bytes};
 
 pub type UnbufferResult<T> = std::result::Result<T, BufferUnbufferError>;
@@ -92,10 +92,10 @@ impl<T, U> UnbufferOutput for (T, U) where T: Unbuffer {}
 
 fn expand_bytes_required<T>(val: T) -> T
 where
-    T: Copy + From<BytesRequired>,
-    BytesRequired: TryFrom<T>,
+    T: Copy + From<SizeRequirement>,
+    SizeRequirement: TryFrom<T>,
 {
-    match BytesRequired::try_from(val) {
+    match SizeRequirement::try_from(val) {
         Ok(required) => T::from(required.expand()),
         Err(_) => val,
     }
@@ -115,7 +115,7 @@ pub fn check_unbuffer_remaining<T: Buf>(
 ) -> std::result::Result<(), BufferUnbufferError> {
     let bytes_len = buf.remaining();
     if bytes_len < required_len {
-        Err(BytesRequired::Exactly(required_len - bytes_len).into())
+        Err(SizeRequirement::Exactly(required_len - bytes_len).into())
     } else {
         Ok(())
     }

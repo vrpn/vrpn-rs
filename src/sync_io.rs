@@ -11,7 +11,7 @@ extern crate bytes;
 use crate::{
     codec::peek_u32,
     endpoint::SystemCommand,
-    error::{BufferUnbufferError, BytesRequired, Error},
+    error::{BufferUnbufferError, Error, SizeRequirement},
     message::MessageSize,
     prelude::*,
     translation_table::Tables as TranslationTables,
@@ -83,7 +83,7 @@ impl EndpointSyncTcp {
             match e.kind() {
                 io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => {
                     return Err(Error::BufferUnbuffer(BufferUnbufferError::NeedMoreData(
-                        BytesRequired::Unknown,
+                        SizeRequirement::Unknown,
                     )));
                 }
                 // Not a "need more data"
@@ -116,7 +116,7 @@ impl EndpointSyncTcp {
                     }
                 }
                 Err(e) => {
-                    if BytesRequired::try_from(&e).is_ok() {
+                    if SizeRequirement::try_from(&e).is_ok() {
                         break;
                     }
                     return Err(e);

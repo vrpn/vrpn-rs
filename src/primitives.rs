@@ -6,7 +6,7 @@ use crate::{
     buffer::{check_buffer_remaining, BufferResult},
     unbuffer::UnbufferConstantSize,
     unbuffer::{check_unbuffer_remaining, UnbufferResult},
-    Buffer, BufferUnbufferError, BytesRequired, ConstantBufferSize, Quat, Sensor, Unbuffer, Vec3,
+    Buffer, BufferUnbufferError, ConstantBufferSize, Quat, Sensor, SizeRequirement, Unbuffer, Vec3,
     WrappedConstantSize,
 };
 use bytes::{Buf, BufMut};

@@ -4,7 +4,7 @@
 
 //! Extension traits related to buffering types.
 
-use crate::{BufferSize, BufferUnbufferError, BytesRequired, WrappedConstantSize};
+use crate::{BufferSize, BufferUnbufferError, SizeRequirement, WrappedConstantSize};
 use bytes::{BufMut, BytesMut};
 
 /// Extension trait for BytesMut for easier interaction with stuff we can buffer.

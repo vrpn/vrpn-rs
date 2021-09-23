@@ -10,6 +10,14 @@ use crate::{
 };
 use bytes::{Buf, Bytes, BytesMut};
 
+/// Peek at a leading u32 without advancing the buffer.
+///
+/// ```
+/// use vrpn::codec::peek_u32;
+/// use bytes::Buf;
+/// let data = b"\0\0\0\0";
+///
+/// assert_eq!(peek_u32(buf))
 pub fn peek_u32<T: Buf>(buf: &T) -> Option<u32> {
     const SIZE_LEN: usize = std::mem::size_of::<u32>();
     if buf.remaining() < SIZE_LEN {
@@ -92,6 +100,17 @@ pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<Sequenced
 mod tests {
     use super::*;
 
+    #[test]
+    fn peek() {
+        use crate::codec::peek_u32;
+        use bytes::Buf;
+        let data = b"\0\0\0\0";
+        {
+            let buf = &data[..];
+            assert_eq!(peek_u32(&buf), Some(0));
+            assert_eq!(buf.remaining(), data.len());
+        }
+    }
     #[test]
     fn individual_decode_one() {
         const MSG1: [u8; 48]= hex!("00 00 00 29 5b eb 33 2e 00 0c 58 b1 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 0d 56 52 50 4e 20 43 6f 6e 74 72 6f 6c 00 00 00 00 00 00 00 00");

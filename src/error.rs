@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{bytes_required::BytesRequired, IdType, Version};
+use crate::{size_requirement::SizeRequirement, IdType, Version};
 use bytes::Bytes;
 use std::{
     convert::TryFrom,
@@ -17,7 +17,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum BufferUnbufferError {
     #[error("unbuffering ran out of buffered bytes: need {0} additional bytes")]
-    NeedMoreData(BytesRequired),
+    NeedMoreData(SizeRequirement),
     #[error("unexpected data: expected '{expected:?}', got '{actual:?}'")]
     UnexpectedAsciiData { actual: Bytes, expected: Bytes },
     #[error("buffering ran out of buffer space")]
@@ -28,8 +28,8 @@ pub enum BufferUnbufferError {
     ParseError { parsing_kind: String, s: String },
 }
 
-impl From<BytesRequired> for BufferUnbufferError {
-    fn from(val: BytesRequired) -> Self {
+impl From<SizeRequirement> for BufferUnbufferError {
+    fn from(val: SizeRequirement) -> Self {
         BufferUnbufferError::NeedMoreData(val)
     }
 }
@@ -52,7 +52,7 @@ impl From<AddrParseError> for BufferUnbufferError {
     }
 }
 
-impl TryFrom<BufferUnbufferError> for BytesRequired {
+impl TryFrom<BufferUnbufferError> for SizeRequirement {
     type Error = DoesNotContainBytesRequired;
 
     fn try_from(value: BufferUnbufferError) -> std::result::Result<Self, Self::Error> {
@@ -64,7 +64,7 @@ impl TryFrom<BufferUnbufferError> for BytesRequired {
     }
 }
 
-impl TryFrom<&BufferUnbufferError> for BytesRequired {
+impl TryFrom<&BufferUnbufferError> for SizeRequirement {
     type Error = DoesNotContainBytesRequired;
 
     fn try_from(value: &BufferUnbufferError) -> std::result::Result<Self, Self::Error> {
@@ -130,32 +130,32 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl TryFrom<Error> for BytesRequired {
+impl TryFrom<Error> for SizeRequirement {
     type Error = DoesNotContainBytesRequired;
 
     fn try_from(value: Error) -> std::result::Result<Self, Self::Error> {
         if let Error::BufferUnbuffer(buf_unbuf) = value {
-            BytesRequired::try_from(buf_unbuf)
+            SizeRequirement::try_from(buf_unbuf)
         } else {
             Err(DoesNotContainBytesRequired(()))
         }
     }
 }
 
-impl TryFrom<&Error> for BytesRequired {
+impl TryFrom<&Error> for SizeRequirement {
     type Error = DoesNotContainBytesRequired;
 
     fn try_from(value: &Error) -> std::result::Result<Self, Self::Error> {
         if let Error::BufferUnbuffer(buf_unbuf) = value {
-            BytesRequired::try_from(buf_unbuf)
+            SizeRequirement::try_from(buf_unbuf)
         } else {
             Err(DoesNotContainBytesRequired(()))
         }
     }
 }
 
-impl From<BytesRequired> for Error {
-    fn from(val: BytesRequired) -> Self {
+impl From<SizeRequirement> for Error {
+    fn from(val: SizeRequirement) -> Self {
         Error::BufferUnbuffer(BufferUnbufferError::from(val))
     }
 }
@@ -184,7 +184,7 @@ impl Error {
     // }
 
     pub fn is_need_more_data(&self) -> bool {
-        BytesRequired::try_from(self).is_ok()
+        SizeRequirement::try_from(self).is_ok()
     }
 
     // pub fn contains_need_more_data(&self) -> bool {
