@@ -41,7 +41,6 @@ pub mod constants;
 pub mod endpoint;
 pub mod error;
 pub mod handler;
-pub mod log;
 mod parse_name;
 pub mod ping;
 pub mod prelude;
@@ -55,7 +54,6 @@ pub use crate::{
     endpoint::*,
     error::{EmptyResult, Error, Result},
     handler::{Handler, TypedBodylessHandler, TypedHandler},
-    log::{LogFileNames, LogMode},
     parse_name::{Scheme, ServerInfo},
     type_dispatcher::{RegisterMapping, TypeDispatcher},
 };

@@ -9,8 +9,13 @@ use std::{
     net::{IpAddr, SocketAddr},
 };
 
+use crate::buffer_unbuffer::{
+    check_buffer_remaining, Buffer, BufferResult, BufferSize, Unbuffer, UnbufferResult,
+};
+
 use super::{
-    constants, BaseTypeSafeId, Message, MessageTypeIdentifier, SenderId, TypeId, TypedMessageBody,
+    constants, length_prefixed, BaseTypeSafeId, IdType, Message, MessageTypeIdentifier, SenderId,
+    TypeId, TypedMessageBody,
 };
 
 /// Body struct for use in Message<T> for sender/type descriptions

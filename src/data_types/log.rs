@@ -1,15 +1,13 @@
-// Copyright 2018, Collabora, Ltd.
+// Copyright 2018-2021, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{
-    buffer::{check_buffer_remaining, BufferResult},
-    constants::LOG_DESCRIPTION,
-    unbuffer::{consume_expected, UnbufferResult},
-    Buffer, BufferSize, BufferUnbufferError, ConstantBufferSize, MessageTypeIdentifier,
-    SizeRequirement, TypedMessageBody, Unbuffer,
+use crate::buffer_unbuffer::{
+    buffer, size_requirement::*, unbuffer, BufferSize, BufferUnbufferError,
 };
 use bytes::{Buf, BufMut, Bytes};
+
+use super::{constants, MessageTypeIdentifier, TypedMessageBody};
 
 bitflags! {
     pub struct LogMode: u8  {
@@ -154,9 +152,9 @@ impl BufferSize for LogFileNames {
     }
 }
 
-impl Buffer for LogFileNames {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        check_buffer_remaining(buf, self.buffer_size())?;
+impl buffer::Buffer for LogFileNames {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+        buffer::check_buffer_remaining(buf, self.buffer_size())?;
         for filename in self.filenames_iter() {
             (filename_len(filename) as i32).buffer_ref(buf)?;
         }
@@ -169,24 +167,25 @@ impl Buffer for LogFileNames {
         Ok(())
     }
 }
+
 impl TypedMessageBody for LogFileNames {
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-        MessageTypeIdentifier::SystemMessageId(LOG_DESCRIPTION);
+        MessageTypeIdentifier::SystemMessageId(constants::LOG_DESCRIPTION);
 }
 
-fn unbuffer_logname<T: Buf>(len: usize, buf: &mut T) -> UnbufferResult<Option<Bytes>> {
+fn unbuffer_logname<T: Buf>(len: usize, buf: &mut T) -> unbuffer::UnbufferResult<Option<Bytes>> {
     let name = if len > 0 {
         Some(buf.copy_to_bytes(len))
     } else {
         None
     };
 
-    consume_expected(buf, b"\0")?;
+    unbuffer::consume_expected(buf, b"\0")?;
     Ok(name)
 }
 
-impl Unbuffer for LogFileNames {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
+impl unbuffer::Unbuffer for LogFileNames {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
         let min_size = 2 * u32::constant_buffer_size() + 2;
         if buf.remaining() < min_size {
             return Err(BufferUnbufferError::NeedMoreData(SizeRequirement::AtLeast(

@@ -10,30 +10,6 @@ use crate::{
 };
 use bytes::{Buf, Bytes, BytesMut};
 
-/// Peek at a leading u32 without advancing the buffer.
-///
-/// ```
-/// use vrpn::codec::peek_u32;
-/// use bytes::Buf;
-/// let data = b"\0\0\0\0";
-///
-/// assert_eq!(peek_u32(buf))
-pub fn peek_u32<T: Buf>(buf: &T) -> Option<u32> {
-    const SIZE_LEN: usize = std::mem::size_of::<u32>();
-    if buf.remaining() < SIZE_LEN {
-        eprintln!("Not enough remaining bytes for the size.");
-        return None;
-    }
-    let mut chunk = buf.chunk();
-    if chunk.len() < SIZE_LEN {
-        eprintln!("Not enough remaining bytes in the chunk for the size.");
-        // Some(buf.clone().get_u32())
-        None
-    } else {
-        Some(chunk.get_u32())
-    }
-}
-
 pub(crate) fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
     const SIZE_LEN: usize = std::mem::size_of::<u32>();
     if buf.remaining() < SIZE_LEN {

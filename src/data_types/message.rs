@@ -5,7 +5,18 @@
 //! Message types and message size computations.
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use std::{convert::TryFrom, mem::size_of};
+use std::convert::TryFrom;
+
+use crate::{
+    buffer_unbuffer::{
+        buffer, size_requirement::*, unbuffer, BufferSize, BufferUnbufferError, WrappedConstantSize,
+    },
+    Error,
+};
+
+use super::{
+    IdType, IntoId, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId,
+};
 
 /// Empty trait used to indicate types that can be placed in a message body.
 pub trait MessageBody /*: Buffer + Unbuffer */ {}
@@ -101,7 +112,7 @@ impl<T: MessageBody> From<SequencedMessage<T>> for Message<T> {
         v.message
     }
 }
-impl<T: TypedMessageBody + Unbuffer> TryFrom<&GenericMessage> for Message<T> {
+impl<T: TypedMessageBody + unbuffer::Unbuffer> TryFrom<&GenericMessage> for Message<T> {
     type Error = Error;
 
     /// Try parsing a generic message into a typed message
@@ -124,7 +135,7 @@ impl<T: TypedMessageBody + Unbuffer> TryFrom<&GenericMessage> for Message<T> {
     }
 }
 
-impl<T: TypedMessageBody + Unbuffer> Message<T> {
+impl<T: TypedMessageBody + unbuffer::Unbuffer> Message<T> {
     #[deprecated]
     pub fn try_from_generic(msg: &GenericMessage) -> Result<Message<T>> {
         let mut buf = msg.body.inner.clone();
@@ -164,7 +175,7 @@ impl<T: TypedMessageBody + Unbuffer> Message<T> {
 extern crate static_assertions;
 static_assertions::assert_not_impl_any!(GenericBody: TypedMessageBody);
 
-impl<T: TypedMessageBody + Buffer> Message<T> {
+impl<T: TypedMessageBody + buffer::Buffer> Message<T> {
     /// Try converting a typed message into a generic message
     ///
     /// # Errors
@@ -213,15 +224,15 @@ impl BufferSize for SequencedMessage<GenericBody> {
     }
 }
 
-impl Buffer for SequencedMessage<GenericBody> {
+impl buffer::Buffer for SequencedMessage<GenericBody> {
     /// Serialize to a buffer.
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
         let size = generic_message_size(self);
-        check_buffer_remaining(buf, size.padded_message_size())?;
+        buffer::check_buffer_remaining(buf, size.padded_message_size())?;
 
         let length_field = size.length_field() as u32;
 
-        Buffer::buffer_ref(&length_field, buf)?;
+        buffer::Buffer::buffer_ref(&length_field, buf)?;
         self.message.header.time.buffer_ref(buf)?;
         self.message.header.sender.buffer_ref(buf)?;
         self.message.header.message_type.buffer_ref(buf)?;
@@ -235,15 +246,17 @@ impl Buffer for SequencedMessage<GenericBody> {
     }
 }
 
-impl Unbuffer for SequencedMessage<GenericBody> {
+impl unbuffer::Unbuffer for SequencedMessage<GenericBody> {
     /// Deserialize from a buffer.
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<SequencedMessage<GenericBody>> {
+    fn unbuffer_ref<T: Buf>(
+        buf: &mut T,
+    ) -> unbuffer::UnbufferResult<SequencedMessage<GenericBody>> {
         let initial_remaining = buf.remaining();
-        let length_field = peek_u32(buf).ok_or_else(|| {
+        let length_field = unbuffer::peek_u32(buf).ok_or_else(|| {
             BufferUnbufferError::from(SizeRequirement::AtLeast(u32::constant_buffer_size()))
         })?;
         let size = MessageSize::from_length_field(length_field);
-        check_unbuffer_remaining(buf, size.padded_message_size())?;
+        unbuffer::check_unbuffer_remaining(buf, size.padded_message_size())?;
 
         // now we can actually unbuffer the length since we checked to make sure we have it.
         let _ = u32::unbuffer_ref(buf)?;
@@ -254,7 +267,10 @@ impl Unbuffer for SequencedMessage<GenericBody> {
         let sequence_number = SequenceNumber::unbuffer_ref(buf)?;
 
         // Assert that handling the sequence number meant we're now aligned again.
-        assert_eq!((initial_remaining - buf.remaining()) % ALIGN, 0);
+        assert_eq!(
+            (initial_remaining - buf.remaining()) % crate::buffer_unbuffer::constants::ALIGN,
+            0
+        );
 
         let body;
         {
@@ -328,9 +344,9 @@ impl WrappedConstantSize for TypeId {
 
 #[inline]
 const fn compute_padding(len: usize) -> usize {
-    let remainder = len % ALIGN;
+    let remainder = len % crate::buffer_unbuffer::constants::ALIGN;
     if remainder != 0 {
-        ALIGN - remainder
+        crate::buffer_unbuffer::constants::ALIGN - remainder
     } else {
         0
     }
@@ -425,9 +441,9 @@ fn generic_message_size(msg: &SequencedGenericMessage) -> MessageSize {
     MessageSize::from_unpadded_body_size(msg.message.body.inner.len())
 }
 
-impl Unbuffer for GenericBody {
+impl unbuffer::Unbuffer for GenericBody {
     /// This takes all the bytes!
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<GenericBody> {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<GenericBody> {
         let my_bytes = buf.copy_to_bytes(buf.remaining());
         Ok(GenericBody::new(my_bytes))
     }
@@ -438,9 +454,9 @@ impl BufferSize for GenericBody {
         self.inner.len()
     }
 }
-impl Buffer for GenericBody {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        check_buffer_remaining(buf, self.inner.len())?;
+impl buffer::Buffer for GenericBody {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+        buffer::check_buffer_remaining(buf, self.inner.len())?;
         buf.put(self.inner.clone());
         Ok(())
     }
@@ -448,7 +464,7 @@ impl Buffer for GenericBody {
 
 /// Turn a generic message into a typed message, if possible.
 #[deprecated]
-pub fn unbuffer_typed_message_body<T: Unbuffer + TypedMessageBody>(
+pub fn unbuffer_typed_message_body<T: unbuffer::Unbuffer + TypedMessageBody>(
     msg: &GenericMessage,
 ) -> Result<Message<T>> {
     let typed_msg: Message<T> = Message::try_from(msg)?;
@@ -456,14 +472,14 @@ pub fn unbuffer_typed_message_body<T: Unbuffer + TypedMessageBody>(
 }
 
 #[deprecated]
-pub fn make_message_body_generic<T: Buffer + TypedMessageBody>(
+pub fn make_message_body_generic<T: buffer::Buffer + TypedMessageBody>(
     msg: Message<T>,
 ) -> Result<GenericMessage> {
     msg.try_into_generic()
 }
 
 #[deprecated]
-pub fn make_sequenced_message_body_generic<T: Buffer + TypedMessageBody>(
+pub fn make_sequenced_message_body_generic<T: buffer::Buffer + TypedMessageBody>(
     msg: SequencedMessage<T>,
 ) -> Result<SequencedGenericMessage> {
     let seq = msg.sequence_number;
@@ -473,8 +489,12 @@ pub fn make_sequenced_message_body_generic<T: Buffer + TypedMessageBody>(
 
 #[cfg(test)]
 mod tests {
+    use std::mem::size_of;
+
+    use crate::buffer_unbuffer::constants::ALIGN;
+
     use super::*;
-    use crate::ConstantBufferSize;
+
     #[test]
     fn constant() {
         // The size field is a u32.

@@ -4,7 +4,9 @@
 
 //! Traits, etc. related to unbuffering types
 
-use crate::{error::BufferUnbufferError, ConstantBufferSize, SizeRequirement, WrappedConstantSize};
+use std::num::ParseIntError;
+
+use super::{BufferUnbufferError, ConstantBufferSize, SizeRequirement, WrappedConstantSize};
 use bytes::{Buf, Bytes};
 
 pub type UnbufferResult<T> = std::result::Result<T, BufferUnbufferError>;
@@ -108,5 +110,82 @@ pub fn consume_expected<T: Buf>(
             actual: my_bytes,
             expected: Bytes::from_static(expected),
         })
+    }
+}
+
+/// Peek at a leading u32 without advancing the buffer.
+///
+/// ```
+/// use vrpn::codec::peek_u32;
+/// use bytes::Buf;
+/// let data = b"\0\0\0\0";
+///
+/// assert_eq!(peek_u32(buf))
+pub fn peek_u32<T: Buf>(buf: &T) -> Option<u32> {
+    const SIZE_LEN: usize = std::mem::size_of::<u32>();
+    if buf.remaining() < SIZE_LEN {
+        eprintln!("Not enough remaining bytes for the size.");
+        return None;
+    }
+    let mut chunk = buf.chunk();
+    if chunk.len() < SIZE_LEN {
+        eprintln!("Not enough remaining bytes in the chunk for the size.");
+        // Some(buf.clone().get_u32())
+        None
+    } else {
+        Some(chunk.get_u32())
+    }
+}
+
+#[inline]
+fn from_dec(input: Bytes) -> std::result::Result<u8, ParseIntError> {
+    str::parse::<u8>(&String::from_utf8_lossy(&input))
+}
+
+#[inline]
+pub fn unbuffer_decimal_digits<T: Buf>(buf: &mut T, n: usize) -> UnbufferResult<u8> {
+    let val = from_dec(buf.copy_to_bytes(n))?;
+
+    Ok(val)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn basics() {
+        assert_eq!(from_dec(Bytes::from_static(b"1")).unwrap(), 1_u8);
+        assert_eq!(from_dec(Bytes::from_static(b"12")).unwrap(), 12_u8);
+    }
+    #[test]
+    fn dec_digits_fn() {
+        {
+            let mut buf = Bytes::from_static(b"1");
+            assert_eq!(unbuffer_decimal_digits(&mut buf, 1).unwrap(), 1_u8);
+            assert_eq!(buf.len(), 0);
+        }
+        {
+            let mut buf = Bytes::from_static(b"12");
+            assert_eq!(unbuffer_decimal_digits(&mut buf, 2).unwrap(), 12_u8);
+            assert_eq!(buf.len(), 0);
+        }
+    }
+    #[test]
+    fn parse_decimal() {
+        fn parse_decimal_u8(v: &'static [u8]) -> u8 {
+            let myval = Bytes::from_static(v);
+            from_dec(myval).unwrap()
+        }
+        assert_eq!(0_u8, parse_decimal_u8(b"0"));
+        assert_eq!(0_u8, parse_decimal_u8(b"00"));
+        assert_eq!(0_u8, parse_decimal_u8(b"000"));
+        assert_eq!(1_u8, parse_decimal_u8(b"1"));
+        assert_eq!(1_u8, parse_decimal_u8(b"01"));
+        assert_eq!(1_u8, parse_decimal_u8(b"001"));
+        assert_eq!(1_u8, parse_decimal_u8(b"0001"));
+        assert_eq!(10_u8, parse_decimal_u8(b"10"));
+        assert_eq!(10_u8, parse_decimal_u8(b"010"));
+        assert_eq!(10_u8, parse_decimal_u8(b"0010"));
+        assert_eq!(10_u8, parse_decimal_u8(b"00010"));
     }
 }

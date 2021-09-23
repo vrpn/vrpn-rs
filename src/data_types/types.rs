@@ -7,9 +7,9 @@
 //! Mostly related to sender and type IDs and names,
 //! plus the math types `Vec3` and `Quat`
 
-use crate::constants;
-use bytes::Bytes;
-use cgmath::Vector3;
+use super::constants;
+use crate::buffer_unbuffer::{buffer, unbuffer, ConstantBufferSize, WrappedConstantSize};
+use bytes::{Buf, BufMut, Bytes};
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
@@ -303,8 +303,48 @@ pub struct SequenceNumber(pub u32);
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Sensor(pub i32);
 
+impl WrappedConstantSize for Sensor {
+    type WrappedType = i32;
+    fn get(&self) -> Self::WrappedType {
+        self.0
+    }
+    fn new(v: Self::WrappedType) -> Self {
+        Sensor(v)
+    }
+}
+
 /// A 3D vector of 64-bit floats
-pub type Vec3 = Vector3<f64>;
+pub struct Vec3 {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
+impl ConstantBufferSize for Vec3 {
+    fn constant_buffer_size() -> usize {
+        std::mem::size_of::<f64>() * 3
+    }
+}
+
+impl buffer::Buffer for Vec3 {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+        buffer::check_buffer_remaining(buf, Self::constant_buffer_size())?;
+        self.x.buffer_ref(buf)?;
+        self.y.buffer_ref(buf)?;
+        self.z.buffer_ref(buf)?;
+        Ok(())
+    }
+}
+
+impl unbuffer::Unbuffer for Vec3 {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+        unbuffer::check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
+        let x = f64::unbuffer_ref(buf)?;
+        let y = f64::unbuffer_ref(buf)?;
+        let z = f64::unbuffer_ref(buf)?;
+        Ok(Vec3::new(x, y, z))
+    }
+}
 
 /// A (typically unit) quaternion corresponding to a rotation.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -333,6 +373,30 @@ impl Quat {
             s: 1.0,
             v: Vec3::new(0.0, 0.0, 0.0),
         }
+    }
+}
+
+impl ConstantBufferSize for Quat {
+    fn constant_buffer_size() -> usize {
+        std::mem::size_of::<f64>() * 4
+    }
+}
+
+impl buffer::Buffer for Quat {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+        buffer::check_buffer_remaining(buf, Self::constant_buffer_size())?;
+        self.v.buffer_ref(buf)?;
+        self.s.buffer_ref(buf)?;
+        Ok(())
+    }
+}
+
+impl unbuffer::Unbuffer for Quat {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+        unbuffer::check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
+        let v = Vec3::unbuffer_ref(buf)?;
+        let w = f64::unbuffer_ref(buf)?;
+        Ok(Quat::from_sv(w, v))
     }
 }
 

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-//! Traits relating to buffer sizes
+//! Traits describing the size of things we can read from or write to a buffer.
 
-use crate::{unbuffer::UnbufferConstantSize, Buffer};
+use super::{unbuffer::UnbufferConstantSize, Buffer};
 
 /// Optional trait for things that always take the same amount of space in a buffer.
 ///

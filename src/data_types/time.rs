@@ -6,11 +6,8 @@
  * Structures corresponding to time related types used by the original c++ implementation of VRPN.
  */
 
-use crate::{
-    buffer::{check_buffer_remaining, BufferResult},
-    unbuffer::{check_unbuffer_remaining, UnbufferResult},
-    Buffer, ConstantBufferSize, Unbuffer, WrappedConstantSize,
-};
+use crate::buffer_unbuffer::{buffer, unbuffer, ConstantBufferSize, WrappedConstantSize};
+
 use bytes::{Buf, BufMut};
 use std::{
     fmt::{Debug, Display},
@@ -90,17 +87,17 @@ impl ConstantBufferSize for TimeVal {
     }
 }
 
-impl Buffer for TimeVal {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        check_buffer_remaining(buf, Self::constant_buffer_size())?;
+impl buffer::Buffer for TimeVal {
+    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+        buffer::check_buffer_remaining(buf, Self::constant_buffer_size())?;
         self.seconds().buffer_ref(buf)?;
         self.microseconds().buffer_ref(buf)
     }
 }
 
-impl Unbuffer for TimeVal {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
-        check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
+impl unbuffer::Unbuffer for TimeVal {
+    fn unbuffer_ref<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+        unbuffer::check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
         let sec = Seconds::unbuffer_ref(buf)?;
         let usec = Microseconds::unbuffer_ref(buf)?;
         Ok(TimeVal::new(sec, usec))

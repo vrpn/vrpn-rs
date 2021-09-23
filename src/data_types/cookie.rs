@@ -2,19 +2,20 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{
-    buffer::{check_buffer_remaining, BufferResult},
-    constants::{self, COOKIE_SIZE, MAGIC_PREFIX},
-    unbuffer::{check_unbuffer_remaining, consume_expected, UnbufferResult},
-    Buffer, BufferUnbufferError, ConstantBufferSize, EmptyResult, Error, LogMode, Unbuffer,
-};
-use bytes::{Buf, BufMut, Bytes};
-use std::{
-    fmt::{self, Display, Formatter},
-    num::ParseIntError,
+use crate::buffer_unbuffer::{
+    check_buffer_remaining, check_unbuffer_remaining, consume_expected, unbuffer_decimal_digits,
+    Buffer, BufferResult, ConstantBufferSize, Unbuffer, UnbufferResult,
 };
 
+use super::{constants, LogMode};
+use bytes::{Buf, BufMut};
+use std::fmt::{self, Display, Formatter};
+
 const COOKIE_PADDING: &[u8] = b"\0\0\0\0\0";
+
+/// VRPN version number.
+///
+/// Only `major` matters for compatibility.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Version {
     pub major: u8,
@@ -63,7 +64,7 @@ impl From<Version> for CookieData {
 impl ConstantBufferSize for CookieData {
     #[inline]
     fn constant_buffer_size() -> usize {
-        COOKIE_SIZE
+        constants::COOKIE_SIZE
     }
 }
 
@@ -76,18 +77,6 @@ impl Buffer for CookieData {
     }
 }
 
-#[inline]
-fn from_dec(input: Bytes) -> std::result::Result<u8, ParseIntError> {
-    str::parse::<u8>(&String::from_utf8_lossy(&input))
-}
-
-#[inline]
-fn dec_digits<T: Buf>(buf: &mut T, n: usize) -> UnbufferResult<u8> {
-    let val = from_dec(buf.copy_to_bytes(n))?;
-
-    Ok(val)
-}
-
 fn u8_to_log_mode(v: u8) -> LogMode {
     LogMode::from_bits_truncate(v)
 }
@@ -97,19 +86,19 @@ impl Unbuffer for CookieData {
         check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
 
         // remove "vrpn: ver. "
-        consume_expected(buf, MAGIC_PREFIX)?;
+        consume_expected(buf, constants::MAGIC_PREFIX)?;
 
-        let major: u8 = dec_digits(buf, 2)?;
+        let major: u8 = unbuffer_decimal_digits(buf, 2)?;
 
         // remove dot
         consume_expected(buf, b".")?;
 
-        let minor: u8 = dec_digits(buf, 2)?;
+        let minor: u8 = unbuffer_decimal_digits(buf, 2)?;
 
         // remove spaces
         consume_expected(buf, b"  ")?;
 
-        let log_mode: u8 = dec_digits(buf, 1)?;
+        let log_mode: u8 = unbuffer_decimal_digits(buf, 1)?;
         let log_mode = u8_to_log_mode(log_mode);
 
         // remove padding
@@ -155,29 +144,34 @@ impl Display for CookieData {
         write!(
             f,
             "{}{}  {}",
-            String::from_utf8_lossy(MAGIC_PREFIX),
+            String::from_utf8_lossy(constants::MAGIC_PREFIX),
             self.version,
             (self.log_mode.unwrap_or(LogMode::NONE)).bits()
         )
     }
 }
 
-pub fn check_ver_nonfile_compatible(ver: Version) -> EmptyResult {
+pub struct VersionMismatch {
+    actual: Version,
+    expected: Version,
+}
+
+pub fn check_ver_nonfile_compatible(ver: Version) -> Result<(), VersionMismatch> {
     if ver.major == constants::MAGIC_DATA.major {
         Ok(())
     } else {
-        Err(Error::VersionMismatch {
+        Err(VersionMismatch {
             actual: ver,
             expected: constants::MAGIC_DATA,
         })
     }
 }
 
-pub fn check_ver_file_compatible(ver: Version) -> EmptyResult {
+pub fn check_ver_file_compatible(ver: Version) -> Result<(), VersionMismatch> {
     if ver.major == constants::FILE_MAGIC_DATA.major {
         Ok(())
     } else {
-        Err(Error::VersionMismatch {
+        Err(VersionMismatch {
             actual: ver,
             expected: constants::FILE_MAGIC_DATA,
         })
@@ -186,21 +180,19 @@ pub fn check_ver_file_compatible(ver: Version) -> EmptyResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData};
-    use crate::constants::{FILE_MAGIC_DATA, MAGICLEN, MAGIC_DATA, MAGIC_PREFIX};
-    use crate::prelude::*;
     use bytes::BytesMut;
+
+    use super::*;
 
     #[test]
     fn formatting() {
-        assert_eq!(format!("{}", MAGIC_DATA), "07.35");
+        assert_eq!(format!("{}", constants::MAGIC_DATA), "07.35");
         assert_eq!(
-            format!("{}", CookieData::from(MAGIC_DATA)),
+            format!("{}", CookieData::from(constants::MAGIC_DATA)),
             "vrpn: ver. 07.35  0"
         );
         assert_eq!(
-            format!("{}", CookieData::from(FILE_MAGIC_DATA)),
+            format!("{}", CookieData::from(constants::FILE_MAGIC_DATA)),
             "vrpn: ver. 04.00  0"
         );
     }
@@ -208,28 +200,31 @@ mod tests {
     #[test]
     fn magic_size() {
         // Make sure the size is right.
-        assert_eq!(MAGIC_DATA.to_string().len(), MAGICLEN - MAGIC_PREFIX.len());
+        assert_eq!(
+            constants::MAGIC_DATA.to_string().len(),
+            constants::MAGICLEN - constants::MAGIC_PREFIX.len()
+        );
 
-        let mut magic_cookie = CookieData::from(MAGIC_DATA);
+        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
         magic_cookie.log_mode = Some(LogMode::NONE);
-        assert_eq!(magic_cookie.required_buffer_size(), COOKIE_SIZE);
+        assert_eq!(magic_cookie.required_buffer_size(), constants::COOKIE_SIZE);
 
         let mut buf = Vec::new();
         magic_cookie
             .buffer_ref(&mut buf)
             .expect("Buffering needs to succeed");
-        assert_eq!(buf.len(), COOKIE_SIZE);
+        assert_eq!(buf.len(), constants::COOKIE_SIZE);
     }
 
     #[test]
     fn ver_compat() {
-        assert!(check_ver_nonfile_compatible(MAGIC_DATA).is_ok());
-        assert!(check_ver_file_compatible(FILE_MAGIC_DATA).is_ok());
+        assert!(check_ver_nonfile_compatible(constants::MAGIC_DATA).is_ok());
+        assert!(check_ver_file_compatible(constants::FILE_MAGIC_DATA).is_ok());
     }
 
     #[test]
     fn roundtrip() {
-        let mut magic_cookie = CookieData::from(MAGIC_DATA);
+        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
         magic_cookie.log_mode = Some(LogMode::NONE);
         let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
         magic_cookie
@@ -242,7 +237,7 @@ mod tests {
 
     #[test]
     fn roundtrip_bytesmut() {
-        let mut magic_cookie = CookieData::from(MAGIC_DATA);
+        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
         magic_cookie.log_mode = Some(LogMode::INCOMING);
 
         let mut buf = BytesMut::new()
@@ -251,42 +246,5 @@ mod tests {
             .freeze();
         assert_eq!(CookieData::unbuffer_ref(&mut buf).unwrap(), magic_cookie);
         assert_eq!(buf.len(), 0);
-    }
-
-    #[test]
-    fn basics() {
-        assert_eq!(from_dec(Bytes::from_static(b"1")).unwrap(), 1_u8);
-        assert_eq!(from_dec(Bytes::from_static(b"12")).unwrap(), 12_u8);
-    }
-    #[test]
-    fn dec_digits_fn() {
-        {
-            let mut buf = Bytes::from_static(b"1");
-            assert_eq!(dec_digits(&mut buf, 1).unwrap(), 1_u8);
-            assert_eq!(buf.len(), 0);
-        }
-        {
-            let mut buf = Bytes::from_static(b"12");
-            assert_eq!(dec_digits(&mut buf, 2).unwrap(), 12_u8);
-            assert_eq!(buf.len(), 0);
-        }
-    }
-    #[test]
-    fn parse_decimal() {
-        fn parse_decimal_u8(v: &'static [u8]) -> u8 {
-            let myval = Bytes::from_static(v);
-            from_dec(myval).unwrap()
-        }
-        assert_eq!(0_u8, parse_decimal_u8(b"0"));
-        assert_eq!(0_u8, parse_decimal_u8(b"00"));
-        assert_eq!(0_u8, parse_decimal_u8(b"000"));
-        assert_eq!(1_u8, parse_decimal_u8(b"1"));
-        assert_eq!(1_u8, parse_decimal_u8(b"01"));
-        assert_eq!(1_u8, parse_decimal_u8(b"001"));
-        assert_eq!(1_u8, parse_decimal_u8(b"0001"));
-        assert_eq!(10_u8, parse_decimal_u8(b"10"));
-        assert_eq!(10_u8, parse_decimal_u8(b"010"));
-        assert_eq!(10_u8, parse_decimal_u8(b"0010"));
-        assert_eq!(10_u8, parse_decimal_u8(b"00010"));
     }
 }

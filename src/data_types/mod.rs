@@ -4,11 +4,12 @@
 
 //! Data types
 
-mod constants;
+pub mod constants;
 mod cookie;
 mod descriptions;
 mod length_prefixed;
 mod message;
+pub(crate) mod log;
 mod time;
 mod types;
 
@@ -21,6 +22,7 @@ pub use crate::data_types::{
         MessageTypeIdentifier::UserMessageName, SequencedGenericMessage, SequencedMessage,
         TypedMessageBody,
     },
+    log::{LogFileNames, LogMode},
     time::TimeVal,
     types::*,
 };

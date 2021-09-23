@@ -1,14 +1,11 @@
-// Copyright 2018, Collabora, Ltd.
+// Copyright 2018-2021, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::buffer::{check_buffer_remaining, BufferResult};
-use crate::prelude::*;
-use crate::size_requirement::ExpandSizeRequirement;
-use crate::unbuffer::check_unbuffer_remaining;
-use crate::{unbuffer::consume_expected, Buffer, BufferUnbufferError, SizeRequirement, Unbuffer};
 use bytes::{Buf, BufMut, Bytes};
 use std::mem::size_of;
+
+use crate::buffer_unbuffer::{buffer, size_requirement::*, unbuffer};
 
 /// Does the "length prefix" value include a trailing null character (strlen() + 1)?
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -41,10 +38,10 @@ pub fn buffer_string<T: BufMut>(
     buf: &mut T,
     termination: NullTermination,
     null_in_len: LengthBehavior,
-) -> BufferResult {
+) -> buffer::BufferResult {
     let mut buf_size = buffer_size(s, termination);
 
-    check_buffer_remaining(buf, buf_size)?;
+    buffer::check_buffer_remaining(buf, buf_size)?;
     if termination == NullTermination::AddTrailingNull && null_in_len == LengthBehavior::ExcludeNull
     {
         // Decrement the length that we transmit if we're adding a null terminator but not including it in the length.
@@ -59,12 +56,12 @@ pub fn buffer_string<T: BufMut>(
 }
 
 /// Unbuffer a string, preceded by its length and followed by a null bytes.
-pub fn unbuffer_string<T: Buf>(buf: &mut T) -> std::result::Result<Bytes, BufferUnbufferError> {
+pub fn unbuffer_string<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Bytes> {
     let buf_size =
         u32::unbuffer_ref(buf).map_err(ExpandSizeRequirement::expand_size_requirement)?;
 
     let buf_size = buf_size as usize;
-    check_unbuffer_remaining(buf, buf_size)?;
+    unbuffer::check_unbuffer_remaining(buf, buf_size)?;
     assert_ne!(
         buf_size, 0,
         "length-prefixed string size is expected to be greater than 0"
@@ -74,6 +71,6 @@ pub fn unbuffer_string<T: Buf>(buf: &mut T) -> std::result::Result<Bytes, Buffer
 
     let s = buf.copy_to_bytes(buf_size);
     // Grab null terminator
-    consume_expected(buf, b"\0")?;
+    unbuffer::consume_expected(buf, b"\0")?;
     Ok(s)
 }

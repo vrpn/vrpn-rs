@@ -1,11 +1,11 @@
-// Copyright 2018, Collabora, Ltd.
+// Copyright 2018-2021, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::buffer_unbuffer::Buffer;
-use crate::buffer_unbuffer::ConstantBufferSize;
-use crate::buffer_unbuffer::UnbufferConstantSize;
-use crate::buffer_unbuffer::UnbufferResult;
+use super::{
+    check_buffer_remaining, check_unbuffer_remaining, size::ConstantBufferSize,
+    unbuffer::UnbufferConstantSize, Buffer, BufferResult, UnbufferResult,
+};
 use bytes::{Buf, BufMut};
 
 macro_rules! buffer_primitive {
@@ -54,65 +54,5 @@ impl Buffer for () {
 impl UnbufferConstantSize for () {
     fn unbuffer_constant_size<T: Buf>(_buf: &mut T) -> UnbufferResult<Self> {
         Ok(())
-    }
-}
-
-impl ConstantBufferSize for Vec3 {
-    fn constant_buffer_size() -> usize {
-        std::mem::size_of::<f64>() * 3
-    }
-}
-
-impl Buffer for Vec3 {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        check_buffer_remaining(buf, Self::constant_buffer_size())?;
-        self.x.buffer_ref(buf)?;
-        self.y.buffer_ref(buf)?;
-        self.z.buffer_ref(buf)?;
-        Ok(())
-    }
-}
-
-impl Unbuffer for Vec3 {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
-        check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
-        let x = f64::unbuffer_ref(buf)?;
-        let y = f64::unbuffer_ref(buf)?;
-        let z = f64::unbuffer_ref(buf)?;
-        Ok(Vec3::new(x, y, z))
-    }
-}
-
-impl ConstantBufferSize for Quat {
-    fn constant_buffer_size() -> usize {
-        std::mem::size_of::<f64>() * 4
-    }
-}
-
-impl Buffer for Quat {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        check_buffer_remaining(buf, Self::constant_buffer_size())?;
-        self.v.buffer_ref(buf)?;
-        self.s.buffer_ref(buf)?;
-        Ok(())
-    }
-}
-
-impl Unbuffer for Quat {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
-        check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
-        let v = Vec3::unbuffer_ref(buf)?;
-        let w = f64::unbuffer_ref(buf)?;
-        Ok(Quat::from_sv(w, v))
-    }
-}
-
-impl WrappedConstantSize for Sensor {
-    type WrappedType = i32;
-    fn get(&self) -> Self::WrappedType {
-        self.0
-    }
-    fn new(v: Self::WrappedType) -> Self {
-        Sensor(v)
     }
 }
