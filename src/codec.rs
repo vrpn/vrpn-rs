@@ -16,9 +16,14 @@ pub fn peek_u32<T: Buf>(buf: &T) -> Option<u32> {
         eprintln!("Not enough remaining bytes for the size.");
         return None;
     }
-    let mut just_enough = Bytes::copy_from_slice(buf.chunk());
-    let peeked = just_enough.get_u32();
-    Some(peeked)
+    let mut chunk = buf.chunk();
+    if chunk.len() < SIZE_LEN {
+        eprintln!("Not enough remaining bytes in the chunk for the size.");
+        // Some(buf.clone().get_u32())
+        None
+    } else {
+        Some(chunk.get_u32())
+    }
 }
 
 pub(crate) fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
@@ -34,7 +39,7 @@ pub(crate) fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
 /// Decode exactly 1 message. Returns Ok(None) if we don't have enough data.
 pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<SequencedGenericMessage>> {
     // Peek the length field if possible
-    if let Some(combined_size) = peek_u32(&buf) {
+    if let Some(combined_size) = peek_u32(buf) {
         let size = MessageSize::from_length_field(combined_size);
         if check_unbuffer_remaining(buf, size.padded_message_size()).is_err() {
             // Not enough data in the buffer - here, that's not an error.
