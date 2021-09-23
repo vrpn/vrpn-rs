@@ -125,7 +125,7 @@ impl UnwrappedId for SenderId {}
 /// If the filter is `None`, it always matches.
 ///
 /// ```
-/// use vrpn::types::*;
+/// use vrpn::data_types::id_types::*;
 /// let id = SenderId::new(5);
 /// assert!(id_filter_matches(None, id));
 /// assert!(id_filter_matches(Some(SenderId::new(5)), id));

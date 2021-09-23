@@ -19,7 +19,7 @@ use std::{
 /// Conversions to and from native rust types are provided.
 ///
 /// ```
-/// use vrpn::time::TimeVal;
+/// use vrpn::data_types::TimeVal;
 /// let tv = TimeVal::get_time_of_day();
 /// println!("{}s, {}us since the Unix epoch", tv.seconds(), tv.microseconds());
 /// println!("{}s since the Unix epoch", tv);
