@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use std::{
-    fmt::{self, Display},
-    ops::Add,
-};
+use std::{fmt::{self, Display}, ops::Add, result};
 
 /// Implemented by types (like errors) that may contain a `SizeRequirement`.
 ///
@@ -15,11 +12,35 @@ pub trait MayContainSizeRequirement {
     fn try_get_size_requirement(self) -> Option<SizeRequirement>;
 }
 
+// pub trait GetContainsSizeRequirement: MayContainSizeRequirement {
+//     fn contains_size_requirement(&self) -> bool;
+// }
+// impl<'a, T> GetContainsSizeRequirement for T
+// where
+//     T: 'a + MayContainSizeRequirement,
+//     &'a T: MayContainSizeRequirement,
+// {
+//     fn contains_size_requirement(&self) -> bool {
+//         self.try_get_size_requirement().is_some()
+//     }
+// }
+
 /// Implemented by types (like errors) that may contain a `SizeRequirement`,
 /// and that can be consumed expanding their size requirement if present.
-pub trait ExpandSizeRequirement: MayContainSizeRequirement {
+pub trait ExpandSizeRequirement /* : MayContainSizeRequirement */ {
     fn expand_size_requirement(self) -> Self;
 }
+
+// impl<T, E: MayContainSizeRequirement> MayContainSizeRequirement for result::Result<T, E> {
+impl<T, E: ExpandSizeRequirement> ExpandSizeRequirement for result::Result<T, E> {
+    fn expand_size_requirement(self) -> Self {
+        match self {
+            Err(e) => Err(e.expand_size_requirement()),
+            _ => self,
+        }
+    }
+}
+
 
 /// Expresses how many more bytes we require/expect when parsing a message.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]

@@ -4,8 +4,6 @@
 
 //! Traits, etc. related to unbuffering types
 
-use std::convert::TryFrom;
-
 use crate::{error::BufferUnbufferError, ConstantBufferSize, SizeRequirement, WrappedConstantSize};
 use bytes::{Buf, Bytes};
 
@@ -69,42 +67,6 @@ impl<T: UnbufferConstantSize> Unbuffer for T {
 impl<T: WrappedConstantSize> UnbufferConstantSize for T {
     fn unbuffer_constant_size<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
         T::WrappedType::unbuffer_constant_size(buf).map(T::new)
-    }
-}
-
-/// Extension trait used to extend the methods of Result<Output<T>>
-pub trait OutputResultExtras<T> {
-    /// Map the result that "exactly" n additional bytes are
-    /// required to "at least" n additional bytes are required.
-    ///
-    /// Used when a variable-buffer-size type begins its work by
-    /// unbuffering a fixed-size type, like a "length" field.
-    fn map_exactly_err_to_at_least(self) -> Self;
-}
-
-/// A trait identifying a structure that can be unbuffered, or a pair of something that can be unbuffered and something else.
-///
-/// These are types that may be returned in a Result<> by an unbuffer operation.
-/// Used to automatically select which Result<> get the `OutputResultExtras<T>` extension trait.
-pub trait UnbufferOutput {}
-impl<T> UnbufferOutput for T where T: Unbuffer {}
-impl<T, U> UnbufferOutput for (T, U) where T: Unbuffer {}
-
-fn expand_bytes_required<T>(val: T) -> T
-where
-    T: Copy + From<SizeRequirement>,
-    SizeRequirement: TryFrom<T>,
-{
-    match SizeRequirement::try_from(val) {
-        Ok(required) => T::from(required.expand()),
-        Err(_) => val,
-    }
-}
-
-impl<T: UnbufferOutput> OutputResultExtras<T> for std::result::Result<T, BufferUnbufferError> {
-    /// Convert an error that you need exactly some amount of bytes, into the error that you need at least that much.
-    fn map_exactly_err_to_at_least(self) -> Self {
-        self.map_err(BufferUnbufferError::expand_bytes_required)
     }
 }
 

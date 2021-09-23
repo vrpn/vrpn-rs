@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{size_requirement::SizeRequirement, IdType, Version};
+use crate::{
+    size_requirement::{ExpandSizeRequirement, MayContainSizeRequirement, SizeRequirement},
+    IdType, Version,
+};
 use bytes::Bytes;
 use std::{
     convert::TryFrom,
@@ -52,46 +55,44 @@ impl From<AddrParseError> for BufferUnbufferError {
     }
 }
 
-impl TryFrom<BufferUnbufferError> for SizeRequirement {
-    type Error = DoesNotContainBytesRequired;
-
-    fn try_from(value: BufferUnbufferError) -> std::result::Result<Self, Self::Error> {
-        if let BufferUnbufferError::NeedMoreData(required) = value {
-            Ok(required)
-        } else {
-            Err(DoesNotContainBytesRequired(()))
+impl MayContainSizeRequirement for BufferUnbufferError {
+    fn try_get_size_requirement(self) -> Option<SizeRequirement> {
+        match self {
+            BufferUnbufferError::NeedMoreData(required) => Some(required),
+            _ => None,
         }
     }
 }
 
-impl TryFrom<&BufferUnbufferError> for SizeRequirement {
-    type Error = DoesNotContainBytesRequired;
+impl MayContainSizeRequirement for &BufferUnbufferError {
+    fn try_get_size_requirement(self) -> Option<SizeRequirement> {
+        match self {
+            BufferUnbufferError::NeedMoreData(required) => Some(*required),
+            _ => None,
+        }
+    }
+}
 
-    fn try_from(value: &BufferUnbufferError) -> std::result::Result<Self, Self::Error> {
-        if let BufferUnbufferError::NeedMoreData(required) = value {
-            Ok(*required)
-        } else {
-            Err(DoesNotContainBytesRequired(()))
+impl ExpandSizeRequirement for BufferUnbufferError {
+    /// Maps `BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(n))` to
+    /// `BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(n))`
+    fn expand_size_requirement(self) -> Self {
+        use BufferUnbufferError::*;
+        match self {
+            NeedMoreData(required) => NeedMoreData(required.expand()),
+            _ => self,
         }
     }
 }
 
 impl BufferUnbufferError {
-    /// Maps `BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(n))` to
-    /// `BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(n))`
-    pub fn expand_bytes_required(self) -> BufferUnbufferError {
-        if let BufferUnbufferError::NeedMoreData(required) = self {
-            return BufferUnbufferError::NeedMoreData(required.expand());
-        }
-        self
-    }
-
     /// Maps `BufferUnbufferError::NeedMoreData(_)` to `BufferUnbufferError::HeaderSizeMismatch(_)`
     pub fn map_bytes_required_to_size_mismatch(self) -> BufferUnbufferError {
-        if let BufferUnbufferError::NeedMoreData(required) = self {
-            return BufferUnbufferError::HeaderSizeMismatch(required.to_string());
+        use BufferUnbufferError::*;
+        match self {
+            NeedMoreData(required) => HeaderSizeMismatch(required.to_string()),
+            _ => self,
         }
-        self
     }
 }
 
@@ -130,26 +131,31 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl TryFrom<Error> for SizeRequirement {
-    type Error = DoesNotContainBytesRequired;
-
-    fn try_from(value: Error) -> std::result::Result<Self, Self::Error> {
-        if let Error::BufferUnbuffer(buf_unbuf) = value {
-            SizeRequirement::try_from(buf_unbuf)
-        } else {
-            Err(DoesNotContainBytesRequired(()))
+impl MayContainSizeRequirement for Error {
+    fn try_get_size_requirement(self) -> Option<SizeRequirement> {
+        match self {
+            Error::BufferUnbuffer(e) => e.try_get_size_requirement(),
+            _ => None,
         }
     }
 }
 
-impl TryFrom<&Error> for SizeRequirement {
-    type Error = DoesNotContainBytesRequired;
+impl MayContainSizeRequirement for &Error {
+    fn try_get_size_requirement(self) -> Option<SizeRequirement> {
+        match self {
+            Error::BufferUnbuffer(e) => e.try_get_size_requirement(),
+            _ => None,
+        }
+    }
+}
 
-    fn try_from(value: &Error) -> std::result::Result<Self, Self::Error> {
-        if let Error::BufferUnbuffer(buf_unbuf) = value {
-            SizeRequirement::try_from(buf_unbuf)
-        } else {
-            Err(DoesNotContainBytesRequired(()))
+impl ExpandSizeRequirement for Error {
+    /// Maps `BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(n))` to
+    /// `BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(n))`
+    fn expand_size_requirement(self) -> Self {
+        match self {
+            Error::BufferUnbuffer(e) => Error::BufferUnbuffer(e.expand_size_requirement()),
+            _ => self,
         }
     }
 }
@@ -161,20 +167,14 @@ impl From<SizeRequirement> for Error {
 }
 
 impl Error {
-    /// Maps `Error::BufferUnbuffer(BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(n)))` to
-    /// `Error::BufferUnbuffer((BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(n)))`
-    pub fn expand_bytes_required(self) -> Error {
-        if let Error::BufferUnbuffer(err) = self {
-            return Error::BufferUnbuffer(err.expand_bytes_required());
-        }
-        self
-    }
     /// Maps `BufferUnbufferError::NeedMoreData(_)` to `BufferUnbufferError::HeaderSizeMismatch(_)`
     pub fn map_bytes_required_to_size_mismatch(self) -> Error {
-        if let Error::BufferUnbuffer(err) = self {
-            return Error::BufferUnbuffer(err.map_bytes_required_to_size_mismatch());
+        match self {
+            Error::BufferUnbuffer(e) => {
+                Error::BufferUnbuffer(e.map_bytes_required_to_size_mismatch())
+            }
+            _ => self,
         }
-        self
     }
 }
 
@@ -184,7 +184,7 @@ impl Error {
     // }
 
     pub fn is_need_more_data(&self) -> bool {
-        SizeRequirement::try_from(self).is_ok()
+        self.try_get_size_requirement().is_some()
     }
 
     // pub fn contains_need_more_data(&self) -> bool {

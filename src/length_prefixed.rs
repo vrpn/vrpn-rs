@@ -4,6 +4,7 @@
 
 use crate::buffer::{check_buffer_remaining, BufferResult};
 use crate::prelude::*;
+use crate::size_requirement::ExpandSizeRequirement;
 use crate::unbuffer::check_unbuffer_remaining;
 use crate::{unbuffer::consume_expected, Buffer, BufferUnbufferError, SizeRequirement, Unbuffer};
 use bytes::{Buf, BufMut, Bytes};
@@ -59,7 +60,8 @@ pub fn buffer_string<T: BufMut>(
 
 /// Unbuffer a string, preceded by its length and followed by a null bytes.
 pub fn unbuffer_string<T: Buf>(buf: &mut T) -> std::result::Result<Bytes, BufferUnbufferError> {
-    let buf_size = u32::unbuffer_ref(buf).map_exactly_err_to_at_least()?;
+    let buf_size =
+        u32::unbuffer_ref(buf).map_err(ExpandSizeRequirement::expand_size_requirement)?;
 
     let buf_size = buf_size as usize;
     check_unbuffer_remaining(buf, buf_size)?;

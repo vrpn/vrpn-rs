@@ -11,12 +11,13 @@ extern crate bytes;
 use crate::{
     codec::peek_u32,
     endpoint::SystemCommand,
-    error::{BufferUnbufferError, Error, SizeRequirement},
+    error::{BufferUnbufferError, Error},
     message::MessageSize,
     prelude::*,
+    size_requirement::MayContainSizeRequirement,
     translation_table::Tables as TranslationTables,
     ClassOfService, ConstantBufferSize, CookieData, Endpoint, EndpointGeneric, GenericMessage,
-    Result, SequenceNumber, SequencedGenericMessage, TypeDispatcher, Unbuffer,
+    Result, SequenceNumber, SequencedGenericMessage, SizeRequirement, TypeDispatcher, Unbuffer,
 };
 use bytes::BytesMut;
 use std::{
@@ -116,7 +117,7 @@ impl EndpointSyncTcp {
                     }
                 }
                 Err(e) => {
-                    if SizeRequirement::try_from(&e).is_ok() {
+                    if (&e).try_get_size_requirement().is_some() {
                         break;
                     }
                     return Err(e);

@@ -9,10 +9,11 @@ use crate::{
     codec::peek_u32,
     constants::ALIGN,
     size::ConstantBufferSize,
+    size_requirement::ExpandSizeRequirement,
     unbuffer::{check_unbuffer_remaining, UnbufferResult},
-    Buffer, BufferSize, BufferUnbufferError, BytesMutExtras, Error, IdType, IntoId,
-    OutputResultExtras, Result, SenderId, SequenceNumber, SizeRequirement, StaticTypeName, TimeVal,
-    TypeId, TypeSafeId, Unbuffer, WrappedConstantSize,
+    Buffer, BufferSize, BufferUnbufferError, BytesMutExtras, Error, IdType, IntoId, Result,
+    SenderId, SequenceNumber, SizeRequirement, StaticTypeName, TimeVal, TypeId, TypeSafeId,
+    Unbuffer, WrappedConstantSize,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::{convert::TryFrom, mem::size_of};
@@ -249,9 +250,9 @@ impl Unbuffer for SequencedMessage<GenericBody> {
     /// Deserialize from a buffer.
     fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<SequencedMessage<GenericBody>> {
         let initial_remaining = buf.remaining();
-        let length_field = peek_u32(buf).ok_or(BufferUnbufferError::from(
-            SizeRequirement::AtLeast(u32::constant_buffer_size()),
-        ))?;
+        let length_field = peek_u32(buf).ok_or_else(|| {
+            BufferUnbufferError::from(SizeRequirement::AtLeast(u32::constant_buffer_size()))
+        })?;
         let size = MessageSize::from_length_field(length_field);
         check_unbuffer_remaining(buf, size.padded_message_size())?;
 
@@ -269,7 +270,8 @@ impl Unbuffer for SequencedMessage<GenericBody> {
         let body;
         {
             let mut body_buf = buf.copy_to_bytes(size.unpadded_body_size());
-            body = GenericBody::unbuffer_ref(&mut body_buf).map_exactly_err_to_at_least()?;
+            body = GenericBody::unbuffer_ref(&mut body_buf)
+                .map_err(ExpandSizeRequirement::expand_size_requirement)?;
             assert_eq!(body_buf.remaining(), 0);
         }
 
