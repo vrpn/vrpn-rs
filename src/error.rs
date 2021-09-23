@@ -14,7 +14,7 @@ use thiserror::Error;
 
 /// Error type for the main VRPN crate
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum VrpnError {
     #[error("{0}")]
     BufferUnbuffer(#[from] BufferUnbufferError),
     #[error("invalid id {0}")]
@@ -41,78 +41,78 @@ pub enum Error {
     OtherMessage(String),
 }
 
-impl From<std::io::Error> for Error {
+impl From<std::io::Error> for VrpnError {
     fn from(e: std::io::Error) -> Self {
-        Error::Other(Box::new(e))
+        VrpnError::Other(Box::new(e))
     }
 }
 
-impl From<crate::data_types::cookie::VersionMismatch> for Error {
+impl From<crate::data_types::cookie::VersionMismatch> for VrpnError {
     fn from(e: crate::data_types::cookie::VersionMismatch) -> Self {
-        Error::VersionMismatch(e)
+        VrpnError::VersionMismatch(e)
     }
 }
-impl MayContainSizeRequirement for Error {
+impl MayContainSizeRequirement for VrpnError {
     fn try_get_size_requirement(self) -> Option<SizeRequirement> {
         match self {
-            Error::BufferUnbuffer(e) => e.try_get_size_requirement(),
+            VrpnError::BufferUnbuffer(e) => e.try_get_size_requirement(),
             _ => None,
         }
     }
 }
 
-impl MayContainSizeRequirement for &Error {
+impl MayContainSizeRequirement for &VrpnError {
     fn try_get_size_requirement(self) -> Option<SizeRequirement> {
         match self {
-            Error::BufferUnbuffer(e) => e.try_get_size_requirement(),
+            VrpnError::BufferUnbuffer(e) => e.try_get_size_requirement(),
             _ => None,
         }
     }
 }
 
-impl ExpandSizeRequirement for Error {
+impl ExpandSizeRequirement for VrpnError {
     /// Maps `BufferUnbufferError::NeedMoreData(BytesRequired::Exactly(n))` to
     /// `BufferUnbufferError::NeedMoreData(BytesRequired::AtLeast(n))`
     fn expand_size_requirement(self) -> Self {
         match self {
-            Error::BufferUnbuffer(e) => Error::BufferUnbuffer(e.expand_size_requirement()),
+            VrpnError::BufferUnbuffer(e) => VrpnError::BufferUnbuffer(e.expand_size_requirement()),
             _ => self,
         }
     }
 }
 
-impl From<SizeRequirement> for Error {
+impl From<SizeRequirement> for VrpnError {
     fn from(val: SizeRequirement) -> Self {
-        Error::BufferUnbuffer(BufferUnbufferError::from(val))
+        VrpnError::BufferUnbuffer(BufferUnbufferError::from(val))
     }
 }
 
-impl Error {
+impl VrpnError {
     /// Maps `BufferUnbufferError::NeedMoreData(_)` to `BufferUnbufferError::HeaderSizeMismatch(_)`
-    pub fn map_bytes_required_to_size_mismatch(self) -> Error {
+    pub fn map_bytes_required_to_size_mismatch(self) -> VrpnError {
         match self {
-            Error::BufferUnbuffer(e) => {
-                Error::BufferUnbuffer(e.map_bytes_required_to_size_mismatch())
+            VrpnError::BufferUnbuffer(e) => {
+                VrpnError::BufferUnbuffer(e.map_bytes_required_to_size_mismatch())
             }
             _ => self,
         }
     }
 }
 
-impl Error {
+impl VrpnError {
     pub fn is_need_more_data(&self) -> bool {
         self.try_get_size_requirement().is_some()
     }
 }
 
-impl<T> From<std::sync::PoisonError<T>> for Error {
-    fn from(v: std::sync::PoisonError<T>) -> Error {
-        Error::OtherMessage(v.to_string())
+impl<T> From<std::sync::PoisonError<T>> for VrpnError {
+    fn from(v: std::sync::PoisonError<T>) -> VrpnError {
+        VrpnError::OtherMessage(v.to_string())
     }
 }
 
 #[deprecated(note = "Use std::result::Result with explicit error type instead")]
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, VrpnError>;
 
 #[deprecated(note = "You probably want crate::buffer_unbuffer::buffer::BufferResult")]
 pub type EmptyResult = Result<()>;

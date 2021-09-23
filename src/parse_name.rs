@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{constants, Error, Result};
+use crate::{constants, Result, VrpnError};
 use std::{net::SocketAddr, str::FromStr};
 use url::Url;
 
-impl From<url::ParseError> for Error {
-    fn from(e: url::ParseError) -> Error {
-        Error::Other(Box::new(e))
+impl From<url::ParseError> for VrpnError {
+    fn from(e: url::ParseError) -> VrpnError {
+        VrpnError::Other(Box::new(e))
     }
 }
 
@@ -76,7 +76,7 @@ fn normalize_scheme(server: &str) -> String {
 }
 
 impl FromStr for ServerInfo {
-    type Err = Error;
+    type Err = VrpnError;
     fn from_str(url: &str) -> Result<ServerInfo> {
         let urlpart = normalize_scheme(url);
 
@@ -86,19 +86,19 @@ impl FromStr for ServerInfo {
             "x-vrpn" => Scheme::UdpAndTcp,
             "tcp" => Scheme::TcpOnly,
             "x-vrsh" => {
-                return Err(Error::OtherMessage(format!(
+                return Err(VrpnError::OtherMessage(format!(
                     "x-vrsh scheme of address {} (url portion {}) not supported",
                     url, urlpart
                 )));
             }
             "mpi" => {
-                return Err(Error::OtherMessage(format!(
+                return Err(VrpnError::OtherMessage(format!(
                     "mpi scheme of address {} (url portion {}) not supported",
                     url, urlpart
                 )));
             }
             _ => {
-                return Err(Error::OtherMessage(format!(
+                return Err(VrpnError::OtherMessage(format!(
                     "could not parse scheme of address {} (url portion {})",
                     url, urlpart
                 )));
@@ -109,7 +109,7 @@ impl FromStr for ServerInfo {
             .into_iter()
             .next()
             .ok_or_else(|| {
-                Error::OtherMessage(format!(
+                VrpnError::OtherMessage(format!(
                     "could not parse address {} (url portion {})",
                     url, urlpart
                 ))
@@ -121,14 +121,14 @@ impl FromStr for ServerInfo {
     }
 }
 impl FromStr for DeviceInfo {
-    type Err = Error;
+    type Err = VrpnError;
     fn from_str(url: &str) -> Result<DeviceInfo> {
         let parts: Vec<&str> = url.split('@').collect();
         let device = match parts.len() {
             1 => None,
             2 => Some(String::from(parts[0])),
             _ => {
-                return Err(Error::OtherMessage(format!(
+                return Err(VrpnError::OtherMessage(format!(
                     "could not parse address {}",
                     url
                 )));

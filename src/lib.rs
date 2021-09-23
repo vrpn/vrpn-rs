@@ -52,7 +52,7 @@ pub mod type_dispatcher;
 pub use crate::{
     connection::{Connection, ConnectionStatus},
     endpoint::*,
-    error::{EmptyResult, Error, Result},
+    error::{EmptyResult, Result, VrpnError},
     handler::{Handler, TypedBodylessHandler, TypedHandler},
     parse_name::{Scheme, ServerInfo},
     type_dispatcher::{RegisterMapping, TypeDispatcher},

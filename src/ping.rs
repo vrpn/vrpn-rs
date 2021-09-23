@@ -11,7 +11,7 @@ use crate::{
         StaticTypeName, TypeId, TypedMessageBody,
     },
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
-    Connection, Error,
+    Connection, VrpnError,
 };
 use chrono::{prelude::*, Duration};
 use std::{
@@ -66,7 +66,7 @@ impl fmt::Debug for PongHandler {
 
 impl TypedBodylessHandler for PongHandler {
     type Item = Pong;
-    fn handle_typed_bodyless(&mut self, _header: &MessageHeader) -> Result<HandlerCode, Error> {
+    fn handle_typed_bodyless(&mut self, _header: &MessageHeader) -> Result<HandlerCode, VrpnError> {
         match self.inner.upgrade() {
             Some(inner) => {
                 let mut inner = inner.lock()?;
@@ -111,7 +111,7 @@ impl ClientInner {
     }
 }
 impl<T: Connection + 'static> Client<T> {
-    pub fn new(sender: LocalId<SenderId>, connection: Arc<T>) -> Result<Client<T>, Error> {
+    pub fn new(sender: LocalId<SenderId>, connection: Arc<T>) -> Result<Client<T>, VrpnError> {
         let ping_type = connection.register_type(PING_MESSAGE)?;
         let inner = ClientInner::new();
 
@@ -133,12 +133,12 @@ impl<T: Connection + 'static> Client<T> {
     pub fn new_from_name(
         sender: impl Into<SenderName> + Clone,
         connection: Arc<T>,
-    ) -> Result<Client<T>, Error> {
+    ) -> Result<Client<T>, VrpnError> {
         let sender_id = connection.register_sender(sender)?;
         Self::new(sender_id, connection)
     }
 
-    pub fn initiate_ping_cycle(&self) -> Result<(), Error> {
+    pub fn initiate_ping_cycle(&self) -> Result<(), VrpnError> {
         {
             let mut inner = self.inner.lock()?;
             inner.unanswered_ping = Some(Utc::now());
@@ -150,7 +150,7 @@ impl<T: Connection + 'static> Client<T> {
     ///
     /// Returns the duration since the first unanswered ping,
     /// or None if there are no unanswered pings.
-    pub fn check_ping_cycle(&self) -> Result<Option<Duration>, Error> {
+    pub fn check_ping_cycle(&self) -> Result<Option<Duration>, VrpnError> {
         let mut inner = self.inner.lock()?;
         if let (Some(unanswered), Some(last_warning)) =
             (inner.unanswered_ping, &mut inner.last_warning)
@@ -170,7 +170,7 @@ impl<T: Connection + 'static> Client<T> {
         }
     }
 
-    fn send_ping(&self) -> Result<(), Error> {
+    fn send_ping(&self) -> Result<(), VrpnError> {
         let msg = Message::new(None, self.ping_type, self.sender, Pong::default());
         self.connection
             .pack_message(msg, ClassOfService::RELIABLE)?;
@@ -187,7 +187,7 @@ struct PingHandler<T: Connection> {
 
 impl<T: Connection + Send> TypedBodylessHandler for PingHandler<T> {
     type Item = Ping;
-    fn handle_typed_bodyless(&mut self, _header: &MessageHeader) -> Result<HandlerCode, Error> {
+    fn handle_typed_bodyless(&mut self, _header: &MessageHeader) -> Result<HandlerCode, VrpnError> {
         // TODO use sender from header?
         match self.connection.upgrade() {
             Some(connection) => {
@@ -211,7 +211,7 @@ impl Server {
     pub fn new<T: Connection + 'static>(
         sender: LocalId<SenderId>,
         connection: Arc<T>,
-    ) -> Result<Server, Error> {
+    ) -> Result<Server, VrpnError> {
         let pong_type = connection.register_type(PONG_MESSAGE)?;
         let handler = connection.add_typed_handler(
             Box::new(PingHandler {
@@ -227,7 +227,7 @@ impl Server {
     pub fn new_from_name<T: Connection + 'static>(
         sender: impl Into<SenderName> + Clone,
         connection: Arc<T>,
-    ) -> Result<Server, Error> {
+    ) -> Result<Server, VrpnError> {
         let sender_id = connection.register_sender(sender)?;
         Self::new(sender_id, connection)
     }

@@ -13,7 +13,7 @@ use crate::{
         size_requirement::*,
         unbuffer, BufferSize, BufferUnbufferError, ConstantBufferSize, WrappedConstantSize,
     },
-    Error, Result,
+    Result, VrpnError,
 };
 
 use super::{id_types::*, name_types::StaticTypeName, TimeVal};
@@ -113,7 +113,7 @@ impl<T: MessageBody> From<SequencedMessage<T>> for Message<T> {
     }
 }
 impl<T: TypedMessageBody + unbuffer::Unbuffer> TryFrom<&GenericMessage> for Message<T> {
-    type Error = Error;
+    type Error = VrpnError;
 
     /// Try parsing a generic message into a typed message
     ///
@@ -125,7 +125,7 @@ impl<T: TypedMessageBody + unbuffer::Unbuffer> TryFrom<&GenericMessage> for Mess
         let body = T::unbuffer_ref(&mut buf)
             .map_err(BufferUnbufferError::map_bytes_required_to_size_mismatch)?;
         if !buf.is_empty() {
-            return Err(Error::OtherMessage(format!(
+            return Err(VrpnError::OtherMessage(format!(
                 "message body length was indicated as {}, but {} bytes remain unconsumed",
                 msg.body.inner.len(),
                 buf.len()
@@ -142,7 +142,7 @@ impl<T: TypedMessageBody + unbuffer::Unbuffer> Message<T> {
         let body = T::unbuffer_ref(&mut buf)
             .map_err(BufferUnbufferError::map_bytes_required_to_size_mismatch)?;
         if !buf.is_empty() {
-            return Err(Error::OtherMessage(format!(
+            return Err(VrpnError::OtherMessage(format!(
                 "message body length was indicated as {}, but {} bytes remain unconsumed",
                 msg.body.inner.len(),
                 buf.len()

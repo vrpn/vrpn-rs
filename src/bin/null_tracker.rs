@@ -12,8 +12,8 @@ extern crate vrpn;
 use std::{sync::Arc, time::Duration};
 use tokio::time::Interval;
 use vrpn::{
-    tracker::PoseReport, ClassOfService, Error, LocalId, Quat, Result, SenderId, Sensor,
-    StaticSenderName, Vec3,
+    tracker::PoseReport, ClassOfService, LocalId, Quat, Result, SenderId, Sensor, StaticSenderName,
+    Vec3, VrpnError,
 };
 #[derive(Debug)]
 struct ConnectionAndServer {
@@ -38,7 +38,7 @@ impl ConnectionAndServer {
 
 impl Future for ConnectionAndServer {
     type Item = ();
-    type Error = Error;
+    type Error = VrpnError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if drain_poll_fn(|| self.connection.poll_endpoints())?.is_ready() {
             return Ok(Async::Ready(()));
@@ -46,7 +46,7 @@ impl Future for ConnectionAndServer {
         if self
             .interval
             .poll()
-            .map_err(|e| Error::OtherMessage(e.to_string()))?
+            .map_err(|e| VrpnError::OtherMessage(e.to_string()))?
             .is_ready()
         {
             // OK, send a report.
@@ -86,12 +86,12 @@ impl NullTracker {
 
 impl Future for NullTracker {
     type Item = ();
-    type Error = Error;
+    type Error = VrpnError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         while self
             .interval
             .poll()
-            .map_err(|e| Error::OtherMessage(e.to_string()))?
+            .map_err(|e| VrpnError::OtherMessage(e.to_string()))?
             .is_ready()
         {
             // OK, send a report.

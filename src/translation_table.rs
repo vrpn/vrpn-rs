@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{data_types::id_types::*, Error, Result};
+use crate::{data_types::id_types::*, Result, VrpnError};
 use bytes::Bytes;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -63,10 +63,10 @@ impl<T: BaseTypeSafeId> Table<T> {
         use RangedId::*;
         match self.determine_remote_id_range(id) {
             BelowZero(_) => Ok(None),
-            AboveArray(v) => Err(Error::InvalidId(v)),
+            AboveArray(v) => Err(VrpnError::InvalidId(v)),
             InArray(v) => match &self.entries[v as usize] {
                 Some(entry) => Ok(Some(entry.local_id)),
-                None => Err(Error::EmptyEntry),
+                None => Err(VrpnError::EmptyEntry),
             },
         }
     }
@@ -79,7 +79,7 @@ impl<T: BaseTypeSafeId> Table<T> {
     ) -> Result<RemoteId<T>> {
         use RangedId::*;
         let index = match self.determine_remote_id_range(remote_id) {
-            BelowZero(v) => return Err(Error::InvalidId(v)),
+            BelowZero(v) => return Err(VrpnError::InvalidId(v)),
             AboveArray(v) => {
                 self.entries.resize(v as usize + 1, None);
                 v as usize

@@ -8,7 +8,7 @@ use crate::{
     buffer_unbuffer::Unbuffer,
     constants,
     data_types::{cookie::check_ver_nonfile_compatible, CookieData},
-    Error, Result, Scheme, ServerInfo,
+    Result, Scheme, ServerInfo, VrpnError,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::ready;
@@ -414,7 +414,9 @@ pub(crate) async fn finish_connecting(
                         tcp_listener.take().unwrap(),
                     ));
                 } else {
-                    return Err(Error::OtherMessage(String::from("no udp socket found?")));
+                    return Err(VrpnError::OtherMessage(String::from(
+                        "no udp socket found?",
+                    )));
                 }
             }
 

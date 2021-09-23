@@ -18,7 +18,7 @@ use crate::{
         SequencedGenericMessage,
     },
     endpoint::SystemCommand,
-    error::Error,
+    error::VrpnError,
     translation_table::Tables as TranslationTables,
     Endpoint, EndpointGeneric, TypeDispatcher,
 };
@@ -34,7 +34,7 @@ use std::{
 };
 
 /// Write a cookie to a synchronous sink implementing Write.
-pub fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), Error>
+pub fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), VrpnError>
 where
     T: Write,
 {
@@ -44,7 +44,7 @@ where
 }
 
 /// Read a cookie from a synchronous source implementing Read.
-pub fn read_cookie<T>(stream: &mut T) -> Result<Vec<u8>, Error>
+pub fn read_cookie<T>(stream: &mut T) -> Result<Vec<u8>, VrpnError>
 where
     T: Read,
 {
@@ -74,7 +74,7 @@ impl EndpointSyncTcp {
         }
     }
 
-    fn read_single_message(&mut self) -> Result<SequencedGenericMessage, Error> {
+    fn read_single_message(&mut self) -> Result<SequencedGenericMessage, VrpnError> {
         self.stream
             .set_read_timeout(Some(Duration::from_millis(1)))?;
         let mut buf = BytesMut::new();
@@ -85,12 +85,12 @@ impl EndpointSyncTcp {
         if let Err(e) = self.stream.peek(buf.as_mut()) {
             match e.kind() {
                 io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => {
-                    return Err(Error::BufferUnbuffer(BufferUnbufferError::NeedMoreData(
-                        SizeRequirement::Unknown,
-                    )));
+                    return Err(VrpnError::BufferUnbuffer(
+                        BufferUnbufferError::NeedMoreData(SizeRequirement::Unknown),
+                    ));
                 }
                 // Not a "need more data"
-                _ => return Err(Error::Other(Box::new(e))),
+                _ => return Err(VrpnError::Other(Box::new(e))),
             }
         }
 
@@ -109,7 +109,7 @@ impl EndpointSyncTcp {
         Ok(result)
     }
 
-    pub fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Result<(), Error> {
+    pub fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Result<(), VrpnError> {
         loop {
             match self.read_single_message() {
                 Ok(msg) => {
@@ -157,11 +157,11 @@ impl Endpoint for EndpointSyncTcp {
         &mut self.translation
     }
 
-    fn send_system_change(&self, message: SystemCommand) -> Result<(), Error> {
+    fn send_system_change(&self, message: SystemCommand) -> Result<(), VrpnError> {
         println!("send_system_change {:?}", message);
         self.system_tx
             .send(message)
-            .map_err(|e| Error::OtherMessage(e.to_string()))?;
+            .map_err(|e| VrpnError::OtherMessage(e.to_string()))?;
         Ok(())
     }
 
@@ -169,7 +169,7 @@ impl Endpoint for EndpointSyncTcp {
         &mut self,
         msg: GenericMessage,
         _class: data_types::ClassOfService,
-    ) -> Result<(), Error> {
+    ) -> Result<(), VrpnError> {
         // Ignore class of service here
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
         let sequenced = msg.into_sequenced_message(SequenceNumber(seq as u32));

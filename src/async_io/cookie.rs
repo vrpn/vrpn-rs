@@ -8,13 +8,13 @@ use crate::{
         constants::{FILE_MAGIC_DATA, MAGIC_DATA},
         cookie::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData},
     },
-    Error,
+    VrpnError,
 };
 use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// Writes the supplied cookie to a stream.
-async fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), Error>
+async fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), VrpnError>
 where
     T: tokio::io::AsyncWrite + Unpin,
 {
@@ -26,7 +26,7 @@ where
 /// Reads a cookie's worth of data into a temporary buffer.
 ///
 /// Future resolves to (stream, buffer) on success.
-async fn read_cookie<T>(stream: &mut T) -> Result<Vec<u8>, Error>
+async fn read_cookie<T>(stream: &mut T) -> Result<Vec<u8>, VrpnError>
 where
     T: tokio::io::AsyncRead + Unpin,
 {
@@ -38,7 +38,7 @@ where
 /// Writes the "non-file" magic cookie to the stream.
 ///
 /// Future resolves to the provided stream on success.
-pub(crate) async fn send_nonfile_cookie<T>(stream: &mut T) -> Result<(), Error>
+pub(crate) async fn send_nonfile_cookie<T>(stream: &mut T) -> Result<(), VrpnError>
 where
     T: tokio::io::AsyncWrite + Unpin,
 {
@@ -48,7 +48,7 @@ where
 /// Writes the "file" magic cookie to the stream.
 ///
 /// Future resolves to the provided stream on success.
-pub(crate) async fn send_file_cookie<T>(stream: &mut T) -> Result<(), Error>
+pub(crate) async fn send_file_cookie<T>(stream: &mut T) -> Result<(), VrpnError>
 where
     T: tokio::io::AsyncWrite + Unpin,
 {
@@ -56,7 +56,7 @@ where
 }
 
 /// Reads a cookie's worth of data from the stream, and cheacks to make sure it is the right version.
-pub(crate) async fn read_and_check_nonfile_cookie<T>(stream: &mut T) -> Result<(), Error>
+pub(crate) async fn read_and_check_nonfile_cookie<T>(stream: &mut T) -> Result<(), VrpnError>
 where
     T: tokio::io::AsyncRead + Unpin,
 {
@@ -70,7 +70,7 @@ where
 /// Reads a cookie's worth of data from the stream, and cheacks to make sure it is the right version.
 ///
 /// Future resolves to the provided stream on success.
-pub(crate) async fn read_and_check_file_cookie<T>(stream: &mut T) -> Result<(), Error>
+pub(crate) async fn read_and_check_file_cookie<T>(stream: &mut T) -> Result<(), VrpnError>
 where
     T: tokio::io::AsyncRead + Unpin,
 {

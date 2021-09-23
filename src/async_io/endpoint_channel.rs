@@ -6,7 +6,7 @@
 
 use crate::{
     data_types::message::{GenericMessage, SequencedGenericMessage},
-    Endpoint, EndpointGeneric, Error, TypeDispatcher,
+    Endpoint, EndpointGeneric, TypeDispatcher, VrpnError,
 };
 use futures::StreamExt;
 use futures::{
@@ -22,14 +22,14 @@ use std::{
 
 #[derive(Debug)]
 pub(crate) struct EndpointChannel<T> {
-    tx: SplitSink<T, Result<SequencedGenericMessage, Error>>,
+    tx: SplitSink<T, Result<SequencedGenericMessage, VrpnError>>,
     rx: SplitStream<T>,
     seq: AtomicUsize,
 }
 
 impl<T> EndpointChannel<T>
 where
-    T: Sink<Result<SequencedGenericMessage, Error>> + Stream<Item = SequencedGenericMessage>,
+    T: Sink<Result<SequencedGenericMessage, VrpnError>> + Stream<Item = SequencedGenericMessage>,
 {
     pub(crate) fn new(framed_stream: T) -> Arc<Mutex<EndpointChannel<T>>> {
         // ugh order of tx and rx is different between AsyncWrite::split() and Framed<>::split()
@@ -44,9 +44,9 @@ where
 
 impl<T> Stream for EndpointChannel<T>
 where
-    T: Sink<SequencedGenericMessage, Error = Error> + Stream<Item = SequencedGenericMessage>,
+    T: Sink<SequencedGenericMessage, Error = VrpnError> + Stream<Item = SequencedGenericMessage>,
 {
-    type Item = Result<GenericMessage, Error>;
+    type Item = Result<GenericMessage, VrpnError>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -108,7 +108,7 @@ pub(crate) fn poll_and_dispatch<T, U>(
     stream: &mut U,
     dispatcher: &mut TypeDispatcher,
     cx: &mut Context<'_>,
-) -> Poll<Result<(), Error>>
+) -> Poll<Result<(), VrpnError>>
 where
     T: Endpoint,
     U: Stream<Item = GenericMessage> + Unpin,

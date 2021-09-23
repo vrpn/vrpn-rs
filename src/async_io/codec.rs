@@ -6,7 +6,7 @@ use crate::{
     buffer_unbuffer::{Buffer, BufferUnbufferError},
     codec::decode_one,
     data_types::message::SequencedGenericMessage,
-    Error, Result,
+    Result, VrpnError,
 };
 use bytes::{Buf, BytesMut};
 use tokio_util::codec::{Decoder, Encoder, Framed};
@@ -19,7 +19,7 @@ pub struct FramedMessageCodec;
 
 impl Decoder for FramedMessageCodec {
     type Item = SequencedGenericMessage;
-    type Error = Error;
+    type Error = VrpnError;
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>> {
         let initial_len = src.len();
         if initial_len == 0 {
@@ -39,7 +39,7 @@ impl Decoder for FramedMessageCodec {
 }
 
 impl Encoder<SequencedGenericMessage> for FramedMessageCodec {
-    type Error = crate::Error;
+    type Error = crate::VrpnError;
     fn encode(
         &mut self,
         item: SequencedGenericMessage,

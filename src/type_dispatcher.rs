@@ -11,7 +11,7 @@ use crate::{
         name_types::{SenderName, TypeName},
     },
     handler::*,
-    Error, Result,
+    Result, VrpnError,
 };
 use bytes::Bytes;
 use std::{collections::HashMap, fmt, hash::Hash};
@@ -116,7 +116,7 @@ impl CallbackCollection {
         sender: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandleInner> {
         if self.callbacks.len() > MAX_VEC_USIZE {
-            return Err(Error::TooManyHandlers);
+            return Err(VrpnError::TooManyHandlers);
         }
         let handle = HandlerHandleInner(self.next_handle);
         self.callbacks
@@ -135,7 +135,7 @@ impl CallbackCollection {
                     .map(|handler| handler.handle == handle)
                     .unwrap_or(false)
             })
-            .ok_or(Error::HandlerNotFound)?;
+            .ok_or(VrpnError::HandlerNotFound)?;
         self.callbacks.remove(index);
         Ok(())
     }
@@ -156,8 +156,8 @@ impl CallbackCollection {
 fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
     use RangedId::*;
     match determine_id_range(message_type, len) {
-        BelowZero(v) => Err(Error::InvalidId(v)),
-        AboveArray(v) => Err(Error::InvalidId(v)),
+        BelowZero(v) => Err(VrpnError::InvalidId(v)),
+        AboveArray(v) => Err(VrpnError::InvalidId(v)),
         InArray(v) => Ok(v as usize),
     }
 }
@@ -229,7 +229,7 @@ impl TypeDispatcher {
 
     fn add_type(&mut self, name: impl Into<TypeName>) -> Result<LocalId<TypeId>> {
         if self.types.len() > MAX_VEC_USIZE {
-            return Err(Error::TooManyMappings);
+            return Err(VrpnError::TooManyMappings);
         }
         let name = name.into();
         self.types.push(CallbackCollection::new(name.clone().0));
@@ -240,7 +240,7 @@ impl TypeDispatcher {
 
     fn add_sender(&mut self, name: impl Into<SenderName>) -> Result<LocalId<SenderId>> {
         if self.senders.len() > (IdType::max_value() - 2) as usize {
-            return Err(Error::TooManyMappings);
+            return Err(VrpnError::TooManyMappings);
         }
         let name = name.into();
         self.senders.push(name.clone());
