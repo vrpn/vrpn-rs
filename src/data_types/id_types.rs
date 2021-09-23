@@ -174,11 +174,9 @@ pub(crate) fn determine_id_range<T: UnwrappedId>(id: T, len: usize) -> RangedId 
     let id = id.get();
     if id < 0 {
         RangedId::BelowZero(id)
+    } else if (id as usize) < len {
+        RangedId::InArray(id)
     } else {
-        if (id as usize) < len {
-            RangedId::InArray(id)
-        } else {
-            RangedId::AboveArray(id)
-        }
+        RangedId::AboveArray(id)
     }
 }
