@@ -8,7 +8,7 @@ pub mod buffer;
 pub mod constants;
 mod error;
 mod primitives;
-mod size;
+pub(crate) mod size;
 pub mod size_requirement;
 pub mod unbuffer;
 
@@ -23,7 +23,7 @@ pub use crate::buffer_unbuffer::{
     buffer::{check_buffer_remaining, Buffer, BufferResult, BytesMutExtras},
     size_requirement::SizeRequirement,
     unbuffer::{
-        check_unbuffer_remaining, consume_expected, unbuffer_decimal_digits, Unbuffer,
-        UnbufferResult, peek_u32
+        check_unbuffer_remaining, consume_expected, peek_u32, unbuffer_decimal_digits, Unbuffer,
+        UnbufferResult,
     },
 };

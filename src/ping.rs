@@ -5,9 +5,13 @@
 //! Types and functions for the periodic ping/pong messages in the VRPN protocol.
 
 use crate::{
+    buffer_unbuffer::EmptyMessage,
+    data_types::{
+        id_types::*, ClassOfService, Message, MessageHeader, MessageTypeIdentifier, SenderName,
+        StaticTypeName, TypeId, TypedMessageBody,
+    },
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
-    ClassOfService, Connection, EmptyMessage, LocalId, Message, MessageHeader,
-    MessageTypeIdentifier, Result, SenderId, SenderName, StaticTypeName, TypeId, TypedMessageBody,
+    Connection,
 };
 use chrono::{prelude::*, Duration};
 use std::{
@@ -26,6 +30,7 @@ impl Default for Ping {
         Ping
     }
 }
+
 impl EmptyMessage for Ping {}
 impl TypedMessageBody for Ping {
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =

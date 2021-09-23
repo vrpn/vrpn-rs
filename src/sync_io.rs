@@ -9,19 +9,21 @@
 extern crate bytes;
 
 use crate::{
-    codec::peek_u32,
+    buffer_unbuffer::{
+        peek_u32, size_requirement::MayContainSizeRequirement, BufferUnbufferError,
+        ConstantBufferSize, SizeRequirement, Unbuffer,
+    },
+    data_types::{
+        flags::ClassOfService, id_types::SequenceNumber, CookieData, GenericMessage, MessageSize,
+        SequencedGenericMessage,
+    },
     endpoint::SystemCommand,
-    error::{BufferUnbufferError, Error},
-    message::MessageSize,
-    prelude::*,
-    size_requirement::MayContainSizeRequirement,
+    error::Error,
     translation_table::Tables as TranslationTables,
-    ClassOfService, ConstantBufferSize, CookieData, Endpoint, EndpointGeneric, GenericMessage,
-    Result, SequenceNumber, SequencedGenericMessage, SizeRequirement, TypeDispatcher, Unbuffer,
+    Endpoint, EndpointGeneric, Result, TypeDispatcher,
 };
 use bytes::BytesMut;
 use std::{
-    convert::TryFrom,
     io::{self, Read, Write},
     net::TcpStream,
     sync::{

@@ -14,13 +14,12 @@ use crate::buffer_unbuffer::{
 };
 
 use super::{
-    constants, length_prefixed, BaseTypeSafeId, IdType, Message, MessageTypeIdentifier, SenderId,
-    TypeId, TypedMessageBody,
+    constants, id_types::*, length_prefixed, Message, MessageTypeIdentifier, TypedMessageBody,
 };
 
 /// Body struct for use in Message<T> for sender/type descriptions
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct InnerDescription<T: BaseTypeSafeId> {
+pub(crate) struct InnerDescription<T: BaseTypeSafeId> {
     pub(crate) name: Bytes,
     phantom: PhantomData<T>,
 }

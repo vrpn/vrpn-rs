@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use self::RangedId::*;
-use crate::{
-    determine_id_range, BaseTypeSafeId, Error, IntoId, LocalId, RangedId, RemoteId, Result,
-    SenderId, TypeId,
-};
+use crate::{data_types::id_types::*, Error, Result};
 use bytes::Bytes;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -64,6 +60,7 @@ impl<T: BaseTypeSafeId> Table<T> {
 
     /// Converts a remote ID to the corresponding local ID
     pub(crate) fn map_to_local_id(&self, id: RemoteId<T>) -> Result<Option<LocalId<T>>> {
+        use RangedId::*;
         match self.determine_remote_id_range(id) {
             BelowZero(_) => Ok(None),
             AboveArray(v) => Err(Error::InvalidId(v)),
@@ -80,6 +77,7 @@ impl<T: BaseTypeSafeId> Table<T> {
         remote_id: RemoteId<T>,
         local_id: LocalId<T>,
     ) -> Result<RemoteId<T>> {
+        use RangedId::*;
         let index = match self.determine_remote_id_range(remote_id) {
             BelowZero(v) => return Err(Error::InvalidId(v)),
             AboveArray(v) => {
@@ -234,7 +232,7 @@ mod tests {
     #[test]
     fn simple() {
         use super::*;
-        use crate::types::{RemoteId, SenderId};
+        use crate::data_types::id_types::{RemoteId, SenderId};
         let mut table: Table<SenderId> = Table::new();
         table
             .add_remote_entry(

@@ -3,17 +3,14 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    size_requirement::{ExpandSizeRequirement, MayContainSizeRequirement, SizeRequirement},
-    IdType, Version,
+    buffer_unbuffer::size_requirement::{
+        ExpandSizeRequirement, MayContainSizeRequirement, SizeRequirement,
+    },
+    buffer_unbuffer::BufferUnbufferError,
+    data_types::id_types::IdType,
+    data_types::Version,
 };
-use bytes::Bytes;
-use std::{
-    convert::TryFrom,
-    fmt::{self, Display},
-    net::AddrParseError,
-    num::ParseIntError,
-    ops::Add,
-};
+
 use thiserror::Error;
 
 /// Error type for the main VRPN crate
@@ -99,33 +96,9 @@ impl Error {
 }
 
 impl Error {
-    // pub fn append(self, new_err: Error) -> Error {
-    //     Error::ConsErrors(Box::new(new_err), Box::new(self))
-    // }
-
     pub fn is_need_more_data(&self) -> bool {
         self.try_get_size_requirement().is_some()
     }
-
-    // pub fn contains_need_more_data(&self) -> bool {
-    //     if self.is_need_more_data() { return true;}
-    //     // let head : Option<Box<Error>> = None;
-    //     // let tail: Option<Box<Error>> = Some(self);
-    //     if let &Error::ConsErrors(head, tail) = self {
-    //         return head.contains_need_more_data_internal() || tail.contains_need_more_data_internal();
-    //     }
-    //     return false;
-    // }
-
-    // fn contains_need_more_data_internal(self: &Box<Error>) -> bool {
-    //     let mut tail: &Box<Error> = self;
-    //     loop {
-    //         if tail.is_need_more_data() { return true;}
-    //         if let &Error::ConsErrors(head, new_tail) = tail {
-    //         }
-    //     }
-
-    // }
 }
 
 impl<T> From<std::sync::PoisonError<T>> for Error {
@@ -134,16 +107,7 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
     }
 }
 
+#[deprecated]
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub type EmptyResult = Result<()>;
-
-// /// Combine a result with an error.
-// ///
-// /// If the result already is an error, the new error gets appended.
-// pub fn append_error(old: Result<()>, new_err: Error) -> Result<()> {
-//     match old {
-//         Err(old_e) => Err(old_e.append(new_err)),
-//         Ok(()) => Err(new_err),
-//     }
-// }

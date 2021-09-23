@@ -2,13 +2,18 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{
-    descriptions::InnerDescription, type_dispatcher::HandlerHandle, BaseTypeSafeId, Buffer,
-    ClassOfService, Endpoint, EndpointGeneric, Handler, LocalId, LogFileNames, MatchingTable,
-    Message, MessageTypeIdentifier, RegisterMapping, Result, SenderId, SenderName, TimeVal,
-    TranslationTables, TypeDispatcher, TypeId, TypeName, TypedHandler, TypedMessageBody,
-};
 use std::sync::{Arc, Mutex};
+
+use crate::{
+    buffer_unbuffer::Buffer,
+    data_types::{
+        descriptions::InnerDescription, id_types::*, ClassOfService, LogFileNames, Message,
+        MessageTypeIdentifier, SenderName, TimeVal, TypeId, TypeName, TypedMessageBody,
+    },
+    type_dispatcher::HandlerHandle,
+    Endpoint, EndpointGeneric, Handler, MatchingTable, RegisterMapping, Result, TranslationTables,
+    TypeDispatcher, TypedHandler,
+};
 
 pub type EndpointVec<EP> = Vec<Option<EP>>;
 pub type SharedEndpointVec<EP> = Arc<Mutex<EndpointVec<EP>>>;

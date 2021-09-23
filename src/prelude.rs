@@ -3,8 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 pub use crate::{
-    buffer::BytesMutExtras,
+    buffer_unbuffer::{
+        size::{BufferSize, ConstantBufferSize, WrappedConstantSize},
+        BytesMutExtras,
+    },
     connection::Connection,
-    size::{BufferSize, ConstantBufferSize, WrappedConstantSize},
-    BaseTypeSafeId, TypeSafeId,
+    data_types::id_types::{BaseTypeSafeId, TypeSafeId},
 };

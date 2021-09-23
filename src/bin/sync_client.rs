@@ -14,12 +14,14 @@ extern crate vrpn;
 use bytes::Bytes;
 use std::net::{SocketAddr, TcpStream};
 use vrpn::{
-    constants::MAGIC_DATA,
-    cookie::check_ver_nonfile_compatible,
+    buffer_unbuffer::Unbuffer,
+    data_types::{
+        constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible, CookieData, Message,
+    },
     handler::{HandlerCode, TypedHandler},
     sync_io::{read_cookie, write_cookie, EndpointSyncTcp},
     tracker::PoseReport,
-    CookieData, Message, Result, TypeDispatcher, Unbuffer,
+    Result, TypeDispatcher,
 };
 
 #[derive(Debug)]

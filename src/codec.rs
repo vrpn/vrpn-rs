@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{
-    error::BufferUnbufferError,
-    message::MessageSize,
-    unbuffer::{check_unbuffer_remaining, UnbufferResult},
-    Result, SequencedGenericMessage, Unbuffer,
-};
 use bytes::{Buf, Bytes, BytesMut};
+
+use crate::{
+    buffer_unbuffer::{check_unbuffer_remaining, peek_u32, BufferUnbufferError, UnbufferResult},
+    data_types::{MessageSize, SequencedGenericMessage},
+    Result,
+};
 
 pub(crate) fn peek_u32_bytes_mut(buf: &BytesMut) -> Result<Option<u32>> {
     const SIZE_LEN: usize = std::mem::size_of::<u32>();

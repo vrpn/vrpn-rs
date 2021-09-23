@@ -11,12 +11,10 @@ use crate::{
     buffer_unbuffer::{
         buffer, size_requirement::*, unbuffer, BufferSize, BufferUnbufferError, WrappedConstantSize,
     },
-    Error,
+    Error, Result,
 };
 
-use super::{
-    IdType, IntoId, SenderId, SequenceNumber, StaticTypeName, TimeVal, TypeId, TypeSafeId,
-};
+use super::{id_types::*, name_types::StaticTypeName, TimeVal};
 
 /// Empty trait used to indicate types that can be placed in a message body.
 pub trait MessageBody /*: Buffer + Unbuffer */ {}

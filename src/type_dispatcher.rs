@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use self::RangedId::*;
-use crate::handler::*;
-use crate::types::*;
 use crate::{
-    constants, determine_id_range, types, Error, GenericMessage, MessageTypeIdentifier, RangedId,
-    Result, TypedMessageBody,
+    buffer_unbuffer::constants::GENERIC,
+    data_types::{
+        constants,
+        id_types::*,
+        message::{GenericMessage, MessageTypeIdentifier, TypedMessageBody},
+        name_types::{SenderName, TypeName},
+    },
+    handler::*,
+    Error, Result,
 };
 use bytes::Bytes;
 use std::{collections::HashMap, fmt, hash::Hash};
@@ -30,7 +34,7 @@ impl<T: BaseTypeSafeId> RegisterMapping<T> {
     }
 }
 
-type HandlerHandleInnerType = types::IdType;
+type HandlerHandleInnerType = IdType;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 struct HandlerHandleInner(HandlerHandleInnerType);
@@ -111,7 +115,7 @@ impl CallbackCollection {
         handler: Box<dyn Handler + Send>,
         sender: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandleInner> {
-        if self.callbacks.len() > types::MAX_VEC_USIZE {
+        if self.callbacks.len() > MAX_VEC_USIZE {
             return Err(Error::TooManyHandlers);
         }
         let handle = HandlerHandleInner(self.next_handle);
@@ -150,6 +154,7 @@ impl CallbackCollection {
 }
 
 fn message_type_into_index(message_type: TypeId, len: usize) -> Result<usize> {
+    use RangedId::*;
     match determine_id_range(message_type, len) {
         BelowZero(v) => Err(Error::InvalidId(v)),
         AboveArray(v) => Err(Error::InvalidId(v)),
@@ -189,7 +194,7 @@ impl TypeDispatcher {
         let mut disp = TypeDispatcher {
             types: Vec::new(),
             types_by_name: HashMap::new(),
-            generic_callbacks: CallbackCollection::new(Bytes::from_static(constants::GENERIC)),
+            generic_callbacks: CallbackCollection::new(Bytes::from_static(GENERIC)),
             senders: Vec::new(),
             senders_by_name: HashMap::new(),
         };
@@ -341,8 +346,11 @@ impl TypeDispatcher {
 }
 #[cfg(test)]
 mod tests {
+    use crate::data_types::{
+        message::{GenericBody, GenericMessage},
+        TimeVal,
+    };
     use crate::type_dispatcher::*;
-    use crate::{GenericBody, GenericMessage, TimeVal};
     use std::sync::{Arc, Mutex};
 
     #[derive(Debug, Clone)]

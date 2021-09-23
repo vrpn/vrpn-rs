@@ -5,10 +5,17 @@
 //! Types related to the `vrpn_Tracker` device class
 
 use crate::{
-    buffer::{check_buffer_remaining, BufferResult},
-    unbuffer::{check_unbuffer_remaining, UnbufferResult},
-    Buffer, BufferUnbufferError, ConstantBufferSize, MessageTypeIdentifier, Quat, Sensor,
-    SizeRequirement, StaticTypeName, TypedMessageBody, Unbuffer, Vec3,
+    buffer_unbuffer::{
+        buffer::{check_buffer_remaining, Buffer, BufferResult},
+        unbuffer::{check_unbuffer_remaining, Unbuffer, UnbufferResult},
+        ConstantBufferSize,
+    },
+    data_types::{
+        id_types::Sensor,
+        message::{MessageTypeIdentifier, TypedMessageBody},
+        name_types::StaticTypeName,
+        Quat, Vec3,
+    },
 };
 use bytes::{Buf, BufMut};
 
