@@ -26,9 +26,6 @@ extern crate downcast_rs;
 
 extern crate futures;
 
-#[macro_use]
-extern crate quick_error;
-
 #[cfg(feature = "async-tokio")]
 extern crate tokio;
 
