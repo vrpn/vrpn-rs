@@ -117,9 +117,9 @@ pub fn consume_expected<T: Buf>(
 ///
 /// ```
 /// use vrpn::buffer_unbuffer::peek_u32;
-/// use bytes::Buf;
+/// use bytes::{Buf, Bytes};
 /// let data = b"\0\0\0\0";
-/// let buf = &data[..];
+/// let mut buf = Bytes::copy_from_slice(&data[..]);
 /// assert_eq!(peek_u32(&buf).unwrap(), 0);
 /// assert_eq!(buf.remaining(), 4);
 /// ```
