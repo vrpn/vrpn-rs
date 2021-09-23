@@ -23,7 +23,7 @@ pub trait Unbuffer: Sized {
 ///
 /// Delegates to `Unbuffer::unbuffer_ref()`.
 /// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
-#[deprecated]
+#[deprecated = "Use Unbuffer::unbuffer_ref() directly instead"]
 pub fn unbuffer_ref<T: Unbuffer, U: Buf>(buf: &mut U) -> UnbufferResult<T> {
     T::unbuffer_ref(buf)
 }
@@ -34,7 +34,7 @@ pub fn unbuffer_ref<T: Unbuffer, U: Buf>(buf: &mut U) -> UnbufferResult<T> {
 /// with every call.
 ///
 /// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
-#[deprecated]
+#[deprecated = "Should not be necessary with modern futures, use Unbuffer::unbuffer_ref() directly instead"]
 pub fn unbuffer_from<T: Unbuffer>(buf: Bytes) -> UnbufferResult<(T, Bytes)> {
     let mut buf = buf;
     let v = T::unbuffer_ref(&mut buf)?;

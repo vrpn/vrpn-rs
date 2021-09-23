@@ -168,7 +168,7 @@ impl Endpoint for EndpointSyncTcp {
     fn buffer_generic_message(
         &mut self,
         msg: GenericMessage,
-        class: data_types::ClassOfService,
+        _class: data_types::ClassOfService,
     ) -> Result<(), Error> {
         // Ignore class of service here
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);

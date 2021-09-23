@@ -8,7 +8,6 @@ use crate::{
     },
     buffer_unbuffer::BufferUnbufferError,
     data_types::id_types::IdType,
-    data_types::Version,
 };
 
 use thiserror::Error;
@@ -112,7 +111,8 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
     }
 }
 
-#[deprecated]
+#[deprecated(note = "Use std::result::Result with explicit error type instead")]
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[deprecated(note = "You probably want crate::buffer_unbuffer::buffer::BufferResult")]
 pub type EmptyResult = Result<()>;

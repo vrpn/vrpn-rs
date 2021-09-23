@@ -4,9 +4,7 @@
 
 //! Name types used across VRPN
 
-use super::constants;
-use crate::buffer_unbuffer::{buffer, unbuffer, ConstantBufferSize, WrappedConstantSize};
-use bytes::{Buf, BufMut, Bytes};
+use bytes::Bytes;
 
 /// A named ID, extending `BaseTypeSafeID`
 pub trait BaseTypeSafeIdName

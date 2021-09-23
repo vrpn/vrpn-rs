@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Buf, BytesMut};
 
 use crate::{
     buffer_unbuffer::{
@@ -76,6 +76,8 @@ pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<Sequenced
 // }
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use super::*;
 
     #[test]
