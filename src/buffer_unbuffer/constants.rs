@@ -17,3 +17,5 @@ pub const CNAME_LEN: usize = 100;
 
 /// default port to use
 pub const DEFAULT_PORT: u16 = 3883;
+
+pub const ALIGN: usize = 8;
