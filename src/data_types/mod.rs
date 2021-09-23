@@ -5,9 +5,8 @@
 //! Data types
 
 pub mod constants;
-mod cookie;
+pub mod cookie;
 pub(crate) mod descriptions;
-pub(crate) mod flags;
 pub mod id_types;
 pub(crate) mod length_prefixed;
 pub(crate) mod log;

@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{ping::Client as RawClient, Connection, LocalId, Result, SenderId, SenderName};
+use crate::{
+    data_types::{
+        id_types::{LocalId, SenderId},
+        name_types::SenderName,
+    },
+    ping::Client as RawClient,
+    Connection, Result,
+};
 use futures::{ready, Stream};
 use std::task::Poll;
 use std::{sync::Arc, time::Duration};

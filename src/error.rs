@@ -34,8 +34,8 @@ pub enum Error {
     NotSystemMessage,
     #[error("un-recognized system message id {0}")]
     UnrecognizedSystemMessage(IdType),
-    #[error("version mismatch: expected something compatible with {expected}, got {actual}")]
-    VersionMismatch { actual: Version, expected: Version },
+    #[error("{0}")]
+    VersionMismatch(crate::data_types::cookie::VersionMismatch),
     #[error("{0}")]
     Other(#[from] Box<dyn std::error::Error + Send>),
     #[error("{0}")]
@@ -48,6 +48,11 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<crate::data_types::cookie::VersionMismatch> for Error {
+    fn from(e: crate::data_types::cookie::VersionMismatch) -> Self {
+        Error::VersionMismatch(e)
+    }
+}
 impl MayContainSizeRequirement for Error {
     fn try_get_size_requirement(self) -> Option<SizeRequirement> {
         match self {

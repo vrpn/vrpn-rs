@@ -3,10 +3,12 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    constants::{FILE_MAGIC_DATA, MAGIC_DATA},
-    cookie::{check_ver_file_compatible, check_ver_nonfile_compatible},
-    prelude::BytesMutExtras,
-    ConstantBufferSize, CookieData, Error, Unbuffer,
+    buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, Unbuffer},
+    data_types::{
+        constants::{FILE_MAGIC_DATA, MAGIC_DATA},
+        cookie::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData},
+    },
+    Error,
 };
 use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -40,7 +42,7 @@ pub(crate) async fn send_nonfile_cookie<T>(stream: &mut T) -> Result<(), Error>
 where
     T: tokio::io::AsyncWrite + Unpin,
 {
-    write_cookie(stream, CookieData::from(MAGIC_DATA)).await
+    write_cookie(stream, CookieData::make_cookie()).await
 }
 
 /// Writes the "file" magic cookie to the stream.
@@ -50,7 +52,7 @@ pub(crate) async fn send_file_cookie<T>(stream: &mut T) -> Result<(), Error>
 where
     T: tokio::io::AsyncWrite + Unpin,
 {
-    write_cookie(stream, CookieData::from(FILE_MAGIC_DATA)).await
+    write_cookie(stream, CookieData::make_file_cookie()).await
 }
 
 /// Reads a cookie's worth of data from the stream, and cheacks to make sure it is the right version.

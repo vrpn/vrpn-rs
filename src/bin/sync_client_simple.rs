@@ -17,12 +17,13 @@ use std::{
     net::{SocketAddr, TcpStream},
 };
 use vrpn::{
-    codec::peek_u32,
-    constants::MAGIC_DATA,
-    cookie::check_ver_nonfile_compatible,
-    message::MessageSize,
+    buffer_unbuffer::{peek_u32, Unbuffer},
+    data_types::{
+        cookie::check_ver_nonfile_compatible, CookieData, Message, MessageSize,
+        SequencedGenericMessage,
+    },
     sync_io::{read_cookie, write_cookie},
-    CookieData, Message, Result, SequencedGenericMessage, Unbuffer,
+    Result,
 };
 
 fn main() -> Result<()> {
@@ -31,7 +32,7 @@ fn main() -> Result<()> {
     stream.set_nodelay(true)?;
 
     // We first write our cookie, then read and check the server's cookie, before the loop.
-    write_cookie(&mut stream, CookieData::from(MAGIC_DATA))?;
+    write_cookie(&mut stream, CookieData::make_cookie())?;
     let cookie_buf = read_cookie(&mut stream)?;
     let mut cookie_buf = Bytes::copy_from_slice(&cookie_buf[..]);
 

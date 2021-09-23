@@ -3,7 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    codec::decode_one, Buffer, BufferUnbufferError, Error, Result, SequencedGenericMessage,
+    buffer_unbuffer::{Buffer, BufferUnbufferError},
+    codec::decode_one,
+    data_types::message::SequencedGenericMessage,
+    Error, Result,
 };
 use bytes::{Buf, BytesMut};
 use tokio_util::codec::{Decoder, Encoder, Framed};
@@ -58,7 +61,7 @@ pub fn apply_message_framing<T: tokio::io::AsyncRead + tokio::io::AsyncWrite>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{descriptions::InnerDescription, Message, SenderId};
+    use crate::data_types::{descriptions::InnerDescription, id_types::SenderId, message::Message};
     use bytes::BufMut;
     type SenderInnerDesc = Message<InnerDescription<SenderId>>;
 

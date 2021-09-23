@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+use super::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie};
 use crate::prelude::*;
 use crate::{
-    async_io::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
+    buffer_unbuffer::Unbuffer,
     constants,
-    cookie::check_ver_nonfile_compatible,
-    CookieData, Error, Result, Scheme, ServerInfo, Unbuffer,
+    data_types::{cookie::check_ver_nonfile_compatible, CookieData},
+    Error, Result, Scheme, ServerInfo,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::ready;
@@ -379,7 +380,7 @@ async fn connect_tcp_and_udp(server: ServerInfo) -> Result<ConnectResults> {
 }
 async fn connect_tcp_only(server: ServerInfo) -> Result<ConnectResults> {
     let cookie_buf = BytesMut::new()
-        .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
+        .allocate_and_buffer(CookieData::make_cookie())?
         .freeze();
     let addr = server.socket_addr;
     finish_connecting(server, State::Connecting, None).await
@@ -441,7 +442,7 @@ pub(crate) async fn finish_connecting(
 
             State::SendingHandshake => {
                 let mut cookie_buf = BytesMut::new()
-                    .allocate_and_buffer(CookieData::from(constants::MAGIC_DATA))?
+                    .allocate_and_buffer(CookieData::make_cookie())?
                     .freeze();
                 while cookie_buf.has_remaining() {
                     stream.as_mut().unwrap().write_buf(&mut cookie_buf).await?;
@@ -541,10 +542,6 @@ mod tests {
     use std::io::{Read, Write};
 
     use super::*;
-    use crate::{
-        constants::MAGIC_DATA, cookie::check_ver_nonfile_compatible, ConstantBufferSize,
-        CookieData, ServerInfo, Unbuffer,
-    };
     use bytes::{Bytes, BytesMut};
 
     #[test]
@@ -567,14 +564,14 @@ mod tests {
 
     #[test]
     fn sync_connect() {
-        use crate::buffer::Buffer;
+        use crate::buffer_unbuffer::buffer::Buffer;
 
         let addr: SocketAddr = "127.0.0.1:3883".parse().unwrap();
 
         let mut sock = make_tcp_socket(addr.clone()).expect("failure making the socket");
         // sock.connect(&SockAddr::from(&addr)).unwrap();
 
-        let cookie = CookieData::from(MAGIC_DATA);
+        let cookie = CookieData::make_cookie();
         let mut send_buf = BytesMut::with_capacity(cookie.required_buffer_size());
         cookie.buffer_ref(&mut send_buf).unwrap();
         sock.write_all(&send_buf.freeze()).unwrap();

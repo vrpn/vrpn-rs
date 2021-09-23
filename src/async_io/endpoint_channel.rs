@@ -5,7 +5,8 @@
 // https://github.com/tokio-rs/tokio/blob/24d99c029eff5d5b82aff567f1ad5ede8a8c2576/examples/chat.rs
 
 use crate::{
-    Endpoint, EndpointGeneric, Error, GenericMessage, SequencedGenericMessage, TypeDispatcher,
+    data_types::message::{GenericMessage, SequencedGenericMessage},
+    Endpoint, EndpointGeneric, Error, TypeDispatcher,
 };
 use futures::StreamExt;
 use futures::{

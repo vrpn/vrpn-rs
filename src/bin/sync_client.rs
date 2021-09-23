@@ -40,7 +40,7 @@ fn main() -> Result<()> {
     stream.set_nodelay(true)?;
 
     // We first write our cookie, then read and check the server's cookie, before the loop.
-    write_cookie(&mut stream, CookieData::from(MAGIC_DATA))?;
+    write_cookie(&mut stream, CookieData::make_cookie())?;
     let cookie_buf = read_cookie(&mut stream)?;
     let mut cookie_buf = Bytes::copy_from_slice(&cookie_buf[..]);
 

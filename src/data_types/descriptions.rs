@@ -19,7 +19,7 @@ use super::{
 
 /// Body struct for use in Message<T> for sender/type descriptions
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct InnerDescription<T: BaseTypeSafeId> {
+pub struct InnerDescription<T: BaseTypeSafeId> {
     pub(crate) name: Bytes,
     phantom: PhantomData<T>,
 }

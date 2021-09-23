@@ -4,7 +4,10 @@
 
 use crate::async_io::codec::*;
 use crate::async_io::cookie::*;
-use crate::{ClassOfService, Endpoint, GenericMessage, Result, SystemCommand, TranslationTables};
+use crate::{
+    data_types::{message::GenericMessage, ClassOfService},
+    Endpoint, Result, SystemCommand, TranslationTables,
+};
 use futures::channel::mpsc;
 use std::fs;
 use tokio::fs::File;

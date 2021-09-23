@@ -45,6 +45,16 @@ impl CookieData {
             log_mode: None,
         }
     }
+
+    /// Make a cookie for file use
+    pub fn make_file_cookie() -> Self {
+        Self::from(constants::FILE_MAGIC_DATA)
+    }
+
+    /// Make a cookie for network use
+    pub fn make_cookie() -> Self {
+        Self::from(constants::MAGIC_DATA)
+    }
 }
 impl Default for CookieData {
     fn default() -> CookieData {
@@ -151,9 +161,20 @@ impl Display for CookieData {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VersionMismatch {
     actual: Version,
     expected: Version,
+}
+
+impl Display for VersionMismatch {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "version mismatch: expected something compatible with {}, got {}",
+            self.expected, self.actual
+        )
+    }
 }
 
 pub fn check_ver_nonfile_compatible(ver: Version) -> Result<(), VersionMismatch> {
@@ -190,7 +211,7 @@ mod tests {
     fn formatting() {
         assert_eq!(format!("{}", constants::MAGIC_DATA), "07.35");
         assert_eq!(
-            format!("{}", CookieData::from(constants::MAGIC_DATA)),
+            format!("{}", CookieData::make_cookie()),
             "vrpn: ver. 07.35  0"
         );
         assert_eq!(
@@ -207,7 +228,7 @@ mod tests {
             constants::MAGICLEN - constants::MAGIC_PREFIX.len()
         );
 
-        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
+        let mut magic_cookie = CookieData::make_cookie();
         magic_cookie.log_mode = Some(LogMode::NONE);
         assert_eq!(magic_cookie.required_buffer_size(), constants::COOKIE_SIZE);
 
@@ -226,7 +247,7 @@ mod tests {
 
     #[test]
     fn roundtrip() {
-        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
+        let mut magic_cookie = CookieData::make_cookie();
         magic_cookie.log_mode = Some(LogMode::NONE);
         let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
         magic_cookie
@@ -239,7 +260,7 @@ mod tests {
 
     #[test]
     fn roundtrip_bytesmut() {
-        let mut magic_cookie = CookieData::from(constants::MAGIC_DATA);
+        let mut magic_cookie = CookieData::make_cookie();
         magic_cookie.log_mode = Some(LogMode::INCOMING);
 
         let mut buf = BytesMut::new()
