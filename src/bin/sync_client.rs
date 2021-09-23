@@ -42,8 +42,8 @@ fn main() -> Result<()> {
     let cookie_buf = read_cookie(&mut stream)?;
     let mut cookie_buf = Bytes::copy_from_slice(&cookie_buf[..]);
 
-    CookieData::unbuffer_ref(&mut cookie_buf)
-        .and_then(|msg| check_ver_nonfile_compatible(msg.version))?;
+    let msg = CookieData::unbuffer_ref(&mut cookie_buf)?;
+    check_ver_nonfile_compatible(msg.version)?;
 
     let mut endpoint = EndpointSyncTcp::new(stream);
     let mut dispatcher = TypeDispatcher::new();

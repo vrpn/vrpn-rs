@@ -35,8 +35,8 @@ fn main() -> Result<()> {
     let cookie_buf = read_cookie(&mut stream)?;
     let mut cookie_buf = Bytes::copy_from_slice(&cookie_buf[..]);
 
-    CookieData::unbuffer_ref(&mut cookie_buf)
-        .and_then(|msg| check_ver_nonfile_compatible(msg.version))?;
+    let msg = CookieData::unbuffer_ref(&mut cookie_buf)?;
+    check_ver_nonfile_compatible(msg.version)?;
 
     // Not actually doing anything with the messages here, just receiving them and printing them.
     loop {
@@ -47,7 +47,7 @@ fn main() -> Result<()> {
         stream.read_exact(buf.as_mut())?;
 
         // Peek the size field, to compute the MessageSize.
-        let total_len = peek_u32(&buf.clone().freeze())?.unwrap();
+        let total_len = peek_u32(&buf.clone().freeze()).unwrap();
         let size = MessageSize::from_length_field(total_len);
 
         // Read the body of the message
