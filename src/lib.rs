@@ -35,10 +35,9 @@ pub mod async_io;
 pub mod buffer_unbuffer;
 pub mod data_types;
 
+mod codec;
 pub mod connection;
 pub mod constants;
-pub mod descriptions;
-mod codec;
 pub mod endpoint;
 pub mod error;
 pub mod handler;
@@ -53,7 +52,6 @@ pub mod type_dispatcher;
 
 pub use crate::{
     connection::{Connection, ConnectionStatus},
-    descriptions::{Description, UdpDescription},
     endpoint::*,
     error::{EmptyResult, Error, Result},
     handler::{Handler, TypedBodylessHandler, TypedHandler},

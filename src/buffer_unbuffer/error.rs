@@ -2,19 +2,14 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{
-    size_requirement::{ExpandSizeRequirement, MayContainSizeRequirement, SizeRequirement},
-    IdType, Version,
-};
 use bytes::Bytes;
-use std::{
-    convert::TryFrom,
-    fmt::{self, Display},
-    net::AddrParseError,
-    num::ParseIntError,
-    ops::Add,
-};
+use std::{net::AddrParseError, num::ParseIntError};
 use thiserror::Error;
+
+use super::{
+    size_requirement::{ExpandSizeRequirement, MayContainSizeRequirement},
+    SizeRequirement,
+};
 
 /// Error type returned by buffering/unbuffering.
 #[derive(Error, Debug)]

@@ -9,6 +9,10 @@ use std::{
     net::{IpAddr, SocketAddr},
 };
 
+use super::{
+    constants, BaseTypeSafeId, Message, MessageTypeIdentifier, SenderId, TypeId, TypedMessageBody,
+};
+
 /// Body struct for use in Message<T> for sender/type descriptions
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct InnerDescription<T: BaseTypeSafeId> {

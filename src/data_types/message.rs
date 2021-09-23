@@ -4,7 +4,6 @@
 
 //! Message types and message size computations.
 
-
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::{convert::TryFrom, mem::size_of};
 

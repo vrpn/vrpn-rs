@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use std::{fmt::{self, Display}, ops::Add, result};
+use std::{
+    fmt::{self, Display},
+    ops::Add,
+    result,
+};
 
 /// Implemented by types (like errors) that may contain a `SizeRequirement`.
 ///
@@ -40,7 +44,6 @@ impl<T, E: ExpandSizeRequirement> ExpandSizeRequirement for result::Result<T, E>
         }
     }
 }
-
 
 /// Expresses how many more bytes we require/expect when parsing a message.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]

@@ -2,13 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{
-    buffer::{check_buffer_remaining, BufferResult},
-    unbuffer::UnbufferConstantSize,
-    unbuffer::{check_unbuffer_remaining, UnbufferResult},
-    Buffer, BufferUnbufferError, ConstantBufferSize, Quat, Sensor, SizeRequirement, Unbuffer, Vec3,
-    WrappedConstantSize,
-};
+use crate::buffer_unbuffer::Buffer;
+use crate::buffer_unbuffer::ConstantBufferSize;
+use crate::buffer_unbuffer::UnbufferConstantSize;
+use crate::buffer_unbuffer::UnbufferResult;
 use bytes::{Buf, BufMut};
 
 macro_rules! buffer_primitive {

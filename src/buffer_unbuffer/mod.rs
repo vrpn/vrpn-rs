@@ -4,20 +4,20 @@
 
 //! Routines and traits to buffer/unbuffer to/from byte buffers.
 
-mod buffer;
+pub(crate) mod buffer;
 pub mod constants;
 mod error;
 mod primitives;
 mod size;
 mod size_requirement;
-mod unbuffer;
+pub(crate) mod unbuffer;
 
 #[doc(inline)]
 pub use crate::buffer_unbuffer::{
-    buffer::{Buffer, BytesMutExtras},
+    buffer::{Buffer, BufferResult, BytesMutExtras},
     error::BufferUnbufferError,
     primitives::*,
     size::{BufferSize, ConstantBufferSize, EmptyMessage, WrappedConstantSize},
     size_requirement::SizeRequirement,
-    unbuffer::Unbuffer,
+    unbuffer::{Unbuffer, UnbufferResult},
 };
