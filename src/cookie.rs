@@ -166,7 +166,10 @@ pub fn check_ver_nonfile_compatible(ver: Version) -> EmptyResult {
     if ver.major == constants::MAGIC_DATA.major {
         Ok(())
     } else {
-        Err(Error::VersionMismatch(ver, constants::MAGIC_DATA))
+        Err(Error::VersionMismatch {
+            actual: ver,
+            expected: constants::MAGIC_DATA,
+        })
     }
 }
 
@@ -174,7 +177,10 @@ pub fn check_ver_file_compatible(ver: Version) -> EmptyResult {
     if ver.major == constants::FILE_MAGIC_DATA.major {
         Ok(())
     } else {
-        Err(Error::VersionMismatch(ver, constants::FILE_MAGIC_DATA))
+        Err(Error::VersionMismatch {
+            actual: ver,
+            expected: constants::FILE_MAGIC_DATA,
+        })
     }
 }
 

@@ -87,13 +87,6 @@ pub enum BufferUnbufferError {
     ParseError { parsing_kind: String, s: String },
 }
 
-// quick_error! {
-// }
-// {
-//             display(, , )
-//             from(e: ParseIntError) -> ("integer".to_string(), e.to_string())
-//             from(e: AddrParseError) -> ("IP address".to_string(), e.to_string())
-//         }
 impl From<BytesRequired> for BufferUnbufferError {
     fn from(val: BytesRequired) -> Self {
         BufferUnbufferError::NeedMoreData(val)
@@ -108,6 +101,7 @@ impl From<ParseIntError> for BufferUnbufferError {
         }
     }
 }
+
 impl From<AddrParseError> for BufferUnbufferError {
     fn from(e: AddrParseError) -> Self {
         BufferUnbufferError::ParseError {
@@ -160,62 +154,38 @@ impl BufferUnbufferError {
     }
 }
 
-quick_error! {
-    /// Error type for the main VRPN crate
-    #[derive(Debug)]
-    pub enum Error {
-        BufferUnbuffer(err: BufferUnbufferError) {
-            source(err)
-            display("{}", err)
-            from()
-        }
-        InvalidId(id: IdType) {
-            display("invalid id {}", id)
-        }
-        EmptyEntry {
-            display("empty translation table entry")
-        }
-        // InvalidDecimalDigit(chars: Vec<char>) {
-        //     display(self_) -> ("got the following non-decimal-digit(s) {}", itertools::join(chars.iter().map(|x : &char| x.to_string()), ","))
-        // }
-        TooManyHandlers {
-            display("too many handlers")
-        }
-        TooManyMappings {
-            display("too many mappings")
-        }
-        HandlerNotFound {
-            display("handler not found")
-        }
-        GenericErrorReturn {
-            display("handler returned an error")
-        }
-        NotSystemMessage {
-            display("a non-system message was forwarded to Endpoint::handle_message_as_system()")
-        }
-        UnrecognizedSystemMessage(id: IdType) {
-            display("un-recognized system message id {}", id)
-        }
-        VersionMismatch(actual: Version, expected: Version) {
-            display(
-                    "version mismatch: expected something compatible with {}, got {}",
-                    expected, actual)
-        }
-        Other(err: Box<dyn std::error::Error + Send>) {
-            source(&**err)
-            display("{}", err)
-            source(err)
-            from(e: std::num::ParseIntError) -> (Box::new(e))
-            from(e: std::io::Error) -> (Box::new(e))
-        }
-        OtherMessage(s: String) {
-            from()
-            display("{}", s)
-        }
-        // ConsErrors(err: Box<Error>, tail: Box<Error>) {
-        //     source(err)
-        //     display("{}, {}", err, tail)
-        // }
+/// Error type for the main VRPN crate
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("{0}")]
+    BufferUnbuffer(#[from] BufferUnbufferError),
+    #[error("invalid id {0}")]
+    InvalidId(IdType),
+    #[error("empty translation table entry")]
+    EmptyEntry,
+    #[error("too many handlers")]
+    TooManyHandlers,
+    #[error("too many mappings")]
+    TooManyMappings,
+    #[error("handler not found")]
+    HandlerNotFound,
+    #[error("handler returned an error")]
+    GenericErrorReturn,
+    #[error("a non-system message was forwarded to Endpoint::handle_message_as_system()")]
+    NotSystemMessage,
+    #[error("un-recognized system message id {0}")]
+    UnrecognizedSystemMessage(IdType),
+    #[error("version mismatch: expected something compatible with {expected}, got {actual}")]
+    VersionMismatch { actual: Version, expected: Version },
+    #[error("{0}")]
+    Other(#[from] Box<dyn std::error::Error + Send>),
+    #[error("{0}")]
+    OtherMessage(String),
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::Other(Box::new(e))
     }
 }
 
