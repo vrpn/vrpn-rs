@@ -11,6 +11,7 @@ use std::{
     num::ParseIntError,
     ops::Add,
 };
+use thiserror::Error;
 
 /// Expresses how many more bytes we require/expect when parsing a message.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -71,33 +72,48 @@ impl Display for BytesRequired {
 /// A minimal "error" indicating that an error did not contain a BytesRequired value.
 pub struct DoesNotContainBytesRequired(());
 
-quick_error! {
-    /// Error type returned by buffering/unbuffering.
-    #[derive(Debug)]
-    pub enum BufferUnbufferError {
-        NeedMoreData(needed: BytesRequired) {
-            display("unbuffering ran out of buffered bytes: need {} additional bytes", needed)
-        }
-        UnexpectedAsciiData(actual: Bytes, expected: Bytes) {
-            display("unexpected data: expected '{:?}', got '{:?}'", &expected[..], &actual[..])
-        }
-        OutOfBuffer {
-            display("buffering ran out of buffer space")
-        }
-        HeaderSizeMismatch(size_description: String) {
-            display("according to a length field we have complete data, but we need at least {} additional bytes", size_description)
-        }
-        ParseError(parsing_kind: String, s: String) {
-            display("Error parsing {}: {}", parsing_kind, s)
-            from(e: ParseIntError) -> ("integer".to_string(), e.to_string())
-            from(e: AddrParseError) -> ("IP address".to_string(), e.to_string())
-        }
-    }
+/// Error type returned by buffering/unbuffering.
+#[derive(Error, Debug)]
+pub enum BufferUnbufferError {
+    #[error("unbuffering ran out of buffered bytes: need {0} additional bytes")]
+    NeedMoreData(BytesRequired),
+    #[error("unexpected data: expected '{expected:?}', got '{actual:?}'")]
+    UnexpectedAsciiData { actual: Bytes, expected: Bytes },
+    #[error("buffering ran out of buffer space")]
+    OutOfBuffer,
+    #[error("according to a length field we have complete data, but we need at least {0} additional bytes")]
+    HeaderSizeMismatch(String),
+    #[error("Error parsing {parsing_kind}: {s}")]
+    ParseError { parsing_kind: String, s: String },
 }
 
+// quick_error! {
+// }
+// {
+//             display(, , )
+//             from(e: ParseIntError) -> ("integer".to_string(), e.to_string())
+//             from(e: AddrParseError) -> ("IP address".to_string(), e.to_string())
+//         }
 impl From<BytesRequired> for BufferUnbufferError {
     fn from(val: BytesRequired) -> Self {
         BufferUnbufferError::NeedMoreData(val)
+    }
+}
+
+impl From<ParseIntError> for BufferUnbufferError {
+    fn from(e: ParseIntError) -> Self {
+        BufferUnbufferError::ParseError {
+            parsing_kind: "integer".to_string(),
+            s: e.to_string(),
+        }
+    }
+}
+impl From<AddrParseError> for BufferUnbufferError {
+    fn from(e: AddrParseError) -> Self {
+        BufferUnbufferError::ParseError {
+            parsing_kind: "IP address".to_string(),
+            s: e.to_string(),
+        }
     }
 }
 

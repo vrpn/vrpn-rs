@@ -25,6 +25,7 @@ socket2 = "0.4.2"
 futures= { version = "0.3.17", features = ["compat"] }
 chrono = "^0.4.6"
 url = "^2.2.2"
+thiserror = "1.0"
 
 [dev-dependencies]
 hex-literal = "0.3.3"

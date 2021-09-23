@@ -142,9 +142,9 @@ pub fn consume_expected<T: Buf>(
     if my_bytes == expected {
         Ok(())
     } else {
-        Err(BufferUnbufferError::UnexpectedAsciiData(
-            my_bytes,
-            Bytes::from_static(expected),
-        ))
+        Err(BufferUnbufferError::UnexpectedAsciiData {
+            actual: my_bytes,
+            expected: Bytes::from_static(expected),
+        })
     }
 }
