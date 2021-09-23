@@ -33,6 +33,7 @@ extern crate tokio;
 pub mod async_io;
 
 pub mod buffer;
+mod bytes_required;
 pub mod codec;
 pub mod connection;
 pub mod constants;
@@ -59,11 +60,12 @@ pub mod unbuffer;
 
 pub use crate::{
     buffer::{Buffer, BytesMutExtras},
+    bytes_required::BytesRequired,
     connection::{Connection, ConnectionStatus},
     cookie::{CookieData, Version},
     descriptions::{Description, UdpDescription},
     endpoint::*,
-    error::{BufferUnbufferError, BytesRequired, EmptyResult, Error, Result},
+    error::{BufferUnbufferError, EmptyResult, Error, Result},
     handler::{Handler, TypedBodylessHandler, TypedHandler},
     log::{LogFileNames, LogMode},
     message::{
