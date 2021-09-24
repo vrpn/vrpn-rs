@@ -14,7 +14,7 @@ pub mod unbuffer;
 
 #[doc(inline)]
 pub use crate::buffer_unbuffer::{
-    error::BufferUnbufferError,
+    error::{BufferUnbufferError, MessageSizeInvalid},
     primitives::*,
     size::{BufferSize, ConstantBufferSize, EmptyMessage, WrappedConstantSize},
 };

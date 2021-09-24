@@ -377,8 +377,7 @@ async fn connect_tcp_and_udp(server: ServerInfo) -> Result<ConnectResults> {
     .await
 }
 async fn connect_tcp_only(server: ServerInfo) -> Result<ConnectResults> {
-    let cookie_buf = BytesMut::allocate_and_buffer(CookieData::make_cookie())?
-        .freeze();
+    let cookie_buf = BytesMut::allocate_and_buffer(CookieData::make_cookie())?.freeze();
     let addr = server.socket_addr;
     finish_connecting(server, State::Connecting, None).await
 }
@@ -440,8 +439,8 @@ pub(crate) async fn finish_connecting(
             }
 
             State::SendingHandshake => {
-                let mut cookie_buf = BytesMut::allocate_and_buffer(CookieData::make_cookie())?
-                    .freeze();
+                let mut cookie_buf =
+                    BytesMut::allocate_and_buffer(CookieData::make_cookie())?.freeze();
                 while cookie_buf.has_remaining() {
                     stream.as_mut().unwrap().write_buf(&mut cookie_buf).await?;
                 }

@@ -3,8 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    buffer_unbuffer::BufferSize, codec::decode_one, data_types::message::SequencedGenericMessage,
-    Result, VrpnError,
+    buffer_unbuffer::BufferSize, codec::maybe_decode_one,
+    data_types::message::SequencedGenericMessage, Result, VrpnError,
 };
 use bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder, Framed};
@@ -25,7 +25,7 @@ impl Decoder for FramedMessageCodec {
             return Ok(None);
         }
         let mut inner_buf = src.clone();
-        match decode_one(&mut inner_buf)? {
+        match maybe_decode_one(&mut inner_buf)? {
             Some(msg) => {
                 let consumed = initial_len - inner_buf.len();
                 src.advance(consumed);

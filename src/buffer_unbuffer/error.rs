@@ -11,6 +11,17 @@ use super::{
     SizeRequirement,
 };
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct MessageSizeInvalid(pub u32);
+
+impl std::fmt::Display for MessageSizeInvalid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Message size field {} is smaller than minimum", self.0)
+    }
+}
+
+impl std::error::Error for MessageSizeInvalid {}
+
 /// Error type returned by buffering/unbuffering.
 #[derive(Error, Debug)]
 pub enum BufferUnbufferError {
@@ -24,11 +35,19 @@ pub enum BufferUnbufferError {
     HeaderSizeMismatch(String),
     #[error("Error parsing {parsing_kind}: {s}")]
     ParseError { parsing_kind: String, s: String },
+    #[error("{}", .0)]
+    MessageSizeInvalid(MessageSizeInvalid),
 }
 
 impl From<SizeRequirement> for BufferUnbufferError {
     fn from(val: SizeRequirement) -> Self {
         BufferUnbufferError::NeedMoreData(val)
+    }
+}
+
+impl From<MessageSizeInvalid> for BufferUnbufferError {
+    fn from(val: MessageSizeInvalid) -> Self {
+        BufferUnbufferError::MessageSizeInvalid(val)
     }
 }
 

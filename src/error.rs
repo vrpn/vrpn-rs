@@ -6,7 +6,7 @@ use crate::{
     buffer_unbuffer::size_requirement::{
         ExpandSizeRequirement, MayContainSizeRequirement, SizeRequirement,
     },
-    buffer_unbuffer::BufferUnbufferError,
+    buffer_unbuffer::{BufferUnbufferError, MessageSizeInvalid},
     data_types::id_types::IdType,
 };
 
@@ -33,6 +33,8 @@ pub enum VrpnError {
     NotSystemMessage,
     #[error("un-recognized system message id {0}")]
     UnrecognizedSystemMessage(IdType),
+    #[error("{0}")]
+    MessageSizeInvalid(MessageSizeInvalid),
     #[error("{0}")]
     VersionMismatch(crate::data_types::cookie::VersionMismatch),
     #[error("{0}")]
@@ -111,6 +113,11 @@ impl<T> From<std::sync::PoisonError<T>> for VrpnError {
     }
 }
 
+impl From<MessageSizeInvalid> for VrpnError {
+    fn from(_: MessageSizeInvalid) -> Self {
+        todo!()
+    }
+}
 // #[deprecated(note = "Use std::result::Result with explicit error type instead")]
 pub type Result<T> = std::result::Result<T, VrpnError>;
 

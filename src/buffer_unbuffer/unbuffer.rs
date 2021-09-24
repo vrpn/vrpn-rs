@@ -13,9 +13,11 @@ pub type UnbufferResult<T> = std::result::Result<T, BufferUnbufferError>;
 
 /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
 pub trait UnbufferFrom: Sized {
-    /// Tries to unbuffer, advancing the buffer position only if successful.
+    /// Tries to unbuffer.
     ///
-    /// Buffer always contains enough. If it might not, don't implement this trait.
+    /// # Errors
+    /// In case of error, your buffer might be at any place (advanced an arbitrary number of bytes).
+    /// If this bothers you, give us a clone of your buffer.
     fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self>;
 }
 

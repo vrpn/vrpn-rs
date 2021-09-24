@@ -3,7 +3,9 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use super::{
-    size::ConstantBufferSize, unbuffer::UnbufferFrom, BufferResult, BufferTo, UnbufferResult,
+    size::ConstantBufferSize,
+    unbuffer::{check_unbuffer_remaining, UnbufferFrom},
+    BufferResult, BufferTo, UnbufferResult,
 };
 use bytes::{Buf, BufMut};
 
@@ -20,6 +22,7 @@ macro_rules! buffer_primitive {
 
         impl UnbufferFrom for $t {
             fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
+                check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
                 Ok(buf.$get())
             }
         }

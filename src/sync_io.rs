@@ -97,7 +97,7 @@ impl EndpointSyncTcp {
 
         // Peek the size field, to compute the MessageSize.
         let total_len = peek_u32(&buf.clone().freeze()).unwrap();
-        let size = MessageSize::from_length_field(total_len);
+        let size = MessageSize::try_from_length_field(total_len)?;
 
         // Read the body of the message
         let mut msg_buf = BytesMut::new();

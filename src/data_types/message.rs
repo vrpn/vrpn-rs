@@ -9,10 +9,10 @@ use std::convert::TryFrom;
 
 use crate::{
     buffer_unbuffer::{
-        buffer::{self, BytesMutExtras},
+        buffer::{self},
         size_requirement::*,
         unbuffer::{self, UnbufferFrom},
-        BufferSize, BufferUnbufferError, ConstantBufferSize,
+        BufferSize, BufferUnbufferError, ConstantBufferSize, MessageSizeInvalid,
     },
     Result, VrpnError,
 };
@@ -74,6 +74,7 @@ impl ConstantBufferSize for MessageHeader {
 
 impl unbuffer::UnbufferFrom for MessageHeader {
     fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+        unbuffer::check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
         let time = TimeVal::unbuffer_from(buf)?;
         let sender = SenderId::unbuffer_from(buf)?;
         let message_type = MessageTypeId::unbuffer_from(buf)?;
@@ -312,7 +313,7 @@ impl SequencedGenericMessage {
         // we have at least a length field.
         let mut local_buf = buf.clone();
         let length_field = u32::unbuffer_from(&mut local_buf)?;
-        let size = MessageSize::from_length_field(length_field);
+        let size = MessageSize::try_from_length_field(length_field)?;
 
         // make sure our original buf has enough for an entire padded message
         unbuffer::check_unbuffer_remaining(buf, size.padded_message_size())?;
@@ -403,12 +404,14 @@ pub struct MessageSize {
     pub unpadded_body_size: usize,
 }
 
+const UNPADDED_HEADER_SIZE: usize = 5 * 4;
+/// Padded size of `UNPADDED_HEADER_SIZE`
+const MINIMUM_SIZE_FIELD: u32 = 6 * 4;
+
 /// The type of the length field in the header.
 pub type LengthField = u32;
 
 impl MessageSize {
-    const UNPADDED_HEADER_SIZE: usize = 5 * 4;
-
     /// Get a MessageSize from the unpadded size of a message body only.
     #[inline]
     pub const fn from_unpadded_body_size(unpadded_body_size: usize) -> MessageSize {
@@ -417,17 +420,22 @@ impl MessageSize {
 
     /// Get a MessageSize from the total unpadded size of a message (header plus body)
     #[inline]
+    #[deprecated = "possible to fail, looks unused so would rather remove than change"]
     pub const fn from_unpadded_message_size(unpadded_message_size: usize) -> MessageSize {
-        MessageSize::from_unpadded_body_size(
-            unpadded_message_size - MessageSize::UNPADDED_HEADER_SIZE,
-        )
+        MessageSize::from_unpadded_body_size(unpadded_message_size - UNPADDED_HEADER_SIZE)
     }
     /// Get a MessageSize from the length field of a message (padded header plus unpadded body)
     #[inline]
-    pub const fn from_length_field(length_field: LengthField) -> MessageSize {
-        MessageSize::from_unpadded_body_size(
-            length_field as usize - padded(MessageSize::UNPADDED_HEADER_SIZE),
-        )
+    pub const fn try_from_length_field(
+        length_field: LengthField,
+    ) -> std::result::Result<MessageSize, MessageSizeInvalid> {
+        if length_field < MINIMUM_SIZE_FIELD {
+            Err(MessageSizeInvalid(length_field as u32))
+        } else {
+            Ok(MessageSize::from_unpadded_body_size(
+                length_field as usize - padded(UNPADDED_HEADER_SIZE),
+            ))
+        }
     }
 
     /// The unpadded size of just the message body.
@@ -441,7 +449,7 @@ impl MessageSize {
     /// This is the value put in the message header's length field.
     #[inline]
     pub const fn length_field(&self) -> LengthField {
-        (self.unpadded_body_size + padded(MessageSize::UNPADDED_HEADER_SIZE)) as LengthField
+        (self.unpadded_body_size + padded(UNPADDED_HEADER_SIZE)) as LengthField
     }
 
     /// The size of the body plus padding (multiple of ALIGN)
@@ -461,7 +469,7 @@ impl MessageSize {
     /// This is the size of buffer actually required for this message.
     #[inline]
     pub const fn padded_message_size(&self) -> usize {
-        self.padded_body_size() + padded(MessageSize::UNPADDED_HEADER_SIZE)
+        self.padded_body_size() + padded(UNPADDED_HEADER_SIZE)
     }
 }
 
@@ -509,14 +517,19 @@ mod tests {
             + TimeVal::constant_buffer_size()
             + SenderId::constant_buffer_size()
             + MessageTypeId::constant_buffer_size();
-        assert_eq!(MessageSize::UNPADDED_HEADER_SIZE,
+        assert_eq!(UNPADDED_HEADER_SIZE,
             computed_size,
             "The constant for header size should match the actual size of the fields in the header.");
         assert_eq!(
-            (MessageSize::UNPADDED_HEADER_SIZE + SequenceNumber::constant_buffer_size()) % ALIGN,
+            (UNPADDED_HEADER_SIZE + SequenceNumber::constant_buffer_size()) % ALIGN,
             0,
             "The sequence number should make our header need no additional padding."
         );
+    }
+
+    #[test]
+    fn invalid_msg_size() {
+        assert!(MessageSize::try_from_length_field(20).is_err())
     }
 
     #[test]
@@ -530,19 +543,30 @@ mod tests {
             MessageSize::from_unpadded_body_size(17).padded_body_size(),
             24
         );
-        assert_eq!(MessageSize::UNPADDED_HEADER_SIZE, 20);
+        assert_eq!(UNPADDED_HEADER_SIZE, 20);
+        assert_eq!(MINIMUM_SIZE_FIELD, 24);
         assert_eq!(
             MessageSize::from_unpadded_body_size(17).padded_message_size(),
             48
         );
         assert_eq!(MessageSize::from_unpadded_body_size(17).length_field(), 41);
-        assert_eq!(MessageSize::from_length_field(41).length_field(), 41);
-        assert_eq!(MessageSize::from_length_field(41).unpadded_body_size(), 17);
+        assert_eq!(
+            MessageSize::try_from_length_field(41)
+                .unwrap()
+                .length_field(),
+            41
+        );
+        assert_eq!(
+            MessageSize::try_from_length_field(41)
+                .unwrap()
+                .unpadded_body_size(),
+            17
+        );
 
         // Based on the second message, which is closer to the edge and thus breaks things.
         assert_eq!(
             MessageSize::from_unpadded_body_size(13),
-            MessageSize::from_length_field(0x25)
+            MessageSize::try_from_length_field(0x25).unwrap()
         );
         assert_eq!(
             MessageSize::from_unpadded_body_size(13).padded_body_size(),
@@ -552,9 +576,19 @@ mod tests {
             MessageSize::from_unpadded_body_size(13).length_field(),
             24 + 13
         );
-        assert_eq!(MessageSize::from_length_field(37).length_field(), 37);
+        assert_eq!(
+            MessageSize::try_from_length_field(37)
+                .unwrap()
+                .length_field(),
+            37
+        );
 
-        assert_eq!(MessageSize::from_length_field(37).padded_message_size(), 40);
+        assert_eq!(
+            MessageSize::try_from_length_field(37)
+                .unwrap()
+                .padded_message_size(),
+            40
+        );
     }
     proptest! {
         #[test]
@@ -574,8 +608,8 @@ mod tests {
         }
 
         #[test]
-        fn roundtrip(len in 20u32..10000)  {
-            prop_assert_eq!(MessageSize::from_length_field(len).length_field(), len);
+        fn roundtrip(len in 24u32..10000)  {
+            prop_assert_eq!(MessageSize::try_from_length_field(len).unwrap().length_field(), len);
         }
     }
 

@@ -45,7 +45,6 @@ impl ConstantBufferSize for PoseReport {
 
 impl BufferTo for PoseReport {
     fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-        check_buffer_remaining(buf, Self::constant_buffer_size())?;
         self.sensor.buffer_to(buf)?;
         // padding
         self.sensor.buffer_to(buf)?;
