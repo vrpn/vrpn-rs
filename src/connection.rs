@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use std::sync::{Arc, Mutex};
+use std::{
+    convert::TryFrom,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     buffer_unbuffer::BufferTo,
     data_types::{
         descriptions::{IdWithDescription, InnerDescription},
         id_types::*,
-        ClassOfService, LogFileNames, MessageTypeId, MessageTypeIdentifier, MessageTypeName,
-        SenderName, TimeVal, TypedMessage, TypedMessageBody,
+        ClassOfService, GenericMessage, LogFileNames, MessageTypeId, MessageTypeIdentifier,
+        MessageTypeName, SenderName, TimeVal, TypedMessage, TypedMessageBody,
     },
     type_dispatcher::HandlerHandle,
     Endpoint, EndpointGeneric, Handler, MatchingTable, RegisterMapping, Result, TranslationTables,
@@ -129,7 +132,7 @@ pub trait Connection: Send + Sync {
     where
         T: TypedMessageBody + BufferTo,
     {
-        let generic_msg = msg.try_into_generic()?;
+        let generic_msg = GenericMessage::try_from(msg)?;
 
         let mut endpoints = self.connection_core().endpoints.lock()?;
         for ep in endpoints.iter_mut().flatten() {

@@ -156,11 +156,11 @@ pub trait Endpoint: Downcast {
         let mut messages = Vec::new();
         for (id, name) in dispatcher.senders_iter() {
             let desc_msg = TypedMessage::from(Description::new(id.into_id(), name.0.clone()));
-            messages.push(desc_msg.try_into_generic()?);
+            messages.push(GenericMessage::try_from(desc_msg)?);
         }
         for (id, name) in dispatcher.types_iter() {
             let desc_msg = TypedMessage::from(Description::new(id.into_id(), name.0.clone()));
-            messages.push(desc_msg.try_into_generic()?);
+            messages.push(GenericMessage::try_from(desc_msg)?);
         }
         for msg in messages.into_iter() {
             self.buffer_generic_message(msg, ClassOfService::RELIABLE)?;
@@ -217,7 +217,7 @@ where
     where
         T: BufferTo + TypedMessageBody,
     {
-        let generic_msg = msg.try_into_generic()?;
+        let generic_msg = GenericMessage::try_from(msg)?;
         self.buffer_generic_message(generic_msg, class)
     }
     fn pack_description_impl<T>(&mut self, name: Bytes, local_id: LocalId<T>) -> Result<()>
