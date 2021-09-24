@@ -5,7 +5,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    buffer_unbuffer::Buffer,
+    buffer_unbuffer::BufferTo,
     data_types::{
         descriptions::{IdWithDescription, InnerDescription},
         id_types::*,
@@ -127,7 +127,7 @@ pub trait Connection: Send + Sync {
     /// May not actually send immediately, might need to poll the connection somehow.
     fn pack_message<T>(&self, msg: Message<T>, class: ClassOfService) -> Result<()>
     where
-        T: TypedMessageBody + Buffer,
+        T: TypedMessageBody + BufferTo,
     {
         let generic_msg = msg.try_into_generic()?;
 
@@ -152,7 +152,7 @@ pub trait Connection: Send + Sync {
         class: ClassOfService,
     ) -> Result<()>
     where
-        T: TypedMessageBody + Buffer,
+        T: TypedMessageBody + BufferTo,
     {
         let message_type = match T::MESSAGE_IDENTIFIER {
             MessageTypeIdentifier::UserMessageName(name) => self.register_type(name)?,

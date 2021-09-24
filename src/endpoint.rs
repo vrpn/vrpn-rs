@@ -8,7 +8,7 @@ use bytes::Bytes;
 use downcast_rs::Downcast;
 
 use crate::{
-    buffer_unbuffer::Buffer,
+    buffer_unbuffer::BufferTo,
     data_types::{
         constants,
         descriptions::{IdWithDescription, InnerDescription, UdpInnerDescription},
@@ -179,7 +179,7 @@ impl_downcast!(Endpoint);
 pub trait EndpointGeneric: Endpoint {
     fn buffer_message<T>(&mut self, msg: Message<T>, class: ClassOfService) -> Result<()>
     where
-        T: Buffer + TypedMessageBody;
+        T: BufferTo + TypedMessageBody;
 
     fn pack_description_impl<T>(&mut self, name: Bytes, local_id: LocalId<T>) -> Result<()>
     where
@@ -214,7 +214,7 @@ where
 {
     fn buffer_message<T>(&mut self, msg: Message<T>, class: ClassOfService) -> Result<()>
     where
-        T: Buffer + TypedMessageBody,
+        T: BufferTo + TypedMessageBody,
     {
         let generic_msg = msg.try_into_generic()?;
         self.buffer_generic_message(generic_msg, class)

@@ -36,22 +36,22 @@ impl ConstantBufferSize for Vec3 {
     }
 }
 
-impl buffer::Buffer for Vec3 {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+impl buffer::BufferTo for Vec3 {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
         buffer::check_buffer_remaining(buf, Self::constant_buffer_size())?;
-        self.x.buffer_ref(buf)?;
-        self.y.buffer_ref(buf)?;
-        self.z.buffer_ref(buf)?;
+        self.x.buffer_to(buf)?;
+        self.y.buffer_to(buf)?;
+        self.z.buffer_to(buf)?;
         Ok(())
     }
 }
 
-impl unbuffer::Unbuffer for Vec3 {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+impl unbuffer::UnbufferFrom for Vec3 {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
         unbuffer::check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
-        let x = f64::unbuffer_ref(buf)?;
-        let y = f64::unbuffer_ref(buf)?;
-        let z = f64::unbuffer_ref(buf)?;
+        let x = f64::unbuffer_from(buf)?;
+        let y = f64::unbuffer_from(buf)?;
+        let z = f64::unbuffer_from(buf)?;
         Ok(Vec3::new(x, y, z))
     }
 }
@@ -104,20 +104,20 @@ impl ConstantBufferSize for Quat {
     }
 }
 
-impl buffer::Buffer for Quat {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+impl buffer::BufferTo for Quat {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
         buffer::check_buffer_remaining(buf, Self::constant_buffer_size())?;
-        self.v.buffer_ref(buf)?;
-        self.s.buffer_ref(buf)?;
+        self.v.buffer_to(buf)?;
+        self.s.buffer_to(buf)?;
         Ok(())
     }
 }
 
-impl unbuffer::Unbuffer for Quat {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+impl unbuffer::UnbufferFrom for Quat {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
         unbuffer::check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
-        let v = Vec3::unbuffer_ref(buf)?;
-        let w = f64::unbuffer_ref(buf)?;
+        let v = Vec3::unbuffer_from(buf)?;
+        let w = f64::unbuffer_from(buf)?;
         Ok(Quat::from_sv(w, v))
     }
 }

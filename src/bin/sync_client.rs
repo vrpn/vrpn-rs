@@ -14,7 +14,7 @@ extern crate vrpn;
 use bytes::Bytes;
 use std::net::{SocketAddr, TcpStream};
 use vrpn::{
-    buffer_unbuffer::Unbuffer,
+    buffer_unbuffer::UnbufferFrom,
     data_types::{cookie::check_ver_nonfile_compatible, CookieData, Message},
     handler::{HandlerCode, TypedHandler},
     sync_io::{read_cookie, write_cookie, EndpointSyncTcp},
@@ -42,7 +42,7 @@ fn main() -> Result<()> {
     let cookie_buf = read_cookie(&mut stream)?;
     let mut cookie_buf = Bytes::copy_from_slice(&cookie_buf[..]);
 
-    let msg = CookieData::unbuffer_ref(&mut cookie_buf)?;
+    let msg = CookieData::unbuffer_from(&mut cookie_buf)?;
     check_ver_nonfile_compatible(msg.version)?;
 
     let mut endpoint = EndpointSyncTcp::new(stream);

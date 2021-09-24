@@ -20,10 +20,10 @@ pub use crate::buffer_unbuffer::{
 };
 
 pub use crate::buffer_unbuffer::{
-    buffer::{check_buffer_remaining, Buffer, BufferResult, BytesMutExtras},
+    buffer::{check_buffer_remaining, BufferResult, BufferTo, BytesMutExtras},
     size_requirement::SizeRequirement,
     unbuffer::{
-        check_unbuffer_remaining, consume_expected, peek_u32, unbuffer_decimal_digits, Unbuffer,
-        UnbufferResult,
+        check_unbuffer_remaining, consume_expected, peek_u32, unbuffer_decimal_digits,
+        UnbufferFrom, UnbufferResult,
     },
 };

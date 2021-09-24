@@ -4,7 +4,7 @@
 
 use super::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie};
 use crate::{
-    buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, Unbuffer},
+    buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, UnbufferFrom},
     data_types::{cookie::check_ver_nonfile_compatible, CookieData},
     Result, Scheme, ServerInfo, VrpnError,
 };
@@ -457,7 +457,7 @@ pub(crate) async fn finish_connecting(
                     let _ = stream.as_mut().unwrap().try_read(buf);
                 }
                 let mut buf = buf.clone().freeze();
-                let cookie = CookieData::unbuffer_ref(&mut buf)?;
+                let cookie = CookieData::unbuffer_from(&mut buf)?;
                 check_ver_nonfile_compatible(cookie.version)?;
                 let udp = udp_connect.take().map(|udp_connect| udp_connect.udp);
 
@@ -564,7 +564,7 @@ mod tests {
 
     #[test]
     fn sync_connect() {
-        use crate::buffer_unbuffer::buffer::Buffer;
+        use crate::buffer_unbuffer::buffer::BufferTo;
 
         let addr: SocketAddr = "127.0.0.1:3883".parse().unwrap();
 
@@ -573,13 +573,13 @@ mod tests {
 
         let cookie = CookieData::make_cookie();
         let mut send_buf = BytesMut::with_capacity(cookie.required_buffer_size());
-        cookie.buffer_ref(&mut send_buf).unwrap();
+        cookie.buffer_to(&mut send_buf).unwrap();
         sock.write_all(&send_buf.freeze()).unwrap();
 
         let mut read_buf = vec![0u8; CookieData::constant_buffer_size()];
         sock.read_exact(&mut read_buf).unwrap();
         let mut read_buf = Bytes::from(read_buf);
-        let parsed_cookie: CookieData = Unbuffer::unbuffer_ref(&mut read_buf).unwrap();
+        let parsed_cookie: CookieData = UnbufferFrom::unbuffer_from(&mut read_buf).unwrap();
         check_ver_nonfile_compatible(parsed_cookie.version).unwrap();
     }
 }

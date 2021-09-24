@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, Unbuffer},
+    buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, UnbufferFrom},
     data_types::cookie::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData},
     VrpnError,
 };
@@ -59,7 +59,7 @@ where
 {
     let read_buf: Vec<u8> = read_cookie(stream).await?;
     let mut buf = Bytes::from(read_buf);
-    let msg = CookieData::unbuffer_ref(&mut buf)?;
+    let msg = CookieData::unbuffer_from(&mut buf)?;
     check_ver_nonfile_compatible(msg.version)?;
     Ok(())
 }
@@ -73,7 +73,7 @@ where
 {
     let read_buf: Vec<u8> = read_cookie(stream).await?;
     let mut buf = Bytes::from(read_buf);
-    let msg = CookieData::unbuffer_ref(&mut buf)?;
+    let msg = CookieData::unbuffer_from(&mut buf)?;
     check_ver_file_compatible(msg.version)?;
     Ok(())
 }

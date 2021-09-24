@@ -12,20 +12,25 @@ use bytes::{Buf, Bytes};
 pub type UnbufferResult<T> = std::result::Result<T, BufferUnbufferError>;
 
 /// Trait for types that can be "unbuffered" (parsed from a byte buffer)
-pub trait Unbuffer: Sized {
+pub trait UnbufferFrom: Sized {
     /// Tries to unbuffer, advancing the buffer position only if successful.
     ///
+    /// # Note
+    ///
+    /// Must check size before advancing the buffer: usually start with
+    /// `check_unbuffer_remaining`, may require use of `peek_u32`
+    ///
     /// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self>;
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self>;
 }
 
 /// Tries to unbuffer from a mutable reference to a buffer.
 ///
-/// Delegates to `Unbuffer::unbuffer_ref()`.
+/// Delegates to `UnbufferFrom::unbuffer_from()`.
 /// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
-#[deprecated = "Use Unbuffer::unbuffer_ref() directly instead"]
-pub fn unbuffer_ref<T: Unbuffer, U: Buf>(buf: &mut U) -> UnbufferResult<T> {
-    T::unbuffer_ref(buf)
+#[deprecated = "Use UnbufferFrom::unbuffer_from() directly instead"]
+pub fn unbuffer_from<T: UnbufferFrom, U: Buf>(buf: &mut U) -> UnbufferResult<T> {
+    T::unbuffer_from(buf)
 }
 
 /// Tries to unbuffer, consuming the buffer and returning what's left.
@@ -34,24 +39,25 @@ pub fn unbuffer_ref<T: Unbuffer, U: Buf>(buf: &mut U) -> UnbufferResult<T> {
 /// with every call.
 ///
 /// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
-#[deprecated = "Should not be necessary with modern futures, use Unbuffer::unbuffer_ref() directly instead"]
-pub fn unbuffer_from<T: Unbuffer>(buf: Bytes) -> UnbufferResult<(T, Bytes)> {
+#[deprecated = "Should not be necessary with modern futures, use UnbufferFrom::unbuffer_from() directly instead"]
+pub fn unbuffer_from_and_into<T: UnbufferFrom>(buf: Bytes) -> UnbufferResult<(T, Bytes)> {
     let mut buf = buf;
-    let v = T::unbuffer_ref(&mut buf)?;
+    let v = T::unbuffer_from(&mut buf)?;
     Ok((v, buf))
 }
 
 /// Implementation trait for constant-buffer-size types,
-/// used by the blanket implementation of Unbuffer.
+/// used by the blanket implementation of `UnbufferFrom`.
 pub trait UnbufferConstantSize: Sized + ConstantBufferSize {
     /// Perform the unbuffering: only called with at least as many bytes as needed.
+    /// Therefore, no need to size-check.
     fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> UnbufferResult<Self>;
 }
 
 /// Blanket impl for types implementing UnbufferConstantSize.
 // TODO implement unbuffer_constant_size everywhere we're checking remaining against Self::constant_buffer_size
-impl<T: UnbufferConstantSize> Unbuffer for T {
-    fn unbuffer_ref<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
+impl<T: UnbufferConstantSize> UnbufferFrom for T {
+    fn unbuffer_from<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
         let len = Self::constant_buffer_size();
         check_unbuffer_remaining(buf, len)?;
         let mut buf_subset = buf.take(len);

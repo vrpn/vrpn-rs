@@ -11,7 +11,7 @@ extern crate bytes;
 use crate::{
     buffer_unbuffer::{
         peek_u32, size_requirement::MayContainSizeRequirement, BufferUnbufferError, BytesMutExtras,
-        ConstantBufferSize, SizeRequirement, Unbuffer,
+        ConstantBufferSize, SizeRequirement, UnbufferFrom,
     },
     data_types::{
         self, id_types::SequenceNumber, CookieData, GenericMessage, MessageSize,
@@ -105,7 +105,7 @@ impl EndpointSyncTcp {
         let mut msg_buf = msg_buf.freeze();
 
         // Unbuffer the message.
-        let result = SequencedGenericMessage::unbuffer_ref(&mut msg_buf)?;
+        let result = SequencedGenericMessage::unbuffer_from(&mut msg_buf)?;
         Ok(result)
     }
 

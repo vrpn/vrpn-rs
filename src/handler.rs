@@ -4,7 +4,7 @@
 
 pub use crate::type_dispatcher::HandlerHandle;
 use crate::{
-    buffer_unbuffer::{EmptyMessage, Unbuffer},
+    buffer_unbuffer::{EmptyMessage, UnbufferFrom},
     data_types::{GenericMessage, Message, MessageHeader, TypedMessageBody},
     Result,
 };
@@ -32,7 +32,7 @@ pub trait Handler: Send + Sync {
 /// add_typed_handler() instead of add_handler() so you don't need to
 /// pointlessly look up/register the message type yourself.
 pub trait TypedHandler: Send + Sync {
-    type Item: TypedMessageBody + Unbuffer + fmt::Debug;
+    type Item: TypedMessageBody + UnbufferFrom + fmt::Debug;
     fn handle_typed(&mut self, msg: &Message<Self::Item>) -> Result<HandlerCode>;
 }
 
@@ -53,7 +53,7 @@ where
 /// add_typed_handler() instead of add_handler() so you don't need to
 /// pointlessly look up/register the message type yourself.
 pub trait TypedBodylessHandler: Send + Sync {
-    type Item: TypedMessageBody + EmptyMessage + Unbuffer + fmt::Debug;
+    type Item: TypedMessageBody + EmptyMessage + UnbufferFrom + fmt::Debug;
     fn handle_typed_bodyless(&mut self, header: &MessageHeader) -> Result<HandlerCode>;
 }
 

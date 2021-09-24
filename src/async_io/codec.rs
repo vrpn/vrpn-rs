@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    buffer_unbuffer::Buffer, codec::decode_one, data_types::message::SequencedGenericMessage,
+    buffer_unbuffer::BufferTo, codec::decode_one, data_types::message::SequencedGenericMessage,
     Result, VrpnError,
 };
 use bytes::{Buf, BytesMut};
@@ -44,7 +44,7 @@ impl Encoder<SequencedGenericMessage> for FramedMessageCodec {
         dst: &mut BytesMut,
     ) -> std::result::Result<(), Self::Error> {
         dst.reserve(item.required_buffer_size());
-        item.buffer_ref(dst).map_err(|e| Self::Error::from(e))
+        item.buffer_to(dst).map_err(|e| Self::Error::from(e))
     }
 }
 

@@ -87,19 +87,19 @@ impl ConstantBufferSize for TimeVal {
     }
 }
 
-impl buffer::Buffer for TimeVal {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+impl buffer::BufferTo for TimeVal {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
         buffer::check_buffer_remaining(buf, Self::constant_buffer_size())?;
-        self.seconds().buffer_ref(buf)?;
-        self.microseconds().buffer_ref(buf)
+        self.seconds().buffer_to(buf)?;
+        self.microseconds().buffer_to(buf)
     }
 }
 
-impl unbuffer::Unbuffer for TimeVal {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+impl unbuffer::UnbufferFrom for TimeVal {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
         unbuffer::check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
-        let sec = Seconds::unbuffer_ref(buf)?;
-        let usec = Microseconds::unbuffer_ref(buf)?;
+        let sec = Seconds::unbuffer_from(buf)?;
+        let usec = Microseconds::unbuffer_from(buf)?;
         Ok(TimeVal::new(sec, usec))
     }
 }

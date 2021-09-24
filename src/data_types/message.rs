@@ -112,7 +112,7 @@ impl<T: MessageBody> From<SequencedMessage<T>> for Message<T> {
         v.message
     }
 }
-impl<T: TypedMessageBody + unbuffer::Unbuffer> TryFrom<&GenericMessage> for Message<T> {
+impl<T: TypedMessageBody + unbuffer::UnbufferFrom> TryFrom<&GenericMessage> for Message<T> {
     type Error = VrpnError;
 
     /// Try parsing a generic message into a typed message
@@ -122,7 +122,7 @@ impl<T: TypedMessageBody + unbuffer::Unbuffer> TryFrom<&GenericMessage> for Mess
     /// - If the generic message's body isn't fully consumed by the typed message body
     fn try_from(msg: &GenericMessage) -> std::result::Result<Self, Self::Error> {
         let mut buf = msg.body.inner.clone();
-        let body = T::unbuffer_ref(&mut buf)
+        let body = T::unbuffer_from(&mut buf)
             .map_err(BufferUnbufferError::map_bytes_required_to_size_mismatch)?;
         if !buf.is_empty() {
             return Err(VrpnError::OtherMessage(format!(
@@ -135,11 +135,11 @@ impl<T: TypedMessageBody + unbuffer::Unbuffer> TryFrom<&GenericMessage> for Mess
     }
 }
 
-impl<T: TypedMessageBody + unbuffer::Unbuffer> Message<T> {
+impl<T: TypedMessageBody + unbuffer::UnbufferFrom> Message<T> {
     #[deprecated]
     pub fn try_from_generic(msg: &GenericMessage) -> Result<Message<T>> {
         let mut buf = msg.body.inner.clone();
-        let body = T::unbuffer_ref(&mut buf)
+        let body = T::unbuffer_from(&mut buf)
             .map_err(BufferUnbufferError::map_bytes_required_to_size_mismatch)?;
         if !buf.is_empty() {
             return Err(VrpnError::OtherMessage(format!(
@@ -175,7 +175,7 @@ impl<T: TypedMessageBody + unbuffer::Unbuffer> Message<T> {
 extern crate static_assertions;
 static_assertions::assert_not_impl_any!(GenericBody: TypedMessageBody);
 
-impl<T: TypedMessageBody + buffer::Buffer> Message<T> {
+impl<T: TypedMessageBody + buffer::BufferTo> Message<T> {
     /// Try converting a typed message into a generic message
     ///
     /// # Errors
@@ -224,19 +224,19 @@ impl BufferSize for SequencedMessage<GenericBody> {
     }
 }
 
-impl buffer::Buffer for SequencedMessage<GenericBody> {
+impl buffer::BufferTo for SequencedMessage<GenericBody> {
     /// Serialize to a buffer.
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
         let size = generic_message_size(self);
         buffer::check_buffer_remaining(buf, size.padded_message_size())?;
 
         let length_field = size.length_field() as u32;
 
-        buffer::Buffer::buffer_ref(&length_field, buf)?;
-        self.message.header.time.buffer_ref(buf)?;
-        self.message.header.sender.buffer_ref(buf)?;
-        self.message.header.message_type.buffer_ref(buf)?;
-        self.sequence_number.buffer_ref(buf)?;
+        buffer::BufferTo::buffer_to(&length_field, buf)?;
+        self.message.header.time.buffer_to(buf)?;
+        self.message.header.sender.buffer_to(buf)?;
+        self.message.header.message_type.buffer_to(buf)?;
+        self.sequence_number.buffer_to(buf)?;
 
         buf.put_slice(&self.message.body.inner);
         for _ in 0..size.body_padding() {
@@ -246,9 +246,9 @@ impl buffer::Buffer for SequencedMessage<GenericBody> {
     }
 }
 
-impl unbuffer::Unbuffer for SequencedMessage<GenericBody> {
+impl unbuffer::UnbufferFrom for SequencedMessage<GenericBody> {
     /// Deserialize from a buffer.
-    fn unbuffer_ref<T: Buf>(
+    fn unbuffer_from<T: Buf>(
         buf: &mut T,
     ) -> unbuffer::UnbufferResult<SequencedMessage<GenericBody>> {
         let initial_remaining = buf.remaining();
@@ -259,12 +259,12 @@ impl unbuffer::Unbuffer for SequencedMessage<GenericBody> {
         unbuffer::check_unbuffer_remaining(buf, size.padded_message_size())?;
 
         // now we can actually unbuffer the length since we checked to make sure we have it.
-        let _ = u32::unbuffer_ref(buf)?;
+        let _ = u32::unbuffer_from(buf)?;
 
-        let time = TimeVal::unbuffer_ref(buf)?;
-        let sender = SenderId::unbuffer_ref(buf)?;
-        let message_type = MessageTypeId::unbuffer_ref(buf)?;
-        let sequence_number = SequenceNumber::unbuffer_ref(buf)?;
+        let time = TimeVal::unbuffer_from(buf)?;
+        let sender = SenderId::unbuffer_from(buf)?;
+        let message_type = MessageTypeId::unbuffer_from(buf)?;
+        let sequence_number = SequenceNumber::unbuffer_from(buf)?;
 
         // Assert that handling the sequence number meant we're now aligned again.
         assert_eq!(
@@ -275,7 +275,7 @@ impl unbuffer::Unbuffer for SequencedMessage<GenericBody> {
         let body;
         {
             let mut body_buf = buf.copy_to_bytes(size.unpadded_body_size());
-            body = GenericBody::unbuffer_ref(&mut body_buf)
+            body = GenericBody::unbuffer_from(&mut body_buf)
                 .map_err(ExpandSizeRequirement::expand_size_requirement)?;
             assert_eq!(body_buf.remaining(), 0);
         }
@@ -441,9 +441,9 @@ fn generic_message_size(msg: &SequencedGenericMessage) -> MessageSize {
     MessageSize::from_unpadded_body_size(msg.message.body.inner.len())
 }
 
-impl unbuffer::Unbuffer for GenericBody {
+impl unbuffer::UnbufferFrom for GenericBody {
     /// This takes all the bytes!
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<GenericBody> {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<GenericBody> {
         let my_bytes = buf.copy_to_bytes(buf.remaining());
         Ok(GenericBody::new(my_bytes))
     }
@@ -454,8 +454,8 @@ impl BufferSize for GenericBody {
         self.inner.len()
     }
 }
-impl buffer::Buffer for GenericBody {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+impl buffer::BufferTo for GenericBody {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
         buffer::check_buffer_remaining(buf, self.inner.len())?;
         buf.put(self.inner.clone());
         Ok(())
@@ -464,7 +464,7 @@ impl buffer::Buffer for GenericBody {
 
 /// Turn a generic message into a typed message, if possible.
 #[deprecated]
-pub fn unbuffer_typed_message_body<T: unbuffer::Unbuffer + TypedMessageBody>(
+pub fn unbuffer_typed_message_body<T: unbuffer::UnbufferFrom + TypedMessageBody>(
     msg: &GenericMessage,
 ) -> Result<Message<T>> {
     let typed_msg: Message<T> = Message::try_from(msg)?;
@@ -472,14 +472,14 @@ pub fn unbuffer_typed_message_body<T: unbuffer::Unbuffer + TypedMessageBody>(
 }
 
 #[deprecated]
-pub fn make_message_body_generic<T: buffer::Buffer + TypedMessageBody>(
+pub fn make_message_body_generic<T: buffer::BufferTo + TypedMessageBody>(
     msg: Message<T>,
 ) -> Result<GenericMessage> {
     msg.try_into_generic()
 }
 
 #[deprecated]
-pub fn make_sequenced_message_body_generic<T: buffer::Buffer + TypedMessageBody>(
+pub fn make_sequenced_message_body_generic<T: buffer::BufferTo + TypedMessageBody>(
     msg: SequencedMessage<T>,
 ) -> Result<SequencedGenericMessage> {
     let seq = msg.sequence_number;

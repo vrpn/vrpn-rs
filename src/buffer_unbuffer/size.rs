@@ -4,7 +4,7 @@
 
 //! Traits describing the size of things we can read from or write to a buffer.
 
-use super::{unbuffer::UnbufferConstantSize, Buffer};
+use super::{unbuffer::UnbufferConstantSize, BufferTo};
 
 /// Optional trait for things that always take the same amount of space in a buffer.
 ///
@@ -35,7 +35,7 @@ impl<T: ConstantBufferSize> BufferSize for T {
 
 /// Trait for types that are a wrapper around some basic constant sized thing, like an ID.
 pub trait WrappedConstantSize {
-    type WrappedType: Buffer + UnbufferConstantSize + ConstantBufferSize;
+    type WrappedType: BufferTo + UnbufferConstantSize + ConstantBufferSize;
 
     /// Get the wrapped value
     fn get(&self) -> Self::WrappedType;

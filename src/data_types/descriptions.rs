@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::buffer_unbuffer::{
-    check_buffer_remaining, Buffer, BufferResult, BufferSize, Unbuffer, UnbufferResult,
+    check_buffer_remaining, BufferResult, BufferSize, BufferTo, UnbufferFrom, UnbufferResult,
 };
 
 use super::{
@@ -182,8 +182,8 @@ impl<T: IdWithDescription> BufferSize for InnerDescription<T> {
     }
 }
 
-impl<U: IdWithDescription> Buffer for InnerDescription<U> {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
+impl<U: IdWithDescription> BufferTo for InnerDescription<U> {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         length_prefixed::buffer_string(
             self.name.as_ref(),
             buf,
@@ -193,14 +193,14 @@ impl<U: IdWithDescription> Buffer for InnerDescription<U> {
     }
 }
 
-impl<T: IdWithDescription> Unbuffer for InnerDescription<T> {
-    fn unbuffer_ref<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
+impl<T: IdWithDescription> UnbufferFrom for InnerDescription<T> {
+    fn unbuffer_from<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
         length_prefixed::unbuffer_string(buf).map(InnerDescription::new)
     }
 }
 
-impl Unbuffer for UdpInnerDescription {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
+impl UnbufferFrom for UdpInnerDescription {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         let mut ip_buf: Vec<u8> = Vec::default();
         // ok to unwrap: a buf reader is infallible. The reader also prevents us from modifying the buffer state.
         let length = buf.reader().read_until(0, &mut ip_buf).unwrap();
@@ -218,8 +218,8 @@ impl BufferSize for UdpInnerDescription {
         self.address.to_string().len() + 1
     }
 }
-impl Buffer for UdpInnerDescription {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
+impl BufferTo for UdpInnerDescription {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         let addr_str = self.address.to_string();
         check_buffer_remaining(buf, addr_str.len() + 1)?;
         buf.put(addr_str.as_bytes());

@@ -6,7 +6,7 @@ use bytes::Buf;
 
 use crate::{
     buffer_unbuffer::{
-        check_unbuffer_remaining, peek_u32, BufferUnbufferError, Unbuffer, UnbufferResult,
+        check_unbuffer_remaining, peek_u32, BufferUnbufferError, UnbufferFrom, UnbufferResult,
     },
     data_types::{MessageSize, SequencedGenericMessage},
 };
@@ -23,7 +23,7 @@ pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<Sequenced
 
         // Make an interface to take exactly what we need from the buffer
         let mut taken_buf = buf.take(size.padded_message_size());
-        let unbuffered = SequencedGenericMessage::unbuffer_ref(&mut taken_buf);
+        let unbuffered = SequencedGenericMessage::unbuffer_from(&mut taken_buf);
         match unbuffered {
             Ok(v) => {
                 buf.advance(size.padded_message_size());

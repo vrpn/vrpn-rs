@@ -17,17 +17,19 @@ where
     ///
     /// # Errors
     /// If buffering fails.
-    fn allocate_and_buffer<T: Buffer>(self, v: T)
-        -> std::result::Result<Self, BufferUnbufferError>;
+    fn allocate_and_buffer<T: BufferTo>(
+        self,
+        v: T,
+    ) -> std::result::Result<Self, BufferUnbufferError>;
 }
 
 impl BytesMutExtras for BytesMut {
-    fn allocate_and_buffer<T: Buffer>(
+    fn allocate_and_buffer<T: BufferTo>(
         mut self,
         v: T,
     ) -> std::result::Result<Self, BufferUnbufferError> {
         self.reserve(v.buffer_size());
-        v.buffer_ref(&mut self)?;
+        v.buffer_to(&mut self)?;
         Ok(self)
     }
 }
@@ -36,12 +38,12 @@ impl BytesMutExtras for BytesMut {
 pub type BufferResult = std::result::Result<(), BufferUnbufferError>;
 
 /// Trait for types that can be "buffered" (serialized to a byte buffer)
-pub trait Buffer: BufferSize {
+pub trait BufferTo: BufferSize {
     /// Serialize to a buffer (taken as a mutable reference)
     ///
     /// Implementations must call `check_buffer_remaining(...)?;` first
     /// or otherwise avoid modifying the buffer if the whole message cannot fit!
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult;
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult;
 
     /// Get the number of bytes required to serialize this to a buffer.
     fn required_buffer_size(&self) -> usize {
@@ -49,9 +51,9 @@ pub trait Buffer: BufferSize {
     }
 }
 
-impl<T: WrappedConstantSize> Buffer for T {
-    fn buffer_ref<U: BufMut>(&self, buf: &mut U) -> BufferResult {
-        self.get().buffer_ref(buf)
+impl<T: WrappedConstantSize> BufferTo for T {
+    fn buffer_to<U: BufMut>(&self, buf: &mut U) -> BufferResult {
+        self.get().buffer_to(buf)
     }
 }
 

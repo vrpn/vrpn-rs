@@ -4,7 +4,7 @@
 
 use crate::buffer_unbuffer::{
     check_buffer_remaining, check_unbuffer_remaining, consume_expected, unbuffer_decimal_digits,
-    Buffer, BufferResult, ConstantBufferSize, Unbuffer, UnbufferResult,
+    BufferResult, BufferTo, ConstantBufferSize, UnbufferFrom, UnbufferResult,
 };
 
 use super::{constants, LogMode};
@@ -78,8 +78,8 @@ impl ConstantBufferSize for CookieData {
     }
 }
 
-impl Buffer for CookieData {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
+impl BufferTo for CookieData {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         check_buffer_remaining(buf, Self::constant_buffer_size())?;
         buf.put(self.to_string().as_bytes());
         buf.put(COOKIE_PADDING);
@@ -91,8 +91,8 @@ fn u8_to_log_mode(v: u8) -> LogMode {
     LogMode::from_bits_truncate(v)
 }
 
-impl Unbuffer for CookieData {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
+impl UnbufferFrom for CookieData {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
 
         // remove "vrpn: ver. "
@@ -234,7 +234,7 @@ mod tests {
 
         let mut buf = Vec::new();
         magic_cookie
-            .buffer_ref(&mut buf)
+            .buffer_to(&mut buf)
             .expect("Buffering needs to succeed");
         assert_eq!(buf.len(), constants::COOKIE_SIZE);
     }
@@ -251,10 +251,10 @@ mod tests {
         magic_cookie.log_mode = Some(LogMode::NONE);
         let mut buf = BytesMut::with_capacity(magic_cookie.required_buffer_size());
         magic_cookie
-            .buffer_ref(&mut buf)
+            .buffer_to(&mut buf)
             .expect("Buffering needs to succeed");
         let mut buf = buf.freeze();
-        assert_eq!(CookieData::unbuffer_ref(&mut buf).unwrap(), magic_cookie);
+        assert_eq!(CookieData::unbuffer_from(&mut buf).unwrap(), magic_cookie);
         assert_eq!(buf.len(), 0);
     }
 
@@ -267,7 +267,7 @@ mod tests {
             .allocate_and_buffer(magic_cookie)
             .expect("Buffering needs to succeed")
             .freeze();
-        assert_eq!(CookieData::unbuffer_ref(&mut buf).unwrap(), magic_cookie);
+        assert_eq!(CookieData::unbuffer_from(&mut buf).unwrap(), magic_cookie);
         assert_eq!(buf.len(), 0);
     }
 }

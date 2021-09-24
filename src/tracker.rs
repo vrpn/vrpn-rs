@@ -6,8 +6,8 @@
 
 use crate::{
     buffer_unbuffer::{
-        buffer::{check_buffer_remaining, Buffer, BufferResult},
-        unbuffer::{check_unbuffer_remaining, Unbuffer, UnbufferResult},
+        buffer::{check_buffer_remaining, BufferResult, BufferTo},
+        unbuffer::{check_unbuffer_remaining, UnbufferFrom, UnbufferResult},
         ConstantBufferSize,
     },
     data_types::{
@@ -43,25 +43,25 @@ impl ConstantBufferSize for PoseReport {
     }
 }
 
-impl Buffer for PoseReport {
-    fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
+impl BufferTo for PoseReport {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         check_buffer_remaining(buf, Self::constant_buffer_size())?;
-        self.sensor.buffer_ref(buf)?;
+        self.sensor.buffer_to(buf)?;
         // padding
-        self.sensor.buffer_ref(buf)?;
-        self.pos.buffer_ref(buf)?;
-        self.quat.buffer_ref(buf)?;
+        self.sensor.buffer_to(buf)?;
+        self.pos.buffer_to(buf)?;
+        self.quat.buffer_to(buf)?;
         Ok(())
     }
 }
 
-impl Unbuffer for PoseReport {
-    fn unbuffer_ref<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
+impl UnbufferFrom for PoseReport {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
-        let sensor = Sensor::unbuffer_ref(buf)?;
-        let _ = Sensor::unbuffer_ref(buf)?;
-        let pos = Vec3::unbuffer_ref(buf)?;
-        let quat = Quat::unbuffer_ref(buf)?;
+        let sensor = Sensor::unbuffer_from(buf)?;
+        let _ = Sensor::unbuffer_from(buf)?;
+        let pos = Vec3::unbuffer_from(buf)?;
+        let quat = Quat::unbuffer_from(buf)?;
         Ok(PoseReport { sensor, pos, quat })
     }
 }

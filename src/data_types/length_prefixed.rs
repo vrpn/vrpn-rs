@@ -6,9 +6,9 @@ use bytes::{Buf, BufMut, Bytes};
 use std::mem::size_of;
 
 use crate::buffer_unbuffer::{
-    buffer::{self, Buffer},
+    buffer::{self, BufferTo},
     size_requirement::*,
-    unbuffer::{self, Unbuffer},
+    unbuffer::{self, UnbufferFrom},
 };
 
 /// Does the "length prefix" value include a trailing null character (strlen() + 1)?
@@ -52,7 +52,7 @@ pub fn buffer_string<T: BufMut>(
         buf_size -= 1;
     }
     let buf_size = buf_size as u32;
-    buf_size.buffer_ref(buf)?;
+    buf_size.buffer_to(buf)?;
 
     buf.put(s);
     buf.put_u8(0);
@@ -62,7 +62,7 @@ pub fn buffer_string<T: BufMut>(
 /// Unbuffer a string, preceded by its length and followed by a null bytes.
 pub fn unbuffer_string<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Bytes> {
     let buf_size =
-        u32::unbuffer_ref(buf).map_err(ExpandSizeRequirement::expand_size_requirement)?;
+        u32::unbuffer_from(buf).map_err(ExpandSizeRequirement::expand_size_requirement)?;
 
     let buf_size = buf_size as usize;
     unbuffer::check_unbuffer_remaining(buf, buf_size)?;

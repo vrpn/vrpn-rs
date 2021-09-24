@@ -4,7 +4,7 @@
 
 use super::{
     check_buffer_remaining, check_unbuffer_remaining, size::ConstantBufferSize,
-    unbuffer::UnbufferConstantSize, Buffer, BufferResult, UnbufferResult,
+    unbuffer::UnbufferConstantSize, BufferResult, BufferTo, UnbufferResult,
 };
 use bytes::{Buf, BufMut};
 
@@ -12,8 +12,8 @@ macro_rules! buffer_primitive {
     ($t:ty, $put:ident, $get:ident) => {
         impl ConstantBufferSize for $t {}
 
-        impl Buffer for $t {
-            fn buffer_ref<T: BufMut>(&self, buf: &mut T) -> BufferResult {
+        impl BufferTo for $t {
+            fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
                 check_buffer_remaining(buf, Self::constant_buffer_size())?;
                 buf.$put(*self);
                 Ok(())
@@ -45,8 +45,8 @@ impl ConstantBufferSize for () {
     }
 }
 
-impl Buffer for () {
-    fn buffer_ref<T: BufMut>(&self, _buf: &mut T) -> BufferResult {
+impl BufferTo for () {
+    fn buffer_to<T: BufMut>(&self, _buf: &mut T) -> BufferResult {
         Ok(())
     }
 }
