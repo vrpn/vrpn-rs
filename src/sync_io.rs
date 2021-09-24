@@ -39,7 +39,7 @@ pub fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), VrpnErr
 where
     T: Write,
 {
-    let buf = BytesMut::new().allocate_and_buffer(cookie)?;
+    let buf = BytesMut::allocate_and_buffer(cookie)?;
     stream.write_all(&buf.freeze())?;
     Ok(())
 }
@@ -106,7 +106,7 @@ impl EndpointSyncTcp {
         let mut msg_buf = msg_buf.freeze();
 
         // Unbuffer the message.
-        let result = SequencedGenericMessage::unbuffer_from(&mut msg_buf)?;
+        let result = SequencedGenericMessage::try_read_from_buf(&mut msg_buf)?;
         Ok(result)
     }
 
@@ -174,9 +174,9 @@ impl Endpoint for EndpointSyncTcp {
         // Ignore class of service here
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
         let sequenced = msg.into_sequenced_message(SequenceNumber(seq as u32));
-        let buf = BytesMut::new().allocate_and_buffer(sequenced)?;
+        let buf = sequenced.try_into_buf()?;
 
-        self.stream.write_all(&buf.freeze())?;
+        self.stream.write_all(&buf[..])?;
         Ok(())
     }
 }

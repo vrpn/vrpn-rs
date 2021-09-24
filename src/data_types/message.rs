@@ -238,10 +238,12 @@ impl<T: TypedMessageBody + buffer::BufferTo> TryFrom<TypedMessage<T>> for Generi
     fn try_from(value: TypedMessage<T>) -> std::result::Result<Self, Self::Error> {
         let old_body = value.body;
         let header = value.header;
-        let generic = BytesMut::new().allocate_and_buffer(old_body).map(|body| {
-            GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
-        })?;
-        Ok(generic)
+        let mut buf = BytesMut::with_capacity(old_body.buffer_size());
+        old_body.buffer_to(&mut buf)?;
+        Ok(GenericMessage::from_header_and_body(
+            header,
+            GenericBody::new(buf.freeze()),
+        ))
     }
 }
 
@@ -258,9 +260,6 @@ impl<T: TypedMessageBody + unbuffer::UnbufferFrom> TryFrom<GenericMessage> for T
     }
 }
 
-extern crate static_assertions;
-static_assertions::assert_not_impl_any!(GenericBody: TypedMessageBody);
-
 /// A generic message with header information and sequence number, ready to be buffered to the wire.
 ///
 /// Wraps `GenericMessage`
@@ -271,43 +270,35 @@ pub struct SequencedGenericMessage {
 }
 
 impl SequencedGenericMessage {
+    /// Convert into the contained `GenericMessage`
     pub fn into_inner(self) -> GenericMessage {
         self.message
     }
+    /// Access a reference to the contained `GenericMessage`
     pub fn message(&self) -> &GenericMessage {
         &self.message
     }
-}
 
-impl BufferSize for SequencedGenericMessage {
-    fn buffer_size(&self) -> usize {
-        generic_message_size(self).padded_message_size()
-    }
-}
-
-impl buffer::BufferTo for SequencedGenericMessage {
     /// Serialize to a buffer.
-    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
-        buffer::check_buffer_remaining(buf, self.buffer_size())?;
+    pub fn try_into_buf(self) -> std::result::Result<Bytes, BufferUnbufferError> {
+        let mut buf = BytesMut::with_capacity(self.buffer_size());
 
-        let size = generic_message_size(self);
+        let size = generic_message_size(&self);
         let length_field = size.length_field() as u32;
 
-        buffer::BufferTo::buffer_to(&length_field, buf)?;
-        buffer::BufferTo::buffer_to(&self.message.header, buf)?;
-        buffer::BufferTo::buffer_to(&self.sequence_number, buf)?;
+        buffer::BufferTo::buffer_to(&length_field, &mut buf)?;
+        buffer::BufferTo::buffer_to(&self.message.header, &mut buf)?;
+        buffer::BufferTo::buffer_to(&self.sequence_number, &mut buf)?;
 
         buf.put_slice(&self.message.body.inner);
         for _ in 0..size.body_padding() {
             buf.put_u8(0);
         }
-        Ok(())
+        Ok(buf.freeze())
     }
-}
 
-impl unbuffer::UnbufferFrom for SequencedGenericMessage {
     /// Deserialize from a buffer.
-    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+    pub fn try_read_from_buf<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
         let initial_remaining = buf.remaining();
         let length_field = unbuffer::peek_u32(buf).ok_or_else(|| {
             BufferUnbufferError::from(SizeRequirement::AtLeast(u32::constant_buffer_size()))
@@ -344,6 +335,12 @@ impl unbuffer::UnbufferFrom for SequencedGenericMessage {
             message: GenericMessage { header, body },
             sequence_number,
         })
+    }
+}
+
+impl BufferSize for SequencedGenericMessage {
+    fn buffer_size(&self) -> usize {
+        generic_message_size(self).padded_message_size()
     }
 }
 
@@ -492,6 +489,9 @@ mod tests {
     use crate::buffer_unbuffer::{constants::ALIGN, ConstantBufferSize};
 
     use super::*;
+
+    extern crate static_assertions;
+    static_assertions::assert_not_impl_any!(GenericBody: TypedMessageBody);
 
     #[test]
     fn constant() {

@@ -263,8 +263,7 @@ mod tests {
         let mut magic_cookie = CookieData::make_cookie();
         magic_cookie.log_mode = Some(LogMode::INCOMING);
 
-        let mut buf = BytesMut::new()
-            .allocate_and_buffer(magic_cookie)
+        let mut buf = BytesMut::allocate_and_buffer(magic_cookie)
             .expect("Buffering needs to succeed")
             .freeze();
         assert_eq!(CookieData::unbuffer_from(&mut buf).unwrap(), magic_cookie);

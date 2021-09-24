@@ -3,10 +3,10 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    buffer_unbuffer::BufferTo, codec::decode_one, data_types::message::SequencedGenericMessage,
+    buffer_unbuffer::BufferSize, codec::decode_one, data_types::message::SequencedGenericMessage,
     Result, VrpnError,
 };
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
 /// Codec providing VRPN message framing.
@@ -43,8 +43,10 @@ impl Encoder<SequencedGenericMessage> for FramedMessageCodec {
         item: SequencedGenericMessage,
         dst: &mut BytesMut,
     ) -> std::result::Result<(), Self::Error> {
-        dst.reserve(item.required_buffer_size());
-        item.buffer_to(dst).map_err(|e| Self::Error::from(e))
+        dst.reserve(item.buffer_size());
+        let buf = item.try_into_buf()?;
+        dst.put(buf);
+        Ok(())
     }
 }
 

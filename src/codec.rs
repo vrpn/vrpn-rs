@@ -23,7 +23,7 @@ pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<Sequenced
 
         // Make an interface to take exactly what we need from the buffer
         let mut taken_buf = buf.take(size.padded_message_size());
-        let unbuffered = SequencedGenericMessage::unbuffer_from(&mut taken_buf);
+        let unbuffered = SequencedGenericMessage::try_read_from_buf(&mut taken_buf);
         match unbuffered {
             Ok(v) => {
                 buf.advance(size.padded_message_size());

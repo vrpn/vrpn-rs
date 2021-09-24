@@ -61,7 +61,7 @@ fn main() -> Result<()> {
         let mut buf = buf.freeze();
 
         // Unbuffer the message.
-        let unbuffered = SequencedGenericMessage::unbuffer_from(&mut buf)?;
+        let unbuffered = SequencedGenericMessage::try_read_from_buf(&mut buf)?;
         eprintln!("{:?}", unbuffered.into_inner());
     }
 }

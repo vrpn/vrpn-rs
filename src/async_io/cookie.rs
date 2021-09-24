@@ -15,7 +15,7 @@ async fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), VrpnE
 where
     T: tokio::io::AsyncWrite + Unpin,
 {
-    let buf = BytesMut::new().allocate_and_buffer(cookie)?.freeze();
+    let buf = BytesMut::allocate_and_buffer(cookie)?.freeze();
     stream.write_all(&buf).await?;
     Ok(())
 }

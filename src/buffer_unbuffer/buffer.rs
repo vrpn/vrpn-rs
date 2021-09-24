@@ -17,20 +17,14 @@ where
     ///
     /// # Errors
     /// If buffering fails.
-    fn allocate_and_buffer<T: BufferTo>(
-        self,
-        v: T,
-    ) -> std::result::Result<Self, BufferUnbufferError>;
+    fn allocate_and_buffer<T: BufferTo>(v: T) -> std::result::Result<Self, BufferUnbufferError>;
 }
 
 impl BytesMutExtras for BytesMut {
-    fn allocate_and_buffer<T: BufferTo>(
-        mut self,
-        v: T,
-    ) -> std::result::Result<Self, BufferUnbufferError> {
-        self.reserve(v.buffer_size());
-        v.buffer_to(&mut self)?;
-        Ok(self)
+    fn allocate_and_buffer<T: BufferTo>(v: T) -> std::result::Result<Self, BufferUnbufferError> {
+        let mut buf = Self::with_capacity(v.buffer_size());
+        v.buffer_to(&mut buf)?;
+        Ok(buf)
     }
 }
 
