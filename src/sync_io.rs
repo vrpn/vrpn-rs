@@ -78,30 +78,24 @@ impl EndpointSyncTcp {
     fn read_single_message(&mut self) -> Result<SequencedGenericMessage, VrpnError> {
         self.stream
             .set_read_timeout(Some(Duration::from_millis(1)))?;
-        let mut buf = BytesMut::new();
+        let mut buf = BytesMut::with_capacity(24);
 
-        // Read the message header and padding
-        buf.resize(24, 0);
         // Peek the message header and padding
-        if let Err(e) = self.stream.peek(buf.as_mut()) {
+        self.stream.peek(buf.as_mut()).map_err(|e| {
+            use io::ErrorKind::*;
             match e.kind() {
-                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => {
-                    return Err(VrpnError::BufferUnbuffer(
-                        BufferUnbufferError::NeedMoreData(SizeRequirement::Unknown),
-                    ));
-                }
+                WouldBlock | TimedOut => VrpnError::from(SizeRequirement::Unknown),
                 // Not a "need more data"
-                _ => return Err(VrpnError::Other(Box::new(e))),
+                _ => VrpnError::Other(Box::new(e)),
             }
-        }
+        })?;
 
         // Peek the size field, to compute the MessageSize.
         let total_len = peek_u32(&buf.clone().freeze()).unwrap();
         let size = MessageSize::try_from_length_field(total_len)?;
 
         // Read the body of the message
-        let mut msg_buf = BytesMut::new();
-        msg_buf.resize(size.padded_message_size(), 0);
+        let mut msg_buf = BytesMut::with_capacity(size.padded_message_size());
         self.stream.read_exact(msg_buf.as_mut())?;
         let mut msg_buf = msg_buf.freeze();
 

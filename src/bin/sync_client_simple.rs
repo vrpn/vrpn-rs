@@ -40,10 +40,11 @@ fn main() -> Result<()> {
     check_ver_nonfile_compatible(msg.version)?;
 
     // Not actually doing anything with the messages here, just receiving them and printing them.
+    // Most of this should be handled by SequencedGenericMessage
     loop {
-        let mut buf = BytesMut::new();
-
         // Read the message header and padding
+        let mut buf = BytesMut::with_capacity(24);
+
         buf.resize(24, 0);
         stream.read_exact(buf.as_mut())?;
 
