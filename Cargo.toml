@@ -1,42 +1,38 @@
 [package]
-name = "vrpn"
-version = "0.1.0"
 authors = ["Ryan Pavlik <ryan.pavlik@collabora.com>"]
-license = "BSL-1.0"
-edition = "2018"
 description = "A port of the VRPN (Virtual Reality Peripheral Network) protocol to async code in Rust"
-repository = "https://github.com/vrpn/vrpn-rs"
+edition = "2018"
+license = "BSL-1.0"
+name = "vrpn"
 readme = "README.md"
+repository = "https://github.com/vrpn/vrpn-rs"
+version = "0.1.0"
 
 [dependencies]
-bytes = "1.1.0"
 bitflags = "1.3"
+bytes = "1.1.0"
 cgmath = "0.18.0"
-downcast-rs = "1.0.4"
-# mio = { version = "0.6.16", optional = true }
-# mio = "0.6.16"
-tokio = { version = "1.1", features = ["full"], optional = true }
-tokio-util = { version = "0.6", features = ["net",  "compat", "codec"], optional = true }
-# tokio-compat-02 = "0.2.0"
-# tokio = "1.11.0"
-tk-listen = { version = "0.2.1", optional = true }
-socket2 = "0.4.2"
-futures= { version = "0.3.17", features = ["compat"] }
 chrono = "^0.4.6"
-url = "^2.2.2"
+downcast-rs = "1.0.4"
+futures = {version = "0.3.17", features = ["compat"]}
+socket2 = "0.4.2"
 thiserror = "1.0"
+tk-listen = {version = "0.2.1", optional = true}
+tokio = {version = "1.1", features = ["full"], optional = true}
+tokio-util = {version = "0.6", features = ["net", "compat", "codec"], optional = true}
+url = "^2.2.2"
 
 [dev-dependencies]
 hex-literal = "0.3.3"
 proptest = "^1.0.0"
-tokio-test = "0.4.2"
 static_assertions = "1.1.0"
+tokio-test = "0.4.2"
 
 [features]
 # async-tokio = ["tokio", "mio", "tk-listen"]
 async-tokio = ["tokio", "tk-listen", "tokio-util"]
 # async-tokio = []
-incomplete-async = ["async-tokio"]
+incomplete-tokio = ["async-tokio"]
 
 [[bin]]
 name = "vrpn_tokio_print_devices"
