@@ -7,7 +7,7 @@
 use crate::{
     buffer_unbuffer::EmptyMessage,
     data_types::{
-        id_types::*, ClassOfService, Message, MessageHeader, MessageTypeId, MessageTypeIdentifier,
+        id_types::*, ClassOfService, TypedMessage, MessageHeader, MessageTypeId, MessageTypeIdentifier,
         SenderName, StaticMessageTypeName, TypedMessageBody,
     },
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
@@ -171,7 +171,7 @@ impl<T: Connection + 'static> Client<T> {
     }
 
     fn send_ping(&self) -> Result<(), VrpnError> {
-        let msg = Message::new(None, self.ping_type, self.sender, Pong::default());
+        let msg = TypedMessage::new(None, self.ping_type, self.sender, Pong::default());
         self.connection
             .pack_message(msg, ClassOfService::RELIABLE)?;
         Ok(())
@@ -191,7 +191,7 @@ impl<T: Connection + Send> TypedBodylessHandler for PingHandler<T> {
         // TODO use sender from header?
         match self.connection.upgrade() {
             Some(connection) => {
-                let msg = Message::new(None, self.pong_type, self.sender, Pong::default());
+                let msg = TypedMessage::new(None, self.pong_type, self.sender, Pong::default());
                 connection.pack_message(msg, ClassOfService::RELIABLE)?;
                 Ok(HandlerCode::ContinueProcessing)
             }

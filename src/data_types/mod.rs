@@ -25,9 +25,9 @@ pub use crate::data_types::{
 pub use crate::data_types::{
     id_types::MessageTypeId,
     message::{
-        GenericBody, GenericMessage, Message, MessageBody, MessageHeader, MessageSize,
+        GenericBody, GenericMessage, TypedMessage, MessageBody, MessageHeader, MessageSize,
         MessageTypeIdentifier, MessageTypeIdentifier::UserMessageName, SequencedGenericMessage,
-        SequencedMessage, TypedMessageBody,
+        Sequenced, TypedMessageBody,
     },
     name_types::{
         IdWithName, MessageTypeName, SenderName, StaticMessageTypeName, StaticSenderName,

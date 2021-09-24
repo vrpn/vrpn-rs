@@ -14,7 +14,7 @@ use crate::buffer_unbuffer::{
 };
 
 use super::{
-    constants, id_types::*, length_prefixed, IdWithName, Message, MessageTypeIdentifier,
+    constants, id_types::*, length_prefixed, IdWithName, TypedMessage, MessageTypeIdentifier,
     TypedMessageBody,
 };
 
@@ -64,7 +64,7 @@ impl TypedMessageBody for InnerDescription<MessageTypeId> {
         MessageTypeIdentifier::SystemMessageId(constants::TYPE_DESCRIPTION);
 }
 
-impl<T> Message<InnerDescription<T>>
+impl<T> TypedMessage<InnerDescription<T>>
 where
     T: IdWithDescription,
     InnerDescription<T>: TypedMessageBody,
@@ -74,12 +74,12 @@ where
     }
 }
 
-impl<T> From<Message<InnerDescription<T>>> for Description<T>
+impl<T> From<TypedMessage<InnerDescription<T>>> for Description<T>
 where
     T: IdWithDescription,
     InnerDescription<T>: TypedMessageBody,
 {
-    fn from(v: Message<InnerDescription<T>>) -> Description<T> {
+    fn from(v: TypedMessage<InnerDescription<T>>) -> Description<T> {
         let id: T = v.which();
         Description::new(id, v.body.name)
     }
@@ -102,13 +102,13 @@ impl<T: IdWithDescription> Description<T> {
     }
 }
 
-impl<T> From<Description<T>> for Message<InnerDescription<T>>
+impl<T> From<Description<T>> for TypedMessage<InnerDescription<T>>
 where
     T: IdWithDescription,
     InnerDescription<T>: TypedMessageBody,
 {
-    fn from(v: Description<T>) -> Message<InnerDescription<T>> {
-        Message::new(
+    fn from(v: Description<T>) -> TypedMessage<InnerDescription<T>> {
+        TypedMessage::new(
             None,
             T::description_message_type(),
             SenderId(v.which.get()),
@@ -148,23 +148,23 @@ impl TypedMessageBody for UdpInnerDescription {
         MessageTypeIdentifier::SystemMessageId(constants::UDP_DESCRIPTION);
 }
 
-impl Message<UdpInnerDescription> {
+impl TypedMessage<UdpInnerDescription> {
     fn port(&self) -> u16 {
         self.header.sender.0 as u16
     }
 }
 
-impl From<Message<UdpInnerDescription>> for UdpDescription {
-    fn from(v: Message<UdpInnerDescription>) -> UdpDescription {
+impl From<TypedMessage<UdpInnerDescription>> for UdpDescription {
+    fn from(v: TypedMessage<UdpInnerDescription>) -> UdpDescription {
         UdpDescription {
             socket_address: SocketAddr::new(v.body.address, v.port()),
         }
     }
 }
 
-impl From<UdpDescription> for Message<UdpInnerDescription> {
-    fn from(v: UdpDescription) -> Message<UdpInnerDescription> {
-        Message::new(
+impl From<UdpDescription> for TypedMessage<UdpInnerDescription> {
+    fn from(v: UdpDescription) -> TypedMessage<UdpInnerDescription> {
+        TypedMessage::new(
             None,
             constants::UDP_DESCRIPTION,
             SenderId(v.socket_address.port() as IdType),

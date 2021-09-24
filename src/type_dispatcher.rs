@@ -357,8 +357,8 @@ impl TypeDispatcher {
 #[cfg(test)]
 mod tests {
     use crate::data_types::{
-        message::{GenericBody, GenericMessage},
-        TimeVal,
+        message::{GenericBody, GenericMessage, Message},
+        MessageHeader, TimeVal,
     };
     use crate::type_dispatcher::*;
     use std::sync::{Arc, Mutex};
@@ -397,10 +397,12 @@ mod tests {
         let handler = collection
             .add(Box::new(sample_callback.clone()), None)
             .unwrap();
-        let msg = GenericMessage::new(
-            Some(TimeVal::get_time_of_day()),
-            MessageTypeId(0),
-            SenderId(0),
+        let msg = GenericMessage::from_header_and_body(
+            MessageHeader::new(
+                Some(TimeVal::get_time_of_day()),
+                MessageTypeId(0),
+                SenderId(0),
+            ),
             GenericBody::default(),
         );
         collection.call(&msg).unwrap();
@@ -447,10 +449,12 @@ mod tests {
         let handler = dispatcher
             .add_handler(Box::new(sample_callback.clone()), None, None)
             .unwrap();
-        let msg = GenericMessage::new(
-            Some(TimeVal::get_time_of_day()),
-            MessageTypeId(0),
-            SenderId(0),
+        let msg = GenericMessage::from_header_and_body(
+            MessageHeader::new(
+                Some(TimeVal::get_time_of_day()),
+                MessageTypeId(0),
+                SenderId(0),
+            ),
             GenericBody::default(),
         );
         dispatcher.call(&msg).unwrap();

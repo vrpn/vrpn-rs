@@ -59,13 +59,14 @@ pub fn apply_message_framing<T: tokio::io::AsyncRead + tokio::io::AsyncWrite>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data_types::{descriptions::InnerDescription, id_types::SenderId, message::Message};
+    use crate::data_types::{descriptions::InnerDescription, id_types::SenderId, message::TypedMessage};
     use bytes::BufMut;
-    type SenderInnerDesc = Message<InnerDescription<SenderId>>;
+    type SenderInnerDesc = TypedMessage<InnerDescription<SenderId>>;
+    use std::convert::TryFrom;
 
-    fn to_sender_inner_desc(msg: &SequencedGenericMessage) -> SenderInnerDesc {
-        let msg = Message::from(msg.clone());
-        SenderInnerDesc::try_from_generic(&msg).unwrap()
+    fn to_sender_inner_desc(sequenced: &SequencedGenericMessage) -> SenderInnerDesc {
+        let msg = sequenced.clone().into_inner();
+        SenderInnerDesc::try_from(&msg).unwrap()
     }
     fn get_test_messages() -> Vec<Vec<u8>> {
         vec![

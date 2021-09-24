@@ -19,8 +19,8 @@ use std::{
 use vrpn::{
     buffer_unbuffer::{peek_u32, UnbufferFrom},
     data_types::{
-        cookie::check_ver_nonfile_compatible, CookieData, Message, MessageSize,
-        SequencedGenericMessage,
+        cookie::check_ver_nonfile_compatible, CookieData, MessageSize, SequencedGenericMessage,
+        TypedMessage,
     },
     sync_io::{read_cookie, write_cookie},
     Result,
@@ -62,6 +62,6 @@ fn main() -> Result<()> {
 
         // Unbuffer the message.
         let unbuffered = SequencedGenericMessage::unbuffer_from(&mut buf)?;
-        eprintln!("{:?}", Message::from(unbuffered));
+        eprintln!("{:?}", unbuffered.into_inner());
     }
 }

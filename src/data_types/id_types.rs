@@ -103,7 +103,18 @@ impl Id for MessageTypeId {
         MessageTypeId(val)
     }
 }
+
 impl UnwrappedId for MessageTypeId {}
+
+impl WrappedConstantSize for MessageTypeId {
+    type WrappedType = IdType;
+    fn get(&self) -> Self::WrappedType {
+        Id::get(self)
+    }
+    fn new(v: Self::WrappedType) -> Self {
+        MessageTypeId(v)
+    }
+}
 
 /// ID for a sender
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -119,6 +130,16 @@ impl Id for SenderId {
 }
 
 impl UnwrappedId for SenderId {}
+
+impl WrappedConstantSize for SenderId {
+    type WrappedType = IdType;
+    fn get(&self) -> Self::WrappedType {
+        Id::get(self)
+    }
+    fn new(v: Self::WrappedType) -> Self {
+        SenderId(v)
+    }
+}
 
 /// Check for a match against an optional filter.
 ///
@@ -144,6 +165,16 @@ where
 /// Sequence number - not used on receive side, only used for sniffers (?)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SequenceNumber(pub u32);
+
+impl WrappedConstantSize for SequenceNumber {
+    type WrappedType = u32;
+    fn get(&self) -> Self::WrappedType {
+        self.0
+    }
+    fn new(v: Self::WrappedType) -> Self {
+        SequenceNumber(v)
+    }
+}
 
 /// Sensor ID for trackers.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]

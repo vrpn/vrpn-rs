@@ -56,7 +56,7 @@ where
         self.rx
             .poll_next_unpin(cx)
             // these nested maps are to get all the way inside the Ok(Async::Ready(Some(msg)))
-            .map(|a| a.map(|a| Ok(GenericMessage::from(a))))
+            .map(|a| a.map(|a| Ok(a.into_inner())))
     }
 }
 

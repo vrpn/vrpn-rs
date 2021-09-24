@@ -13,9 +13,9 @@ use crate::{
         constants,
         descriptions::{IdWithDescription, InnerDescription, UdpInnerDescription},
         id_types::*,
-        ClassOfService, Description, GenericMessage, IdWithName, LogFileNames, Message,
-        MessageHeader, MessageTypeId, MessageTypeName, SenderName, TypedMessageBody,
-        UdpDescription,
+        message::Message,
+        ClassOfService, Description, GenericMessage, IdWithName, LogFileNames, MessageHeader,
+        MessageTypeId, MessageTypeName, SenderName, TypedMessage, TypedMessageBody, UdpDescription,
     },
     MatchingTable, Result, TranslationTables, TypeDispatcher, VrpnError,
 };
@@ -63,21 +63,22 @@ pub trait Endpoint: Downcast {
         }
         match msg.header.message_type {
             constants::TYPE_DESCRIPTION => {
-                let msg: Message<InnerDescription<MessageTypeId>> = Message::try_from(&msg)?;
+                let msg: TypedMessage<InnerDescription<MessageTypeId>> =
+                    TypedMessage::try_from(&msg)?;
                 self.send_system_change(SystemCommand::TypeDescription(msg.into()))?;
             }
             constants::SENDER_DESCRIPTION => {
-                let msg: Message<InnerDescription<SenderId>> = Message::try_from(&msg)?;
+                let msg: TypedMessage<InnerDescription<SenderId>> = TypedMessage::try_from(&msg)?;
                 self.send_system_change(SystemCommand::SenderDescription(msg.into()))?;
             }
             constants::UDP_DESCRIPTION => {
-                let msg: Message<UdpInnerDescription> = Message::try_from(&msg)?;
+                let msg: TypedMessage<UdpInnerDescription> = TypedMessage::try_from(&msg)?;
                 self.send_system_change(SystemCommand::Extended(
                     ExtendedSystemCommand::UdpDescription(msg.into()),
                 ))?;
             }
             constants::LOG_DESCRIPTION => {
-                let msg: Message<LogFileNames> = Message::try_from(&msg)?;
+                let msg: TypedMessage<LogFileNames> = TypedMessage::try_from(&msg)?;
                 self.send_system_change(SystemCommand::Extended(
                     ExtendedSystemCommand::LogDescription(msg.body),
                 ))?;
@@ -154,11 +155,11 @@ pub trait Endpoint: Downcast {
     fn pack_all_descriptions(&mut self, dispatcher: &TypeDispatcher) -> Result<()> {
         let mut messages = Vec::new();
         for (id, name) in dispatcher.senders_iter() {
-            let desc_msg = Message::from(Description::new(id.into_id(), name.0.clone()));
+            let desc_msg = TypedMessage::from(Description::new(id.into_id(), name.0.clone()));
             messages.push(desc_msg.try_into_generic()?);
         }
         for (id, name) in dispatcher.types_iter() {
-            let desc_msg = Message::from(Description::new(id.into_id(), name.0.clone()));
+            let desc_msg = TypedMessage::from(Description::new(id.into_id(), name.0.clone()));
             messages.push(desc_msg.try_into_generic()?);
         }
         for msg in messages.into_iter() {
@@ -177,7 +178,7 @@ impl_downcast!(Endpoint);
 /// Endpoint-related methods that must be separate from the main Endpoint trait,
 /// because they are generic/have type parameters. (or depend on those methods)
 pub trait EndpointGeneric: Endpoint {
-    fn buffer_message<T>(&mut self, msg: Message<T>, class: ClassOfService) -> Result<()>
+    fn buffer_message<T>(&mut self, msg: TypedMessage<T>, class: ClassOfService) -> Result<()>
     where
         T: BufferTo + TypedMessageBody;
 
@@ -212,7 +213,7 @@ impl<U> EndpointGeneric for U
 where
     U: Endpoint,
 {
-    fn buffer_message<T>(&mut self, msg: Message<T>, class: ClassOfService) -> Result<()>
+    fn buffer_message<T>(&mut self, msg: TypedMessage<T>, class: ClassOfService) -> Result<()>
     where
         T: BufferTo + TypedMessageBody,
     {
@@ -225,7 +226,7 @@ where
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
     {
-        let desc_msg = Message::from(Description::new(local_id.0, name));
+        let desc_msg = TypedMessage::from(Description::new(local_id.0, name));
         self.buffer_message(desc_msg, ClassOfService::RELIABLE)
             .map(|_| ())
     }
@@ -287,7 +288,7 @@ where
             })?;
 
             // eprintln!("user message: {:?}", msg.header);
-            let msg = Message::from_header_and_body(
+            let msg = GenericMessage::from_header_and_body(
                 MessageHeader::new(Some(msg.header.time), new_type, new_sender),
                 msg.body,
             );

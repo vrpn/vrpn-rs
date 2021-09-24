@@ -9,7 +9,7 @@ use crate::{
     data_types::{
         descriptions::{IdWithDescription, InnerDescription},
         id_types::*,
-        ClassOfService, LogFileNames, Message, MessageTypeId, MessageTypeIdentifier,
+        ClassOfService, LogFileNames, TypedMessage, MessageTypeId, MessageTypeIdentifier,
         MessageTypeName, SenderName, TimeVal, TypedMessageBody,
     },
     type_dispatcher::HandlerHandle,
@@ -125,7 +125,7 @@ pub trait Connection: Send + Sync {
     /// Pack a message to send to all connected endpoints.
     ///
     /// May not actually send immediately, might need to poll the connection somehow.
-    fn pack_message<T>(&self, msg: Message<T>, class: ClassOfService) -> Result<()>
+    fn pack_message<T>(&self, msg: TypedMessage<T>, class: ClassOfService) -> Result<()>
     where
         T: TypedMessageBody + BufferTo,
     {
@@ -158,7 +158,7 @@ pub trait Connection: Send + Sync {
             MessageTypeIdentifier::UserMessageName(name) => self.register_type(name)?,
             MessageTypeIdentifier::SystemMessageId(id) => LocalId(id),
         };
-        let message: Message<T> = Message::new(timeval, message_type, sender, body);
+        let message: TypedMessage<T> = TypedMessage::new(timeval, message_type, sender, body);
         self.pack_message(message, class)
     }
 

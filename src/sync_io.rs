@@ -8,20 +8,10 @@
 
 extern crate bytes;
 
-use crate::{
-    buffer_unbuffer::{
+use crate::{Endpoint, EndpointGeneric, TypeDispatcher, buffer_unbuffer::{
         peek_u32, size_requirement::MayContainSizeRequirement, BufferUnbufferError, BytesMutExtras,
         ConstantBufferSize, SizeRequirement, UnbufferFrom,
-    },
-    data_types::{
-        self, id_types::SequenceNumber, CookieData, GenericMessage, MessageSize,
-        SequencedGenericMessage,
-    },
-    endpoint::SystemCommand,
-    error::VrpnError,
-    translation_table::Tables as TranslationTables,
-    Endpoint, EndpointGeneric, TypeDispatcher,
-};
+    }, data_types::{self, CookieData, GenericMessage, MessageSize, SequencedGenericMessage, id_types::SequenceNumber, message::Message}, endpoint::SystemCommand, error::VrpnError, translation_table::Tables as TranslationTables};
 use bytes::BytesMut;
 use std::{
     io::{self, Read, Write},
@@ -113,7 +103,7 @@ impl EndpointSyncTcp {
         loop {
             match self.read_single_message() {
                 Ok(msg) => {
-                    let msg = self.map_remote_message_to_local(msg.message)?;
+                    let msg = self.map_remote_message_to_local(msg.into_inner())?;
                     if let Some(msg) = self.passthrough_nonsystem_message(msg)? {
                         dispatcher.call(&msg)?;
                     }

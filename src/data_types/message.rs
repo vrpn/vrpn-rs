@@ -66,53 +66,99 @@ impl MessageHeader {
 }
 
 /// A message with header information, almost ready to be buffered to the wire.
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Message<T: MessageBody> {
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct TypedMessage<T: TypedMessageBody> {
     pub header: MessageHeader,
     pub body: T,
 }
 
 /// A special type of message, with just an (exact-size) buffer as the body.
-pub type GenericMessage = Message<GenericBody>;
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct GenericMessage {
+    pub header: MessageHeader,
+    pub body: GenericBody,
+}
 
-impl<T: MessageBody> Message<T> {
+/// Trait unifying `TypedMessage<T>` and `GenericMessage`
+pub trait Message
+where
+    Self: Sized,
+{
+    type Body;
+    /// Create a message by combining a header and a body.
+    fn from_header_and_body(header: MessageHeader, body: Self::Body) -> Self;
+
+    /// Access the header
+    fn header_ref(&self) -> &MessageHeader;
+
+    /// Access the body
+    fn body_ref(&self) -> &Self::Body;
+
+    /// true if the message type indicates that it is a "system" message (type ID < 0)
+    fn is_system_message(&self) -> bool {
+        self.header_ref().message_type.is_system_message()
+    }
+    /// Consumes this message and returns a new SequencedMessage, which the supplied sequence number has been added to.
+    fn into_sequenced_message(self, sequence_number: SequenceNumber) -> Sequenced<Self> {
+        Sequenced {
+            message: self,
+            sequence_number,
+        }
+    }
+}
+
+impl<T: TypedMessageBody> TypedMessage<T> {
     pub fn new(
         time: Option<TimeVal>,
         message_type: impl IntoId<BaseId = MessageTypeId>,
         sender: impl IntoId<BaseId = SenderId>,
         body: T,
-    ) -> Message<T> {
-        Message {
+    ) -> TypedMessage<T> {
+        TypedMessage {
             header: MessageHeader::new(time, message_type, sender),
             body,
         }
     }
 
     /// Create a message by combining a header and a body.
-    pub fn from_header_and_body(header: MessageHeader, body: T) -> Message<T> {
-        Message { header, body }
-    }
-
-    /// Consumes this message and returns a new SequencedMessage, which the supplied sequence number has been added to.
-    pub fn into_sequenced_message(self, sequence_number: SequenceNumber) -> SequencedMessage<T> {
-        SequencedMessage {
-            message: self,
-            sequence_number,
-        }
-    }
-
-    /// true if the message type indicates that it is a "system" message (type ID < 0)
-    pub fn is_system_message(&self) -> bool {
-        self.header.message_type.is_system_message()
+    pub fn from_header_and_body(header: MessageHeader, body: T) -> TypedMessage<T> {
+        TypedMessage { header, body }
     }
 }
 
-impl<T: MessageBody> From<SequencedMessage<T>> for Message<T> {
-    fn from(v: SequencedMessage<T>) -> Message<T> {
-        v.message
+impl Message for GenericMessage {
+    type Body = GenericBody;
+
+    fn from_header_and_body(header: MessageHeader, body: Self::Body) -> Self {
+        Self { header, body }
+    }
+
+    fn header_ref(&self) -> &MessageHeader {
+        &self.header
+    }
+
+    fn body_ref(&self) -> &Self::Body {
+        &self.body
     }
 }
-impl<T: TypedMessageBody + unbuffer::UnbufferFrom> TryFrom<&GenericMessage> for Message<T> {
+
+impl<T: TypedMessageBody> Message for TypedMessage<T> {
+    type Body = T;
+
+    fn from_header_and_body(header: MessageHeader, body: Self::Body) -> Self {
+        Self { header, body }
+    }
+
+    fn header_ref(&self) -> &MessageHeader {
+        &self.header
+    }
+
+    fn body_ref(&self) -> &Self::Body {
+        &self.body
+    }
+}
+
+impl<T: TypedMessageBody + unbuffer::UnbufferFrom> TryFrom<&GenericMessage> for TypedMessage<T> {
     type Error = VrpnError;
 
     /// Try parsing a generic message into a typed message
@@ -131,13 +177,13 @@ impl<T: TypedMessageBody + unbuffer::UnbufferFrom> TryFrom<&GenericMessage> for 
                 buf.len()
             )));
         }
-        Ok(Message::from_header_and_body(msg.header.clone(), body))
+        Ok(TypedMessage::from_header_and_body(msg.header.clone(), body))
     }
 }
 
-impl<T: TypedMessageBody + unbuffer::UnbufferFrom> Message<T> {
+impl<T: TypedMessageBody + unbuffer::UnbufferFrom> TypedMessage<T> {
     #[deprecated]
-    pub fn try_from_generic(msg: &GenericMessage) -> Result<Message<T>> {
+    pub fn try_from_generic(msg: &GenericMessage) -> Result<TypedMessage<T>> {
         let mut buf = msg.body.inner.clone();
         let body = T::unbuffer_from(&mut buf)
             .map_err(BufferUnbufferError::map_bytes_required_to_size_mismatch)?;
@@ -148,34 +194,40 @@ impl<T: TypedMessageBody + unbuffer::UnbufferFrom> Message<T> {
                 buf.len()
             )));
         }
-        Ok(Message::from_header_and_body(msg.header.clone(), body))
+        Ok(TypedMessage::from_header_and_body(msg.header.clone(), body))
     }
 }
 
-// todo The following should work! but it doesn't.
-// impl<T> TryFrom<T> for GenericBody
-// where
-//     T: TypedMessageBody + Buffer,
-// {
-//     type Error = crate::Error;
-//     /// Try converting a typed message into a generic message
-//     ///
-//     /// # Errors
-//     /// If buffering fails.
-//     fn try_from(value: T) -> std::result::Result<Self, Self::Error> {
-//         let old_body = value.body;
-//         let header = value.header;
-//         let generic = BytesMut::new().allocate_and_buffer(old_body).map(|body| {
-//             GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
-//         })?;
-//         Ok(generic)
-//     }
-// }
+impl<T: TypedMessageBody + buffer::BufferTo> TryFrom<TypedMessage<T>> for GenericMessage {
+    type Error = BufferUnbufferError;
+
+    fn try_from(value: TypedMessage<T>) -> std::result::Result<Self, Self::Error> {
+        let old_body = value.body;
+        let header = value.header;
+        let generic = BytesMut::new().allocate_and_buffer(old_body).map(|body| {
+            GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
+        })?;
+        Ok(generic)
+    }
+}
+
+impl<T: TypedMessageBody + unbuffer::UnbufferFrom> TryFrom<GenericMessage> for TypedMessage<T> {
+    type Error = BufferUnbufferError;
+
+    fn try_from(value: GenericMessage) -> std::result::Result<Self, Self::Error> {
+        let mut buf = value.body.clone().into_inner();
+        let typed_body = T::unbuffer_from(&mut buf)?;
+        Ok(TypedMessage {
+            header: value.header,
+            body: typed_body,
+        })
+    }
+}
 
 extern crate static_assertions;
 static_assertions::assert_not_impl_any!(GenericBody: TypedMessageBody);
 
-impl<T: TypedMessageBody + buffer::BufferTo> Message<T> {
+impl<T: TypedMessageBody + buffer::BufferTo> TypedMessage<T> {
     /// Try converting a typed message into a generic message
     ///
     /// # Errors
@@ -195,36 +247,30 @@ impl<T: TypedMessageBody + buffer::BufferTo> Message<T> {
 ///
 /// Wraps `Message<T>`
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct SequencedMessage<T: MessageBody> {
-    pub message: Message<T>,
+pub struct Sequenced<T: Message> {
+    message: T,
     pub sequence_number: SequenceNumber,
 }
 
-/// A special type of sequenced message, with just an (exact-size) buffer as the body.
-pub type SequencedGenericMessage = SequencedMessage<GenericBody>;
-
-impl<T: MessageBody> SequencedMessage<T> {
-    pub fn new(
-        time: Option<TimeVal>,
-        message_type: MessageTypeId,
-        sender: SenderId,
-        body: T,
-        sequence_number: SequenceNumber,
-    ) -> SequencedMessage<T> {
-        SequencedMessage {
-            message: Message::new(time, message_type, sender, body),
-            sequence_number,
-        }
+impl<T: Message> Sequenced<T> {
+    pub fn into_inner(self) -> T {
+        self.message
+    }
+    pub fn message(&self) -> &T {
+        &self.message
     }
 }
 
-impl BufferSize for SequencedMessage<GenericBody> {
+/// A special type of sequenced message, with just an (exact-size) buffer as the body.
+pub type SequencedGenericMessage = Sequenced<GenericMessage>;
+
+impl BufferSize for Sequenced<GenericMessage> {
     fn buffer_size(&self) -> usize {
         generic_message_size(self).padded_message_size()
     }
 }
 
-impl buffer::BufferTo for SequencedMessage<GenericBody> {
+impl buffer::BufferTo for Sequenced<GenericMessage> {
     /// Serialize to a buffer.
     fn buffer_to<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
         let size = generic_message_size(self);
@@ -246,11 +292,9 @@ impl buffer::BufferTo for SequencedMessage<GenericBody> {
     }
 }
 
-impl unbuffer::UnbufferFrom for SequencedMessage<GenericBody> {
+impl unbuffer::UnbufferFrom for Sequenced<GenericMessage> {
     /// Deserialize from a buffer.
-    fn unbuffer_from<T: Buf>(
-        buf: &mut T,
-    ) -> unbuffer::UnbufferResult<SequencedMessage<GenericBody>> {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Sequenced<GenericMessage>> {
         let initial_remaining = buf.remaining();
         let length_field = unbuffer::peek_u32(buf).ok_or_else(|| {
             BufferUnbufferError::from(SizeRequirement::AtLeast(u32::constant_buffer_size()))
@@ -283,65 +327,35 @@ impl unbuffer::UnbufferFrom for SequencedMessage<GenericBody> {
 
         // drop padding bytes
         let _ = buf.copy_to_bytes(size.body_padding());
-        Ok(SequencedMessage::new(
-            Some(time),
-            message_type,
-            sender,
-            body,
+        Ok(Sequenced {
+            message: GenericMessage {
+                header: MessageHeader::new(Some(time), message_type, sender),
+                body,
+            },
             sequence_number,
-        ))
+        })
     }
 }
 
 /// Generic body struct used in unbuffering process, before dispatch on type to fully decode.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub struct GenericBody {
-    pub inner: Bytes,
+    inner: Bytes,
 }
 
 impl GenericBody {
+    /// Create a generic body from a bytes buffer.
     pub fn new(inner: Bytes) -> GenericBody {
         GenericBody { inner }
     }
-}
 
-impl Default for GenericBody {
-    fn default() -> GenericBody {
-        GenericBody::new(Bytes::default())
+    /// Consume and return the inner Bytes
+    pub fn into_inner(self) -> Bytes {
+        self.inner
     }
 }
 
 impl MessageBody for GenericBody {}
-
-impl WrappedConstantSize for SequenceNumber {
-    type WrappedType = u32;
-    fn get(&self) -> Self::WrappedType {
-        self.0
-    }
-    fn new(v: Self::WrappedType) -> Self {
-        SequenceNumber(v)
-    }
-}
-
-impl WrappedConstantSize for SenderId {
-    type WrappedType = IdType;
-    fn get(&self) -> Self::WrappedType {
-        Id::get(self)
-    }
-    fn new(v: Self::WrappedType) -> Self {
-        SenderId(v)
-    }
-}
-
-impl WrappedConstantSize for MessageTypeId {
-    type WrappedType = IdType;
-    fn get(&self) -> Self::WrappedType {
-        Id::get(self)
-    }
-    fn new(v: Self::WrappedType) -> Self {
-        MessageTypeId(v)
-    }
-}
 
 #[inline]
 const fn compute_padding(len: usize) -> usize {
@@ -461,31 +475,6 @@ impl buffer::BufferTo for GenericBody {
         buf.put(self.inner.clone());
         Ok(())
     }
-}
-
-/// Turn a generic message into a typed message, if possible.
-#[deprecated]
-pub fn unbuffer_typed_message_body<T: unbuffer::UnbufferFrom + TypedMessageBody>(
-    msg: &GenericMessage,
-) -> Result<Message<T>> {
-    let typed_msg: Message<T> = Message::try_from(msg)?;
-    Ok(typed_msg)
-}
-
-#[deprecated]
-pub fn make_message_body_generic<T: buffer::BufferTo + TypedMessageBody>(
-    msg: Message<T>,
-) -> Result<GenericMessage> {
-    msg.try_into_generic()
-}
-
-#[deprecated]
-pub fn make_sequenced_message_body_generic<T: buffer::BufferTo + TypedMessageBody>(
-    msg: SequencedMessage<T>,
-) -> Result<SequencedGenericMessage> {
-    let seq = msg.sequence_number;
-    let generic_msg = msg.message.try_into_generic()?;
-    Ok(generic_msg.into_sequenced_message(seq))
 }
 
 #[cfg(test)]

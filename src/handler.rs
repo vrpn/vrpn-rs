@@ -5,7 +5,7 @@
 pub use crate::type_dispatcher::HandlerHandle;
 use crate::{
     buffer_unbuffer::{EmptyMessage, UnbufferFrom},
-    data_types::{GenericMessage, Message, MessageHeader, TypedMessageBody},
+    data_types::{GenericMessage, TypedMessage, MessageHeader, TypedMessageBody},
     Result,
 };
 use std::{convert::TryFrom, fmt};
@@ -33,7 +33,7 @@ pub trait Handler: Send + Sync {
 /// pointlessly look up/register the message type yourself.
 pub trait TypedHandler: Send + Sync {
     type Item: TypedMessageBody + UnbufferFrom + fmt::Debug;
-    fn handle_typed(&mut self, msg: &Message<Self::Item>) -> Result<HandlerCode>;
+    fn handle_typed(&mut self, msg: &TypedMessage<Self::Item>) -> Result<HandlerCode>;
 }
 
 impl<T> Handler for T
@@ -41,7 +41,7 @@ where
     T: TypedHandler,
 {
     fn handle(&mut self, msg: &GenericMessage) -> Result<HandlerCode> {
-        let typed_msg: Message<T::Item> = Message::try_from(msg)?;
+        let typed_msg: TypedMessage<T::Item> = TypedMessage::try_from(msg)?;
         self.handle_typed(&typed_msg)
     }
 }
@@ -62,7 +62,7 @@ where
     T: TypedBodylessHandler,
 {
     type Item = <Self as TypedBodylessHandler>::Item;
-    fn handle_typed(&mut self, msg: &Message<Self::Item>) -> Result<HandlerCode> {
+    fn handle_typed(&mut self, msg: &TypedMessage<Self::Item>) -> Result<HandlerCode> {
         self.handle_typed_bodyless(&msg.header)
     }
 }
