@@ -253,6 +253,7 @@ impl<T: TypedMessageBody + buffer::BufferTo> TypedMessage<T> {
     /// # Errors
     /// If buffering fails.
     // todo: deprecate this in favor of the TryFrom above once it works...
+    #[deprecated]
     pub fn try_into_generic(self) -> Result<GenericMessage> {
         let old_body = self.body;
         let header = self.header;
