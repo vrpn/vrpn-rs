@@ -24,28 +24,6 @@ pub trait UnbufferFrom: Sized {
     fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self>;
 }
 
-/// Tries to unbuffer from a mutable reference to a buffer.
-///
-/// Delegates to `UnbufferFrom::unbuffer_from()`.
-/// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
-#[deprecated = "Use UnbufferFrom::unbuffer_from() directly instead"]
-pub fn unbuffer_from<T: UnbufferFrom, U: Buf>(buf: &mut U) -> UnbufferResult<T> {
-    T::unbuffer_from(buf)
-}
-
-/// Tries to unbuffer, consuming the buffer and returning what's left.
-///
-/// Should no longer be neccessary now that futures don't require you to consume and return streams
-/// with every call.
-///
-/// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
-#[deprecated = "Should not be necessary with modern futures, use UnbufferFrom::unbuffer_from() directly instead"]
-pub fn unbuffer_from_and_into<T: UnbufferFrom>(buf: Bytes) -> UnbufferResult<(T, Bytes)> {
-    let mut buf = buf;
-    let v = T::unbuffer_from(&mut buf)?;
-    Ok((v, buf))
-}
-
 /// Implementation trait for constant-buffer-size types,
 /// used by the blanket implementation of `UnbufferFrom`.
 pub trait UnbufferConstantSize: Sized + ConstantBufferSize {
