@@ -93,17 +93,22 @@ async fn async_main() -> Result<()> {
 
     // We first write our cookie, then read and check the server's cookie, before the loop.
     {
+        buf.clear();
         CookieData::make_cookie().buffer_to(&mut buf)?;
         let cookie_buf = buf.split(); // BytesMut::allocate_and_buffer(CookieData::make_cookie())?;
         stream.write_all(&cookie_buf[..]).await?;
         println!("wrote cookie");
     }
     {
-        let mut cookie_buf = read_cookie(&mut stream, &mut buf).await?;
+        buf.clear();
+        read_cookie(&mut stream, &mut buf).await?;
+        let mut cookie_buf = buf.split();
         eprintln!("{:?}", String::from_utf8_lossy(cookie_buf.chunk()));
         println!("read cookie");
         let msg = CookieData::unbuffer_from(&mut cookie_buf)?;
         check_ver_nonfile_compatible(msg.version)?;
+        cookie_buf.unsplit(buf);
+        buf = cookie_buf;
     }
 
     // let mut reader = BufReader::new(&stream);
@@ -124,8 +129,17 @@ async fn async_main() -> Result<()> {
             let total_len = u32::unbuffer_from(&mut buf.clone().split().freeze()).unwrap();
             MessageSize::try_from_length_field(total_len).unwrap()
         };
+        buf.unsplit(after_header);
         println!("reading body");
 
+        loop {
+            let mut existing_bytes = buf.split();
+            let n = AsyncReadExt::read(&mut stream, &mut buf).await?;
+            let len = buf.len();
+            existing_bytes.unsplit(buf);
+            buf = existing_bytes;
+            println!("n={}, len={}, total_len={}", n, len, buf.len());
+        }
         // let body_stream =
         //     AsyncReadExt::take(stream.clone(), size.padded_body_size().try_into().unwrap());
         //     body_stream.read_to_end(buf)
