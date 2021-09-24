@@ -12,7 +12,9 @@ use crate::{
 };
 
 /// Decode exactly 1 message. Returns Ok(None) if we don't have enough data.
-pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<SequencedGenericMessage>> {
+pub(crate) fn decode_one<T: Buf + Clone>(
+    buf: &mut T,
+) -> UnbufferResult<Option<SequencedGenericMessage>> {
     // Peek the length field if possible
     if let Some(combined_size) = peek_u32(buf) {
         let size = MessageSize::from_length_field(combined_size);
@@ -21,17 +23,9 @@ pub(crate) fn decode_one<T: Buf>(buf: &mut T) -> UnbufferResult<Option<Sequenced
             return Ok(None);
         }
 
-        // Make an interface to take exactly what we need from the buffer
-        let mut taken_buf = buf.take(size.padded_message_size());
-        let unbuffered = SequencedGenericMessage::try_read_from_buf(&mut taken_buf);
-        match unbuffered {
-            Ok(v) => {
-                buf.advance(size.padded_message_size());
-                Ok(Some(v))
-            }
-            Err(BufferUnbufferError::NeedMoreData(_)) => {
-                unreachable!();
-            }
+        match SequencedGenericMessage::try_read_from_buf(buf) {
+            Ok(v) => Ok(Some(v)),
+            Err(BufferUnbufferError::NeedMoreData(_)) => Ok(None),
             Err(e) => Err(e),
         }
     } else {

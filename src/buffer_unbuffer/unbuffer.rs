@@ -15,44 +15,23 @@ pub type UnbufferResult<T> = std::result::Result<T, BufferUnbufferError>;
 pub trait UnbufferFrom: Sized {
     /// Tries to unbuffer, advancing the buffer position only if successful.
     ///
-    /// # Note
-    ///
-    /// Must check size before advancing the buffer: usually start with
-    /// `check_unbuffer_remaining`, may require use of `peek_u32`
-    ///
-    /// Returns `Err(BufferUnbufferError::NeedMoreData(n))` if not enough data.
+    /// Buffer always contains enough. If it might not, don't implement this trait.
     fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self>;
 }
 
 /// Implementation trait for constant-buffer-size types,
 /// used by the blanket implementation of `UnbufferFrom`.
+#[deprecated]
 pub trait UnbufferConstantSize: Sized + ConstantBufferSize {
     /// Perform the unbuffering: only called with at least as many bytes as needed.
     /// Therefore, no need to size-check.
     fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> UnbufferResult<Self>;
 }
 
-/// Blanket impl for types implementing UnbufferConstantSize.
-// TODO implement unbuffer_constant_size everywhere we're checking remaining against Self::constant_buffer_size
-impl<T: UnbufferConstantSize> UnbufferFrom for T {
+/// Blanket impl for types implementing WrappedConstantSize.
+impl<T: WrappedConstantSize> UnbufferFrom for T {
     fn unbuffer_from<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
-        let len = Self::constant_buffer_size();
-        check_unbuffer_remaining(buf, len)?;
-        let mut buf_subset = buf.take(len);
-        let mut bytes_subset = buf_subset.copy_to_bytes(len);
-        let result = Self::unbuffer_constant_size(&mut bytes_subset);
-        // don't advance if we need more data
-        if let Err(BufferUnbufferError::NeedMoreData(n)) = result {
-            return Err(BufferUnbufferError::NeedMoreData(n));
-        }
-        buf.advance(len);
-        result
-    }
-}
-
-impl<T: WrappedConstantSize> UnbufferConstantSize for T {
-    fn unbuffer_constant_size<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
-        T::WrappedType::unbuffer_constant_size(buf).map(T::new)
+        T::WrappedType::unbuffer_from(buf).map(T::new)
     }
 }
 

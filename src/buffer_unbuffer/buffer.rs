@@ -35,8 +35,7 @@ pub type BufferResult = std::result::Result<(), BufferUnbufferError>;
 pub trait BufferTo: BufferSize {
     /// Serialize to a buffer (taken as a mutable reference)
     ///
-    /// Implementations must call `check_buffer_remaining(...)?;` first
-    /// or otherwise avoid modifying the buffer if the whole message cannot fit!
+    /// Buffer guaranteed big enough.
     fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult;
 
     /// Get the number of bytes required to serialize this to a buffer.

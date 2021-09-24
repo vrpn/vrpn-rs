@@ -3,8 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use super::{
-    check_buffer_remaining, check_unbuffer_remaining, size::ConstantBufferSize,
-    unbuffer::UnbufferConstantSize, BufferResult, BufferTo, UnbufferResult,
+    size::ConstantBufferSize, unbuffer::UnbufferFrom, BufferResult, BufferTo, UnbufferResult,
 };
 use bytes::{Buf, BufMut};
 
@@ -14,15 +13,13 @@ macro_rules! buffer_primitive {
 
         impl BufferTo for $t {
             fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
-                check_buffer_remaining(buf, Self::constant_buffer_size())?;
                 buf.$put(*self);
                 Ok(())
             }
         }
 
-        impl UnbufferConstantSize for $t {
-            fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
-                check_unbuffer_remaining(buf, Self::constant_buffer_size())?;
+        impl UnbufferFrom for $t {
+            fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
                 Ok(buf.$get())
             }
         }
@@ -51,8 +48,8 @@ impl BufferTo for () {
     }
 }
 
-impl UnbufferConstantSize for () {
-    fn unbuffer_constant_size<T: Buf>(_buf: &mut T) -> UnbufferResult<Self> {
+impl UnbufferFrom for () {
+    fn unbuffer_from<T: Buf>(_buf: &mut T) -> UnbufferResult<Self> {
         Ok(())
     }
 }

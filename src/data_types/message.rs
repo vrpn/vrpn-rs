@@ -72,8 +72,8 @@ impl ConstantBufferSize for MessageHeader {
     }
 }
 
-impl unbuffer::UnbufferConstantSize for MessageHeader {
-    fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+impl unbuffer::UnbufferFrom for MessageHeader {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
         let time = TimeVal::unbuffer_from(buf)?;
         let sender = SenderId::unbuffer_from(buf)?;
         let message_type = MessageTypeId::unbuffer_from(buf)?;
@@ -298,7 +298,7 @@ impl SequencedGenericMessage {
     }
 
     /// Deserialize from a buffer.
-    pub fn try_read_from_buf<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+    pub fn try_read_from_buf<T: Buf + Clone>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
         let initial_remaining = buf.remaining();
         let length_field = unbuffer::peek_u32(buf).ok_or_else(|| {
             BufferUnbufferError::from(SizeRequirement::AtLeast(u32::constant_buffer_size()))
