@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-// A simple, synchronous-IO client for testing purposes.
-// Doesn't use any of the async-io stuff in the vrpn crate,
-// so this is durable even if Tokio totally changes everything.
+//! A simple, synchronous-IO client for testing purposes.
+//!
+//! Doesn't use any of the async-io stuff in the vrpn crate,
+//! so this is durable even if Tokio totally changes everything.
 
 extern crate bytes;
 
