@@ -12,10 +12,10 @@ extern crate bytes;
 use crate::{
     buffer_unbuffer::{
         peek_u32, size_requirement::MayContainSizeRequirement, BufferUnbufferError, BytesMutExtras,
-        ConstantBufferSize, SizeRequirement, UnbufferFrom,
+        ConstantBufferSize, SizeRequirement,
     },
     data_types::{
-        self, id_types::SequenceNumber, message::Message, CookieData, GenericMessage, MessageSize,
+        self, id_types::SequenceNumber, CookieData, GenericMessage, MessageSize,
         SequencedGenericMessage,
     },
     endpoint::SystemCommand,

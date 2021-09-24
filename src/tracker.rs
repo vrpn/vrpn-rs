@@ -6,7 +6,7 @@
 
 use crate::{
     buffer_unbuffer::{
-        buffer::{check_buffer_remaining, BufferResult, BufferTo},
+        buffer::{BufferResult, BufferTo},
         unbuffer::{check_unbuffer_remaining, UnbufferFrom, UnbufferResult},
         ConstantBufferSize,
     },

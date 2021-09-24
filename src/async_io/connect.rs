@@ -62,7 +62,7 @@ pub fn make_udp_socket() -> io::Result<UdpSocket> {
 }
 
 pub async fn outgoing_tcp_connect(addr: std::net::SocketAddr) -> Result<tokio::net::TcpStream> {
-    let sock = make_tcp_socket(addr.clone())?;
+    let sock = make_tcp_socket(addr)?;
     sock.connect(&SockAddr::from(addr))?;
     Ok(tokio::net::TcpStream::from_std(std::net::TcpStream::from(
         sock,

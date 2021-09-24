@@ -5,8 +5,8 @@
 use bytes::Buf;
 
 use crate::{
-    buffer_unbuffer::{check_unbuffer_remaining, peek_u32, BufferUnbufferError, UnbufferResult},
-    data_types::{MessageSize, SequencedGenericMessage},
+    buffer_unbuffer::{BufferUnbufferError, UnbufferResult},
+    data_types::SequencedGenericMessage,
 };
 
 /// Decode at most 1 message. Returns Ok(None) if we don't have enough data.
@@ -51,17 +51,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn peek() {
-        use crate::codec::peek_u32;
-        use bytes::Buf;
-        let data = b"\0\0\0\0";
-        {
-            let buf = &data[..];
-            assert_eq!(peek_u32(&buf), Some(0));
-            assert_eq!(buf.remaining(), data.len());
-        }
-    }
     #[test]
     fn individual_decode_one() {
         const MSG1: [u8; 48] = hex!(

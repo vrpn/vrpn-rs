@@ -137,6 +137,16 @@ pub fn unbuffer_decimal_digits<T: Buf>(buf: &mut T, n: usize) -> UnbufferResult<
 mod tests {
     use super::*;
     #[test]
+    fn peek() {
+        use bytes::Buf;
+        let data = b"\0\0\0\0";
+        {
+            let buf = &data[..];
+            assert_eq!(peek_u32(&buf), Some(0));
+            assert_eq!(buf.remaining(), data.len());
+        }
+    }
+    #[test]
     fn basics() {
         assert_eq!(from_dec(Bytes::from_static(b"1")).unwrap(), 1_u8);
         assert_eq!(from_dec(Bytes::from_static(b"12")).unwrap(), 12_u8);
