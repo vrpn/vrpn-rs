@@ -11,7 +11,8 @@ use crate::{
     buffer_unbuffer::{
         buffer::{self, BytesMutExtras},
         size_requirement::*,
-        unbuffer, BufferSize, BufferUnbufferError, ConstantBufferSize,
+        unbuffer::{self, UnbufferFrom},
+        BufferSize, BufferUnbufferError, ConstantBufferSize,
     },
     Result, VrpnError,
 };
@@ -57,6 +58,30 @@ impl MessageHeader {
             message_type: message_type.into_id(),
             sender: sender.into_id(),
         }
+    }
+}
+
+impl ConstantBufferSize for MessageHeader {
+    fn constant_buffer_size() -> usize
+    where
+        Self: Sized,
+    {
+        TimeVal::constant_buffer_size()
+            + MessageTypeId::constant_buffer_size()
+            + SenderId::constant_buffer_size()
+    }
+}
+
+impl unbuffer::UnbufferConstantSize for MessageHeader {
+    fn unbuffer_constant_size<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+        let time = TimeVal::unbuffer_from(buf)?;
+        let sender = SenderId::unbuffer_from(buf)?;
+        let message_type = MessageTypeId::unbuffer_from(buf)?;
+        Ok(MessageHeader {
+            time,
+            sender,
+            message_type,
+        })
     }
 }
 
@@ -300,12 +325,12 @@ impl unbuffer::UnbufferFrom for Sequenced<GenericMessage> {
         assert_ne!(buf.remaining(), 0);
         // now we can actually unbuffer the length since we checked to make sure we have it.
         let _ = u32::unbuffer_from(buf)?;
+        let header = MessageHeader::unbuffer_from(buf)?;
+        assert_ne!(buf.remaining(), 0);
 
-        let time = TimeVal::unbuffer_from(buf)?;
-        let sender = SenderId::unbuffer_from(buf)?;
-        let message_type = MessageTypeId::unbuffer_from(buf)?;
         let sequence_number = SequenceNumber::unbuffer_from(buf)?;
         assert_ne!(buf.remaining(), 0);
+
         // Assert that handling the sequence number meant we're now aligned again.
         assert_eq!(
             (initial_remaining - buf.remaining()) % crate::buffer_unbuffer::constants::ALIGN,
@@ -323,10 +348,7 @@ impl unbuffer::UnbufferFrom for Sequenced<GenericMessage> {
         // drop padding bytes
         let _ = buf.copy_to_bytes(size.body_padding());
         Ok(Sequenced {
-            message: GenericMessage {
-                header: MessageHeader::new(Some(time), message_type, sender),
-                body,
-            },
+            message: GenericMessage { header, body },
             sequence_number,
         })
     }
