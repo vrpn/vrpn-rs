@@ -119,6 +119,23 @@ pub fn consume_expected<T: Buf>(
     }
 }
 
+/// Structs implementing Buf that we know how to peek_u32 on.
+pub trait PeekU32 : Buf {
+    /// Peek at a leading u32 without advancing the buffer.
+    fn peek_u32(&self) -> Option<u32>;
+}
+
+impl PeekU32 for Bytes {
+    fn peek_u32(&self) -> Option<u32> {
+        let size_len: usize = u32::constant_buffer_size();
+        if self.len() < size_len {
+            return None;
+        }
+        let peeked = Bytes::copy_from_slice(&self[..size_len]).get_u32();
+        Some(peeked)
+    }
+}
+
 /// Peek at a leading u32 without advancing the buffer.
 ///
 /// ```
