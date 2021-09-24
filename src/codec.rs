@@ -82,9 +82,39 @@ mod tests {
     }
     #[test]
     fn individual_decode_one() {
-        const MSG1: [u8; 48]= hex!("00 00 00 29 5b eb 33 2e 00 0c 58 b1 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 0d 56 52 50 4e 20 43 6f 6e 74 72 6f 6c 00 00 00 00 00 00 00 00");
-        const MSG2: [u8; 40] = hex!("00 00 00 25 5b eb 33 2e 00 0c 58 b1 00 00 00 01 ff ff ff ff 00 00 00 01 00 00 00 09 54 72 61 63 6b 65 72 30 00 00 00 00");
-        const MSG3: [u8; 72] = hex!("00 00 00 41 5b eb 33 2e 00 0c 58 b2 00 00 00 00 ff ff ff fe 00 00 00 02 00 00 00 25 56 52 50 4e 5f 43 6f 6e 6e 65 63 74 69 6f 6e 5f 47 6f 74 5f 46 69 72 73 74 5f 43 6f 6e 6e 65 63 74 69 6f 6e 00 00 00 00 00 00 00 00");
+        const MSG1: [u8; 48] = hex!(
+            // length is 0x29 = 41
+            "00 00 00 29"
+            // sender ID 1542140718
+            "5b eb 33 2e"
+            // message type 809137
+            "00 0c 58 b1"
+            // sequence/padding
+            "00 00 00 00"
+            // body
+            "ff ff ff ff 00 00 00 00 00 00 00 0d 56 52 50 4e 20 43 6f 6e 74 72 6f 6c 00 00 00 00 00 00 00 00");
+        const MSG2: [u8; 40] = hex!(
+            // length is 0x25 = 37
+            "00 00 00 25"
+            // sender ID 1542140718
+            "5b eb 33 2e"
+            // message type 809137
+            "00 0c 58 b1"
+            // sequence/padding
+            "00 00 00 01"
+            // body
+            "ff ff ff ff 00 00 00 01 00 00 00 09 54 72 61 63 6b 65 72 30 00 00 00 00");
+        const MSG3: [u8; 72] = hex!(
+            // length is 0x41 = 65
+            "00 00 00 41"
+            // sender ID 1542140718
+            "5b eb 33 2e"
+            // message type 809137
+            "00 0c 58 b2"
+            // sequence/padding
+            "00 00 00 00"
+            // body
+            "ff ff ff fe 00 00 00 02 00 00 00 25 56 52 50 4e 5f 43 6f 6e 6e 65 63 74 69 6f 6e 5f 47 6f 74 5f 46 69 72 73 74 5f 43 6f 6e 6e 65 63 74 69 6f 6e 00 00 00 00 00 00 00 00");
 
         // const test_messages = ;
         for msg_bytes in [Vec::from(MSG1), Vec::from(MSG2), Vec::from(MSG3)] {
