@@ -8,10 +8,20 @@
 
 extern crate bytes;
 
-use crate::{Endpoint, EndpointGeneric, TypeDispatcher, buffer_unbuffer::{
+use crate::{
+    buffer_unbuffer::{
         peek_u32, size_requirement::MayContainSizeRequirement, BufferUnbufferError, BytesMutExtras,
         ConstantBufferSize, SizeRequirement, UnbufferFrom,
-    }, data_types::{self, CookieData, GenericMessage, MessageSize, SequencedGenericMessage, id_types::SequenceNumber, message::Message}, endpoint::SystemCommand, error::VrpnError, translation_table::Tables as TranslationTables};
+    },
+    data_types::{
+        self, id_types::SequenceNumber, message::Message, CookieData, GenericMessage, MessageSize,
+        SequencedGenericMessage,
+    },
+    endpoint::SystemCommand,
+    error::VrpnError,
+    translation_table::Tables as TranslationTables,
+    Endpoint, EndpointGeneric, TypeDispatcher,
+};
 use bytes::BytesMut;
 use std::{
     io::{self, Read, Write},

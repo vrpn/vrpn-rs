@@ -9,8 +9,8 @@ use crate::{
     data_types::{
         descriptions::{IdWithDescription, InnerDescription},
         id_types::*,
-        ClassOfService, LogFileNames, TypedMessage, MessageTypeId, MessageTypeIdentifier,
-        MessageTypeName, SenderName, TimeVal, TypedMessageBody,
+        ClassOfService, LogFileNames, MessageTypeId, MessageTypeIdentifier, MessageTypeName,
+        SenderName, TimeVal, TypedMessage, TypedMessageBody,
     },
     type_dispatcher::HandlerHandle,
     Endpoint, EndpointGeneric, Handler, MatchingTable, RegisterMapping, Result, TranslationTables,

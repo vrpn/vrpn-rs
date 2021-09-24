@@ -59,7 +59,9 @@ pub fn apply_message_framing<T: tokio::io::AsyncRead + tokio::io::AsyncWrite>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data_types::{descriptions::InnerDescription, id_types::SenderId, message::TypedMessage};
+    use crate::data_types::{
+        descriptions::InnerDescription, id_types::SenderId, message::TypedMessage,
+    };
     use bytes::BufMut;
     type SenderInnerDesc = TypedMessage<InnerDescription<SenderId>>;
     use std::convert::TryFrom;

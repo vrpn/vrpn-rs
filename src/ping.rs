@@ -7,8 +7,8 @@
 use crate::{
     buffer_unbuffer::EmptyMessage,
     data_types::{
-        id_types::*, ClassOfService, TypedMessage, MessageHeader, MessageTypeId, MessageTypeIdentifier,
-        SenderName, StaticMessageTypeName, TypedMessageBody,
+        id_types::*, ClassOfService, MessageHeader, MessageTypeId, MessageTypeIdentifier,
+        SenderName, StaticMessageTypeName, TypedMessage, TypedMessageBody,
     },
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
     Connection, VrpnError,

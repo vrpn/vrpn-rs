@@ -11,15 +11,12 @@ use crate::{
     buffer_unbuffer::{
         buffer::{self, BytesMutExtras},
         size_requirement::*,
-        unbuffer, BufferSize, BufferUnbufferError, ConstantBufferSize, WrappedConstantSize,
+        unbuffer, BufferSize, BufferUnbufferError, ConstantBufferSize,
     },
     Result, VrpnError,
 };
 
 use super::{id_types::*, name_types::StaticMessageTypeName, TimeVal};
-
-/// Empty trait used to indicate types that can be placed in a message body.
-pub trait MessageBody /*: Buffer + Unbuffer */ {}
 
 /// The identification used for a typed message body type.
 #[derive(Debug)]
@@ -39,8 +36,6 @@ pub trait TypedMessageBody: std::fmt::Debug {
     /// The name string (for user messages) or type ID (for system messages) used to identify this message type.
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier;
 }
-
-impl<T> MessageBody for T where T: TypedMessageBody /*+ Buffer + Unbuffer*/ {}
 
 /// Header information for a message.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -354,8 +349,6 @@ impl GenericBody {
         self.inner
     }
 }
-
-impl MessageBody for GenericBody {}
 
 #[inline]
 const fn compute_padding(len: usize) -> usize {

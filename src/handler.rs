@@ -5,7 +5,7 @@
 pub use crate::type_dispatcher::HandlerHandle;
 use crate::{
     buffer_unbuffer::{EmptyMessage, UnbufferFrom},
-    data_types::{GenericMessage, TypedMessage, MessageHeader, TypedMessageBody},
+    data_types::{GenericMessage, MessageHeader, TypedMessage, TypedMessageBody},
     Result,
 };
 use std::{convert::TryFrom, fmt};

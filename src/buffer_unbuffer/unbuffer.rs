@@ -98,7 +98,7 @@ pub fn consume_expected<T: Buf>(
 }
 
 /// Structs implementing Buf that we know how to peek_u32 on.
-pub trait PeekU32 : Buf {
+pub trait PeekU32: Buf {
     /// Peek at a leading u32 without advancing the buffer.
     fn peek_u32(&self) -> Option<u32>;
 }

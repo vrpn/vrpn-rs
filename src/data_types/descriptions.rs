@@ -14,7 +14,7 @@ use crate::buffer_unbuffer::{
 };
 
 use super::{
-    constants, id_types::*, length_prefixed, IdWithName, TypedMessage, MessageTypeIdentifier,
+    constants, id_types::*, length_prefixed, IdWithName, MessageTypeIdentifier, TypedMessage,
     TypedMessageBody,
 };
 
@@ -130,7 +130,7 @@ impl UdpDescription {
     }
 }
 
-/// MessageBody-implementing structure for UDP_DESCRIPTION system messages.
+/// TypedMessageBody-implementing structure for UDP_DESCRIPTION system messages.
 ///
 /// The port is carried in the "sender" field.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
