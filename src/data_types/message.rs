@@ -298,26 +298,14 @@ impl SequencedGenericMessage {
         Ok(buf.freeze())
     }
 
-    /// Deserialize from a buffer.
-    ///
-    /// In case of error, your buffer is unmodified.
-    pub fn try_read_from_buf<T: Buf + Clone>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
-        let u32_size = u32::constant_buffer_size();
-        let initial_remaining = buf.remaining();
-        if initial_remaining < u32_size {
-            return Err(BufferUnbufferError::from(SizeRequirement::AtLeast(
-                u32_size,
-            )));
-        }
-
-        // we have at least a length field.
-        let mut local_buf = buf.clone();
-        let length_field = u32::unbuffer_from(&mut local_buf)?;
-        let size = MessageSize::try_from_length_field(length_field)?;
-
-        // make sure our original buf has enough for an entire padded message
-        unbuffer::check_unbuffer_remaining(buf, size.padded_message_size())?;
-
+    /// Like `try_read_from_buf`, but starting after the length field, and allowed to modify the buffer
+    /// even in case of error.
+    fn try_finish_read_from_local_buf<T: Buf + Clone>(
+        local_buf: T,
+        size: &MessageSize,
+        initial_remaining: usize,
+    ) -> unbuffer::UnbufferResult<Self> {
+        let mut local_buf = local_buf;
         let header = MessageHeader::unbuffer_from(&mut local_buf)?;
         assert_ne!(local_buf.remaining(), 0);
 
@@ -337,13 +325,37 @@ impl SequencedGenericMessage {
             assert_eq!(body_buf.remaining(), 0);
             my_body
         };
-
-        // drop padding bytes
-        let _ = buf.copy_to_bytes(size.body_padding());
         Ok(SequencedGenericMessage {
             message: GenericMessage { header, body },
             sequence_number,
         })
+    }
+
+    /// Deserialize from a buffer.
+    ///
+    /// In case of error, your buffer is unmodified.
+    pub fn try_read_from_buf<T: Buf + Clone>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+        let u32_size = u32::constant_buffer_size();
+        let initial_remaining = buf.remaining();
+        if initial_remaining < u32_size {
+            return Err(BufferUnbufferError::from(SizeRequirement::AtLeast(
+                u32_size,
+            )));
+        }
+
+        // we have at least a length field.
+        let mut local_buf = buf.clone();
+        let length_field = u32::unbuffer_from(&mut local_buf)?;
+        let size = MessageSize::try_from_length_field(length_field)?;
+
+        // make sure our original buf has enough for an entire padded message
+        unbuffer::check_unbuffer_remaining(buf, size.padded_message_size())?;
+        let seq_generic_message =
+            Self::try_finish_read_from_local_buf(local_buf, &size, initial_remaining)?;
+
+        // We can advance the buf now that we know we succeed.
+        buf.advance(size.padded_message_size());
+        Ok(seq_generic_message)
     }
 }
 
