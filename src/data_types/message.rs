@@ -261,23 +261,6 @@ impl<T: TypedMessageBody + unbuffer::UnbufferFrom> TryFrom<GenericMessage> for T
 extern crate static_assertions;
 static_assertions::assert_not_impl_any!(GenericBody: TypedMessageBody);
 
-impl<T: TypedMessageBody + buffer::BufferTo> TypedMessage<T> {
-    /// Try converting a typed message into a generic message
-    ///
-    /// # Errors
-    /// If buffering fails.
-    // todo: deprecate this in favor of the TryFrom above once it works...
-    #[deprecated]
-    pub fn try_into_generic(self) -> Result<GenericMessage> {
-        let old_body = self.body;
-        let header = self.header;
-        let generic = BytesMut::new().allocate_and_buffer(old_body).map(|body| {
-            GenericMessage::from_header_and_body(header, GenericBody::new(body.freeze()))
-        })?;
-        Ok(generic)
-    }
-}
-
 /// A generic message with header information and sequence number, ready to be buffered to the wire.
 ///
 /// Wraps `GenericMessage`
