@@ -258,6 +258,7 @@ impl unbuffer::UnbufferFrom for SequencedMessage<GenericBody> {
         let size = MessageSize::from_length_field(length_field);
         unbuffer::check_unbuffer_remaining(buf, size.padded_message_size())?;
 
+        assert_ne!(buf.remaining(), 0);
         // now we can actually unbuffer the length since we checked to make sure we have it.
         let _ = u32::unbuffer_from(buf)?;
 
@@ -265,7 +266,7 @@ impl unbuffer::UnbufferFrom for SequencedMessage<GenericBody> {
         let sender = SenderId::unbuffer_from(buf)?;
         let message_type = MessageTypeId::unbuffer_from(buf)?;
         let sequence_number = SequenceNumber::unbuffer_from(buf)?;
-
+        assert_ne!(buf.remaining(), 0);
         // Assert that handling the sequence number meant we're now aligned again.
         assert_eq!(
             (initial_remaining - buf.remaining()) % crate::buffer_unbuffer::constants::ALIGN,
