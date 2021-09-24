@@ -113,12 +113,12 @@ async fn async_main() -> Result<()> {
         // let mut buf = BytesMut::new();
         buf.clear();
 
-        let mut header_buf = [0u8; 24];
-        AsyncReadExt::read_exact(&mut stream, &mut header_buf)
+        let after_header = buf.split_off(24);
+        // let mut header_buf = [0u8; 24];
+        AsyncReadExt::read_exact(&mut stream, &mut buf)
             .await
             .unwrap();
         println!("Got header");
-        buf.put(&header_buf[..]);
         // Peek the size field, to compute the MessageSize.
         let size = {
             let total_len = u32::unbuffer_from(&mut buf.clone().split().freeze()).unwrap();
@@ -126,14 +126,18 @@ async fn async_main() -> Result<()> {
         };
         println!("reading body");
 
-        let body_stream =
-            AsyncReadExt::take(stream.clone(), size.padded_body_size().try_into().unwrap());
-            body_stream.read_to_end(buf)
+        // let body_stream =
+        //     AsyncReadExt::take(stream.clone(), size.padded_body_size().try_into().unwrap());
+        //     body_stream.read_to_end(buf)
+        let mut header_buf = buf.clone();
+        let after_body = buf.split_off(size.padded_body_size());
+
         // Read the body of the message
-        loop {
-            let n = AsyncReadExt::read(&mut reader, &mut buf).await?;
-            println!("n = {}, len = {}", n, buf.len());
-        }
+        AsyncReadExt::read_exact(&mut stream, &mut buf)
+            .await
+            .unwrap();
+        header_buf.unsplit(buf);
+        let mut message_buf = header_buf;
         // // let mut body_buf = [0u8; size.padded_body_size()];
         // body_buf.resize(size.padded_body_size(), 0);
         // stream.read_exact(body_buf.as_mut()).await.unwrap();
@@ -147,9 +151,11 @@ async fn async_main() -> Result<()> {
         // // buf.extend_from_slice(&body_buf[..]);
         // let mut full_buf = full_buf.freeze();
 
-        // // Unbuffer the message.
-        // let unbuffered = SequencedGenericMessage::try_read_from_buf(&mut full_buf).unwrap();
-        // eprintln!("{:?}", unbuffered.into_inner());
+        // Unbuffer the message.
+        let unbuffered = SequencedGenericMessage::try_read_from_buf(&mut message_buf).unwrap();
+        eprintln!("{:?}", unbuffered.into_inner());
+        message_buf.unsplit(after_body);
+        buf = message_buf;
     }
 }
 fn main() {
