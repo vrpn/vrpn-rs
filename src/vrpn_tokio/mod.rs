@@ -5,11 +5,11 @@
 pub mod codec;
 pub mod connect;
 pub mod connection_file;
-// pub mod connection_ip;
+pub mod connection_ip;
 pub mod cookie;
 pub mod endpoint_channel;
 pub mod endpoint_file;
-// pub mod endpoint_ip;
+pub mod endpoint_ip;
 pub mod ping;
 // pub mod util;
 

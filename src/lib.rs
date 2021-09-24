@@ -30,7 +30,7 @@ extern crate futures;
 extern crate tokio;
 
 #[cfg(feature = "async-tokio")]
-pub mod async_io;
+pub mod vrpn_tokio;
 
 pub mod buffer_unbuffer;
 pub mod data_types;

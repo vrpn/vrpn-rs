@@ -20,7 +20,6 @@ use vrpn::{
     buffer_unbuffer::{peek_u32, UnbufferFrom},
     data_types::{
         cookie::check_ver_nonfile_compatible, CookieData, MessageSize, SequencedGenericMessage,
-        TypedMessage,
     },
     sync_io::{read_cookie, write_cookie},
     Result,

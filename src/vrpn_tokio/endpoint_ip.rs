@@ -2,26 +2,22 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::types::*;
 use crate::{
-    async_io::{
+    vrpn_tokio::{
         codec::{self, FramedMessageCodec},
         endpoint_channel::{poll_and_dispatch, EndpointChannel},
     },
     endpoint::*,
-    Error, GenericMessage, Result, TranslationTables, TypeDispatcher,
+    Result, TranslationTables, TypeDispatcher,
 };
 use futures::channel::mpsc;
-use tokio_util::udp::UdpFramed;
 use std::task::Poll;
 use std::{
     ops::DerefMut,
     sync::{Arc, Mutex},
 };
-use tokio::{
-    net::{TcpStream},
-    prelude::*,
-};
+use tokio::net::TcpStream;
+use tokio_util::udp::UdpFramed;
 
 pub type MessageFramed = codec::MessageFramed<TcpStream>;
 pub type MessageFramedUdp = UdpFramed<FramedMessageCodec>;
@@ -50,7 +46,10 @@ impl EndpointIp {
         }
     }
 
-    pub(crate) fn poll_endpoint(&mut self, mut dispatcher: &mut TypeDispatcher) -> Poll<Result<()>> {
+    pub(crate) fn poll_endpoint(
+        &mut self,
+        mut dispatcher: &mut TypeDispatcher,
+    ) -> Poll<Result<()>> {
         let channel_arc = Arc::clone(&self.reliable_channel);
         let mut channel = channel_arc
             .lock()
@@ -143,7 +142,7 @@ impl Endpoint for EndpointIp {
 mod tests {
     use super::*;
     use crate::{
-        async_io::connect::{Connect, ConnectResults},
+        vrpn_tokio::connect::{Connect, ConnectResults},
         ServerInfo,
     };
 

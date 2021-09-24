@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::async_io::codec::*;
-use crate::async_io::cookie::*;
+use crate::vrpn_tokio::codec::*;
+use crate::vrpn_tokio::cookie::*;
 use crate::{
     data_types::{message::GenericMessage, ClassOfService},
     Endpoint, Result, SystemCommand, TranslationTables,

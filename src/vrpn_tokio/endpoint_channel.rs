@@ -8,7 +8,7 @@ use crate::{
     data_types::message::{GenericMessage, SequencedGenericMessage},
     Endpoint, EndpointGeneric, TypeDispatcher, VrpnError,
 };
-use futures::StreamExt;
+use futures::{ready, StreamExt};
 use futures::{
     stream::{SplitSink, SplitStream},
     Sink, Stream,
@@ -44,7 +44,7 @@ where
 
 impl<T> Stream for EndpointChannel<T>
 where
-    T: Sink<SequencedGenericMessage, Error = VrpnError> + Stream<Item = SequencedGenericMessage>,
+    T: Sink<SequencedGenericMessage> + Stream<Item = SequencedGenericMessage>,
 {
     type Item = Result<GenericMessage, VrpnError>;
 
@@ -52,11 +52,11 @@ where
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        // treat errors like a closed connection
-        self.rx
-            .poll_next_unpin(cx)
-            // these nested maps are to get all the way inside the Ok(Async::Ready(Some(msg)))
-            .map(|a| a.map(|a| Ok(a.into_inner())))
+        let maybe_msg = ready!(self.rx.poll_next_unpin(cx)).map(SequencedGenericMessage::into_inner);
+        match  {
+            Some(msg) => Poll::Ready(Some(msg)),
+            None => Poll::Pending,
+        }
     }
 }
 
@@ -156,7 +156,7 @@ where
 mod tests {
 
     use crate::{
-        async_io::connect::{connect, ConnectResults},
+        vrpn_tokio::connect::{connect, ConnectResults},
         ServerInfo,
     };
     #[test]

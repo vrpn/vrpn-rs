@@ -39,17 +39,15 @@ async-tokio = ["tokio", "tk-listen", "tokio-util"]
 incomplete-async = ["async-tokio"]
 
 [[bin]]
-name = "print_devices"
-required-features = ["incomplete-async", "async-tokio"]
+name = "vrpn_tokio_print_devices"
+required-features = ["incomplete-tokio", "async-tokio"]
 
 [[bin]]
-name = "null_tracker"
-required-features = ["incomplete-async", "async-tokio"]
+name = "vrpn_tokio_null_tracker"
+required-features = ["incomplete-tokio", "async-tokio"]
 
 [[bin]]
 name = "sync_client_simple"
-required-features = ["async-tokio"]
 
 [[bin]]
 name = "sync_client"
-required-features = ["async-tokio"]
