@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-/// A simple, synchronous-IO client for testing purposes.
-/// Doesn't use any of the async-io stuff in the vrpn crate,
-/// so this is durable even if Tokio totally changes everything.
-///
-/// However, this doesn't use any Connection structs - just an endpoint and a type dispatcher.
-/// In normal usage, this would be bundled into a Connection.
+//! A simple, synchronous-IO client for testing purposes.
+//! Doesn't use any of the async-io stuff in the vrpn crate,
+//! so this is durable even if Tokio totally changes everything.
+//!
+//! However, this doesn't use any Connection structs - just an endpoint and a type dispatcher.
+//! In normal usage, this would be bundled into a Connection.
+
 extern crate bytes;
 extern crate vrpn;
 

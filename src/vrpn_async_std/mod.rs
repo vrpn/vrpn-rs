@@ -8,14 +8,18 @@ use crate::{
     VrpnError,
 };
 use bytes::{Bytes, BytesMut};
-use futures::{AsyncRead, AsyncReadExt};
+use futures::prelude::*;
+use futures::AsyncRead;
 
 /// Reads a cookie's worth of data into a temporary buffer.
-pub async fn read_cookie<T>(stream: &mut T) -> Result<Vec<u8>, VrpnError>
+pub async fn read_cookie<T>(stream: &mut T, buf: &mut BytesMut) -> Result<Bytes, VrpnError>
 where
     T: AsyncRead + Unpin,
 {
-    let mut buf = Vec::with_capacity(CookieData::constant_buffer_size());
-    stream.read_exact(&mut buf).await?;
-    Ok(buf)
+    buf.resize(CookieData::constant_buffer_size(), 0);
+    let mut cookie_buf = buf.split();
+    stream.read_exact(&mut cookie_buf).await?;
+    // let mut buf = Vec::with_capacity(CookieData::constant_buffer_size());
+    // stream.read(buf).await?;
+    Ok(cookie_buf.freeze())
 }
