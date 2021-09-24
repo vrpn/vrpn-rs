@@ -215,7 +215,7 @@ mod tests {
             "vrpn: ver. 07.35  0"
         );
         assert_eq!(
-            format!("{}", CookieData::from(constants::FILE_MAGIC_DATA)),
+            format!("{}", CookieData::make_file_cookie()),
             "vrpn: ver. 04.00  0"
         );
     }

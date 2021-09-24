@@ -32,6 +32,9 @@ extern crate tokio;
 #[cfg(feature = "async-tokio")]
 pub mod vrpn_tokio;
 
+#[cfg(feature = "async-std")]
+pub mod vrpn_async_std;
+
 pub mod buffer_unbuffer;
 pub mod data_types;
 
