@@ -298,36 +298,44 @@ impl SequencedGenericMessage {
     }
 
     /// Deserialize from a buffer.
+    ///
+    /// In case of error, your buffer is unmodified.
     pub fn try_read_from_buf<T: Buf + Clone>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
+        let u32_size = u32::constant_buffer_size();
         let initial_remaining = buf.remaining();
-        let length_field = unbuffer::peek_u32(buf).ok_or_else(|| {
-            BufferUnbufferError::from(SizeRequirement::AtLeast(u32::constant_buffer_size()))
-        })?;
+        if initial_remaining < u32_size {
+            return Err(BufferUnbufferError::from(SizeRequirement::AtLeast(
+                u32_size,
+            )));
+        }
+
+        // we have at least a length field.
+        let mut local_buf = buf.clone();
+        let length_field = u32::unbuffer_from(&mut local_buf)?;
         let size = MessageSize::from_length_field(length_field);
+
+        // make sure our original buf has enough for an entire padded message
         unbuffer::check_unbuffer_remaining(buf, size.padded_message_size())?;
 
-        assert_ne!(buf.remaining(), 0);
-        // now we can actually unbuffer the length since we checked to make sure we have it.
-        let _ = u32::unbuffer_from(buf)?;
-        let header = MessageHeader::unbuffer_from(buf)?;
-        assert_ne!(buf.remaining(), 0);
+        let header = MessageHeader::unbuffer_from(&mut local_buf)?;
+        assert_ne!(local_buf.remaining(), 0);
 
-        let sequence_number = SequenceNumber::unbuffer_from(buf)?;
-        assert_ne!(buf.remaining(), 0);
+        let sequence_number = SequenceNumber::unbuffer_from(&mut local_buf)?;
+        assert_ne!(local_buf.remaining(), 0);
 
         // Assert that handling the sequence number meant we're now aligned again.
         assert_eq!(
-            (initial_remaining - buf.remaining()) % crate::buffer_unbuffer::constants::ALIGN,
+            (initial_remaining - local_buf.remaining()) % crate::buffer_unbuffer::constants::ALIGN,
             0
         );
 
-        let body;
-        {
-            let mut body_buf = buf.copy_to_bytes(size.unpadded_body_size());
-            body = GenericBody::unbuffer_from(&mut body_buf)
+        let body = {
+            let mut body_buf = local_buf.copy_to_bytes(size.unpadded_body_size());
+            let my_body = GenericBody::unbuffer_from(&mut body_buf)
                 .map_err(ExpandSizeRequirement::expand_size_requirement)?;
             assert_eq!(body_buf.remaining(), 0);
-        }
+            my_body
+        };
 
         // drop padding bytes
         let _ = buf.copy_to_bytes(size.body_padding());
