@@ -85,18 +85,14 @@ impl unbuffer::UnbufferConstantSize for MessageHeader {
     }
 }
 
-/// A message with header information, almost ready to be buffered to the wire.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct TypedMessage<T: TypedMessageBody> {
-    pub header: MessageHeader,
-    pub body: T,
-}
-
-/// A special type of message, with just an (exact-size) buffer as the body.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct GenericMessage {
-    pub header: MessageHeader,
-    pub body: GenericBody,
+impl buffer::BufferTo for MessageHeader {
+    fn buffer_to<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
+        buffer::check_buffer_remaining(buf, MessageHeader::constant_buffer_size())?;
+        self.time.buffer_to(buf)?;
+        self.sender.buffer_to(buf)?;
+        self.message_type.buffer_to(buf)?;
+        Ok(())
+    }
 }
 
 /// Trait unifying `TypedMessage<T>` and `GenericMessage`
@@ -118,13 +114,13 @@ where
     fn is_system_message(&self) -> bool {
         self.header_ref().message_type.is_system_message()
     }
-    /// Consumes this message and returns a new SequencedMessage, which the supplied sequence number has been added to.
-    fn into_sequenced_message(self, sequence_number: SequenceNumber) -> Sequenced<Self> {
-        Sequenced {
-            message: self,
-            sequence_number,
-        }
-    }
+}
+
+/// A message with header information, almost ready to be buffered to the wire.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct TypedMessage<T: TypedMessageBody> {
+    pub header: MessageHeader,
+    pub body: T,
 }
 
 impl<T: TypedMessageBody> TypedMessage<T> {
@@ -145,23 +141,6 @@ impl<T: TypedMessageBody> TypedMessage<T> {
         TypedMessage { header, body }
     }
 }
-
-impl Message for GenericMessage {
-    type Body = GenericBody;
-
-    fn from_header_and_body(header: MessageHeader, body: Self::Body) -> Self {
-        Self { header, body }
-    }
-
-    fn header_ref(&self) -> &MessageHeader {
-        &self.header
-    }
-
-    fn body_ref(&self) -> &Self::Body {
-        &self.body
-    }
-}
-
 impl<T: TypedMessageBody> Message for TypedMessage<T> {
     type Body = T;
 
@@ -218,6 +197,41 @@ impl<T: TypedMessageBody + unbuffer::UnbufferFrom> TypedMessage<T> {
     }
 }
 
+/// A special type of message, with just an (exact-size) buffer as the body.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct GenericMessage {
+    pub header: MessageHeader,
+    pub body: GenericBody,
+}
+
+impl GenericMessage {
+    /// Consumes this message and returns a new SequencedMessage, which the supplied sequence number has been added to.
+    pub fn into_sequenced_message(
+        self,
+        sequence_number: SequenceNumber,
+    ) -> SequencedGenericMessage {
+        SequencedGenericMessage {
+            message: self,
+            sequence_number,
+        }
+    }
+}
+impl Message for GenericMessage {
+    type Body = GenericBody;
+
+    fn from_header_and_body(header: MessageHeader, body: Self::Body) -> Self {
+        Self { header, body }
+    }
+
+    fn header_ref(&self) -> &MessageHeader {
+        &self.header
+    }
+
+    fn body_ref(&self) -> &Self::Body {
+        &self.body
+    }
+}
+
 impl<T: TypedMessageBody + buffer::BufferTo> TryFrom<TypedMessage<T>> for GenericMessage {
     type Error = BufferUnbufferError;
 
@@ -264,46 +278,41 @@ impl<T: TypedMessageBody + buffer::BufferTo> TypedMessage<T> {
     }
 }
 
-/// A message with header information and sequence number, ready to be buffered to the wire.
+/// A generic message with header information and sequence number, ready to be buffered to the wire.
 ///
-/// Wraps `Message<T>`
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Sequenced<T: Message> {
-    message: T,
+/// Wraps `GenericMessage`
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct SequencedGenericMessage {
+    message: GenericMessage,
     pub sequence_number: SequenceNumber,
 }
 
-impl<T: Message> Sequenced<T> {
-    pub fn into_inner(self) -> T {
+impl SequencedGenericMessage {
+    pub fn into_inner(self) -> GenericMessage {
         self.message
     }
-    pub fn message(&self) -> &T {
+    pub fn message(&self) -> &GenericMessage {
         &self.message
     }
 }
 
-/// A special type of sequenced message, with just an (exact-size) buffer as the body.
-pub type SequencedGenericMessage = Sequenced<GenericMessage>;
-
-impl BufferSize for Sequenced<GenericMessage> {
+impl BufferSize for SequencedGenericMessage {
     fn buffer_size(&self) -> usize {
         generic_message_size(self).padded_message_size()
     }
 }
 
-impl buffer::BufferTo for Sequenced<GenericMessage> {
+impl buffer::BufferTo for SequencedGenericMessage {
     /// Serialize to a buffer.
     fn buffer_to<T: BufMut>(&self, buf: &mut T) -> buffer::BufferResult {
-        let size = generic_message_size(self);
-        buffer::check_buffer_remaining(buf, size.padded_message_size())?;
+        buffer::check_buffer_remaining(buf, self.buffer_size())?;
 
+        let size = generic_message_size(self);
         let length_field = size.length_field() as u32;
 
         buffer::BufferTo::buffer_to(&length_field, buf)?;
-        self.message.header.time.buffer_to(buf)?;
-        self.message.header.sender.buffer_to(buf)?;
-        self.message.header.message_type.buffer_to(buf)?;
-        self.sequence_number.buffer_to(buf)?;
+        buffer::BufferTo::buffer_to(&self.message.header, buf)?;
+        buffer::BufferTo::buffer_to(&self.sequence_number, buf)?;
 
         buf.put_slice(&self.message.body.inner);
         for _ in 0..size.body_padding() {
@@ -313,9 +322,9 @@ impl buffer::BufferTo for Sequenced<GenericMessage> {
     }
 }
 
-impl unbuffer::UnbufferFrom for Sequenced<GenericMessage> {
+impl unbuffer::UnbufferFrom for SequencedGenericMessage {
     /// Deserialize from a buffer.
-    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Sequenced<GenericMessage>> {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
         let initial_remaining = buf.remaining();
         let length_field = unbuffer::peek_u32(buf).ok_or_else(|| {
             BufferUnbufferError::from(SizeRequirement::AtLeast(u32::constant_buffer_size()))
@@ -348,7 +357,7 @@ impl unbuffer::UnbufferFrom for Sequenced<GenericMessage> {
 
         // drop padding bytes
         let _ = buf.copy_to_bytes(size.body_padding());
-        Ok(Sequenced {
+        Ok(SequencedGenericMessage {
             message: GenericMessage { header, body },
             sequence_number,
         })
@@ -474,7 +483,7 @@ fn generic_message_size(msg: &SequencedGenericMessage) -> MessageSize {
 
 impl unbuffer::UnbufferFrom for GenericBody {
     /// This takes all the bytes!
-    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<GenericBody> {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> unbuffer::UnbufferResult<Self> {
         let my_bytes = buf.copy_to_bytes(buf.remaining());
         Ok(GenericBody::new(my_bytes))
     }

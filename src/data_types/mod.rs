@@ -26,7 +26,7 @@ pub use crate::data_types::{
     id_types::MessageTypeId,
     message::{
         GenericBody, GenericMessage, Message, MessageHeader, MessageSize, MessageTypeIdentifier,
-        MessageTypeIdentifier::UserMessageName, Sequenced, SequencedGenericMessage, TypedMessage,
+        MessageTypeIdentifier::UserMessageName, SequencedGenericMessage, TypedMessage,
         TypedMessageBody,
     },
     name_types::{
