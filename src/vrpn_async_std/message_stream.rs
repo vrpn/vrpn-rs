@@ -61,7 +61,7 @@ where
         let mut pinned = self.project();
         let state = pinned.state.borrow_mut();
         loop {
-            println!("State: {:?}", state);
+            // println!("State: {:?}", state);
             match state {
                 MessageStreamState::Reading => {
                     match ready!(pinned
@@ -70,7 +70,7 @@ where
                         .poll_read(cx, pinned.mini_buf.borrow_mut()))
                     {
                         Ok(n) => {
-                            println!("Read {} bytes from stream", n);
+                            // println!("Read {} bytes from stream", n);
                             pinned.buf.extend_from_slice(&pinned.mini_buf[..n]);
                             *state = MessageStreamState::Parsing;
                         }
@@ -88,17 +88,19 @@ where
                             // consume the bytes from the original buffer.
                             let consumed = pinned.buf.remaining() - existing_bytes.remaining();
                             pinned.buf.advance(consumed);
-                            println!(
-                                "consumed {} bytes, {} remain in buffer",
-                                consumed,
-                                pinned.buf.remaining()
-                            );
-                            println!("{:?}", pinned.buf);
+                            // println!(
+                            //     "consumed {} bytes, {} remain in buffer",
+                            //     consumed,
+                            //     pinned.buf.remaining()
+                            // );
+                            // println!("{:?}", pinned.buf);
+
+                            // Queue an immediate wakeup since the buf may contain more.
                             cx.waker().wake_by_ref();
                             return task::Poll::Ready(Some(Ok(sgm)));
                         }
-                        Err(BufferUnbufferError::NeedMoreData(requirement)) => {
-                            println!("need more data: {} bytes", requirement);
+                        Err(BufferUnbufferError::NeedMoreData(_requirement)) => {
+                            // println!("need more data: {} bytes", _requirement);
                             *state = MessageStreamState::Reading;
                         }
                         Err(e) => {
@@ -108,6 +110,7 @@ where
                     }
                 }
                 MessageStreamState::Error => {
+                    // once in this state we never escape
                     return task::Poll::Ready(None);
                 }
             }
