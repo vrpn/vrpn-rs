@@ -27,6 +27,7 @@ use futures::io::Read;
 use futures::stream::StreamFuture;
 use futures::{ready, AsyncBufReadExt, AsyncRead, AsyncReadExt, FutureExt, StreamExt};
 use vrpn::buffer_unbuffer::BufferUnbufferError;
+use vrpn::vrpn_async_std::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie};
 use vrpn::vrpn_async_std::{read_n_into_bytes_mut, BytesMutReader};
 use vrpn::{
     buffer_unbuffer::{peek_u32, BufferTo, BytesMutExtras, UnbufferFrom},
@@ -54,27 +55,11 @@ async fn async_main() -> Result<()> {
     let addr: SocketAddr = "127.0.0.1:3883".parse().unwrap();
     let mut stream = TcpStream::connect(addr).await?;
     stream.set_nodelay(true)?;
-    let mut buf = BytesMut::with_capacity(2048);
 
     // We first write our cookie, then read and check the server's cookie, before the loop.
-    {
-        buf.clear();
-        CookieData::make_cookie().buffer_to(&mut buf)?;
-        let cookie_buf = buf.split();
-        stream.write_all(&cookie_buf[..]).await?;
-        println!("wrote cookie");
-    }
-    {
-        buf.clear();
-        read_cookie(&mut stream, &mut buf).await?;
-        let mut cookie_buf = buf.split();
-        eprintln!("{:?}", String::from_utf8_lossy(cookie_buf.chunk()));
-        println!("read cookie");
-        let msg = CookieData::unbuffer_from(&mut cookie_buf)?;
-        check_ver_nonfile_compatible(msg.version)?;
-        cookie_buf.unsplit(buf);
-        buf = cookie_buf;
-    }
+    send_nonfile_cookie(&mut stream).await?;
+    read_and_check_nonfile_cookie(&mut stream).await?;
+
     let mut msg_stream = AsyncReadMessagesExt::messages(stream);
 
     loop {
