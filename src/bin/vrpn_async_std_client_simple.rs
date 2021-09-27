@@ -49,47 +49,6 @@ impl TypedHandler for TrackerHandler {
     }
 }
 
-struct MessageReader<T: AsyncRead> {
-    stream: Box<T>,
-    failed: bool,
-}
-
-// impl<T: AsyncRead> MessageReader<T> {
-//     pub fn new(stream: T) -> Self {
-//         MessageReader {
-//             stream: Box::new(stream),
-//             failed: false,
-//         }
-//     }
-
-//     pub async fn next_message(&mut self) -> Result<GenericMessage> {
-//         // Read the message header and padding
-//         let mut buf = BytesMut::new();
-
-//         buf.resize(24, 0);
-//         Box::pin(self.stream).read_exact(buf.as_mut()).await?;
-//         println!("Got header");
-//         // Peek the size field, to compute the MessageSize.
-//         let total_len = peek_u32(&buf.clone().freeze()).unwrap();
-//         let size = MessageSize::try_from_length_field(total_len)?;
-//         println!("reading body");
-
-//         // Read the body of the message
-//         let mut body_buf = BytesMut::new();
-//         body_buf.resize(size.padded_body_size(), 0);
-//         self.stream.read_exact(body_buf.as_mut()).await?;
-//         println!("Got body");
-
-//         // Combine the body with the header
-//         buf.extend_from_slice(&body_buf[..]);
-//         let mut buf = buf.freeze();
-
-//         // Unbuffer the message.
-//         let unbuffered = SequencedGenericMessage::try_read_from_buf(&mut buf)?;
-//         Ok(unbuffered.into_inner())
-//     }
-// }
-
 async fn async_main() -> Result<()> {
     let addr: SocketAddr = "127.0.0.1:3883".parse().unwrap();
     let mut stream = TcpStream::connect(addr).await?;
