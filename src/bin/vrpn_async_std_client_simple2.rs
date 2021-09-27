@@ -16,17 +16,10 @@ use async_std::{
     task,
 };
 
-use futures::StreamExt;
+use bytes::{Buf, BytesMut};
+use futures::{AsyncWriteExt, StreamExt};
 
-use vrpn::vrpn_async_std::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie};
-
-use vrpn::{
-    data_types::TypedMessage,
-    handler::{HandlerCode, TypedHandler},
-    tracker::PoseReport,
-    vrpn_async_std::AsyncReadMessagesExt,
-    Result,
-};
+use vrpn::{Result, buffer_unbuffer::{BufferTo, UnbufferFrom}, data_types::{CookieData, cookie::check_ver_nonfile_compatible}, data_types::TypedMessage, handler::{HandlerCode, TypedHandler}, tracker::PoseReport, vrpn_async_std::AsyncReadMessagesExt, vrpn_async_std::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie}, vrpn_async_std::read_cookie};
 
 #[derive(Debug)]
 struct TrackerHandler {}
@@ -44,8 +37,29 @@ async fn async_main() -> Result<()> {
     stream.set_nodelay(true)?;
 
     // We first write our cookie, then read and check the server's cookie, before the loop.
-    send_nonfile_cookie(&mut stream).await?;
-    read_and_check_nonfile_cookie(&mut stream).await?;
+    // send_nonfile_cookie(&mut stream).await?;
+    // read_and_check_nonfile_cookie(&mut stream).await?;
+    let mut buf = BytesMut::with_capacity(2048);
+
+    // We first write our cookie, then read and check the server's cookie, before the loop.
+    {
+        buf.clear();
+        CookieData::make_cookie().buffer_to(&mut buf)?;
+        let cookie_buf = buf.split();
+        stream.write_all(&cookie_buf[..]).await?;
+        println!("wrote cookie");
+    }
+    {
+        buf.clear();
+        read_cookie(&mut stream, &mut buf).await?;
+        let mut cookie_buf = buf.split();
+        eprintln!("{:?}", String::from_utf8_lossy(cookie_buf.chunk()));
+        println!("read cookie");
+        let msg = CookieData::unbuffer_from(&mut cookie_buf)?;
+        check_ver_nonfile_compatible(msg.version)?;
+        cookie_buf.unsplit(buf);
+        buf = cookie_buf;
+    }
 
     let mut msg_stream = AsyncReadMessagesExt::messages(stream);
 
