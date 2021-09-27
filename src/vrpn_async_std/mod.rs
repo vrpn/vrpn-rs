@@ -14,6 +14,7 @@ use futures::AsyncRead;
 use futures::{prelude::*, AsyncReadExt};
 
 pub mod message_stream;
+pub mod cookie;
 
 pub use message_stream::{AsyncReadMessagesExt, MessageStream};
 
