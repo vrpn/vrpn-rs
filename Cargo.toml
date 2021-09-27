@@ -16,6 +16,7 @@ cgmath = "0.18.0"
 chrono = "^0.4.6"
 downcast-rs = "1.0.4"
 futures = {version = "0.3.17", features = ["compat"]}
+pin-project-lite = {version = "0.2", optional = true}
 socket2 = "0.4.2"
 thiserror = "1.0"
 tk-listen = {version = "0.2.1", optional = true}
@@ -34,6 +35,7 @@ tokio-test = "0.4.2"
 async-tokio = ["tokio", "tk-listen", "tokio-util"]
 # async-tokio = []
 incomplete-tokio = ["async-tokio"]
+vrpn-async-std = ["async-std", "pin-project-lite"]
 
 [[bin]]
 name = "vrpn_tokio_print_devices"
@@ -55,5 +57,5 @@ required-features = ["async-std"]
 
 # The development profile, used for `cargo build`
 [profile.dev]
-opt-level = 0  # Controls the --opt-level the compiler builds with
-debug = true   # Controls whether the compiler passes `-g`
+debug = true # Controls whether the compiler passes `-g`
+opt-level = 0 # Controls the --opt-level the compiler builds with

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+extern crate pin_project_lite;
+
 use crate::{
     buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, UnbufferFrom},
     data_types::cookie::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData},
@@ -10,6 +12,8 @@ use crate::{
 use bytes::{Bytes, BytesMut};
 use futures::AsyncRead;
 use futures::{prelude::*, AsyncReadExt};
+
+pub mod message_stream;
 
 pub async fn read_into_bytes_mut<T: AsyncRead + Unpin>(
     stream: &mut T,
