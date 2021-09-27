@@ -133,14 +133,15 @@ fn try_decode(bytes_mut: &mut BytesMut) -> Result<Option<SequencedGenericMessage
                 consumed,
                 bytes_mut.remaining()
             );
+            println!("{:?}", bytes_mut);
             return Ok(Some(sgm));
         }
+        Err(BufferUnbufferError::NeedMoreData(requirement)) => {
+            println!("need more data: {} bytes", requirement);
+            return Ok(None);
+        }
         Err(e) => {
-            if let BufferUnbufferError::NeedMoreData(_) = e {
-                return Ok(None);
-            } else {
-                return Err(e.into());
-            }
+            return Err(e.into());
         }
     }
 }
@@ -160,7 +161,7 @@ async fn try_read_header(stream: &mut TcpStream, bytes_mut: &mut BytesMut) -> Re
 }
 
 async fn try_get_message(
-    stream: &mut TcpStream,
+    stream: &mut (impl AsyncReadExt + Unpin),
     bytes_mut: &mut BytesMut,
 ) -> Result<SequencedGenericMessage> {
     loop {
@@ -169,6 +170,7 @@ async fn try_get_message(
             Ok(None) => {
                 let mut body_buf = [0u8; 2048];
                 let n = AsyncReadExt::read(stream, &mut body_buf).await?;
+                println!("Read {} bytes from stream", n);
                 bytes_mut.extend_from_slice(&body_buf[..n]);
 
                 continue;
