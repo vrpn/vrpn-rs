@@ -15,6 +15,8 @@ use futures::{prelude::*, AsyncReadExt};
 
 pub mod message_stream;
 
+pub use message_stream::{AsyncReadMessagesExt, MessageStream};
+
 pub async fn read_into_bytes_mut<T: AsyncRead + Unpin>(
     stream: &mut T,
     buf: &mut BytesMut,
