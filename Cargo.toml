@@ -52,8 +52,12 @@ name = "sync_client_simple"
 name = "sync_client"
 
 [[bin]]
-name = "vrpn_async_std_client"
-required-features = ["async-std"]
+name = "vrpn_async_std_client_simple"
+required-features = ["vrpn-async-std"]
+
+[[bin]]
+name = "vrpn_async_std_client_simple2"
+required-features = ["vrpn-async-std"]
 
 # The development profile, used for `cargo build`
 [profile.dev]

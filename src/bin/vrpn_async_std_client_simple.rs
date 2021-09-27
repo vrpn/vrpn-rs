@@ -149,28 +149,6 @@ fn try_decode(bytes_mut: &mut BytesMut) -> Result<Option<SequencedGenericMessage
     }
 }
 
-
-impl<'a, T: AsyncReadExt + Unpin> async_std::stream::Stream for MessageStream<'a, T> {
-    type Item = Result<SequencedGenericMessage>;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-    ) -> task::Poll<Option<Self::Item>> {
-        loop {
-            match self.state {
-                MessageStreamState::NeedRead => {
-                    self.state = MessageStreamState::Reading(AsyncReadExt::read(
-                        self.stream,
-                        self.mini_buf.as_mut(),
-                    ));
-                }
-                MessageStreamState::Reading(_) => todo!(),
-                MessageStreamState::Parsing => todo!(),
-            }
-        }
-    }
-}
 async fn try_read_header(stream: &mut TcpStream, bytes_mut: &mut BytesMut) -> Result<MessageSize> {
     assert!(bytes_mut.is_empty());
     let mut header_buf = [0u8; 24];
