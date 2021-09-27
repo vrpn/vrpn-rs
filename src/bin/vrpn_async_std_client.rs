@@ -113,55 +113,72 @@ async fn async_main() -> Result<()> {
         buf = cookie_buf;
     }
 
-    // let mut reader = BufReader::new(&stream);
-    // let mut endpoint = EndpointSyncTcp::new(stream);
-    let mut bytes_mut = BytesMut::with_capacity(2048);
     loop {
-        bytes_mut.clear();
-        let mut header_buf = [0u8; 24];
-        AsyncReadExt::read_exact(&mut stream, &mut header_buf).await?;
+        buf.clear();
+        let msg = try_get_message(&mut stream, &mut buf).await?;
+        eprintln!("{:?}", msg.into_inner());
+    }
+}
 
-        // Peek the size field, to compute the MessageSize.
-        let size = {
-            let mut size_buf = std::io::Cursor::new(&header_buf);
-            let total_len = u32::unbuffer_from(&mut size_buf).unwrap();
-            MessageSize::try_from_length_field(total_len).unwrap()
-        };
-        println!("Got header {:?}", size);
-        println!("reading body");
-        bytes_mut.extend_from_slice(&header_buf[..]);
+fn try_decode(bytes_mut: &mut BytesMut) -> Result<Option<SequencedGenericMessage>> {
+    let mut existing_bytes = std::io::Cursor::new(&*bytes_mut);
 
-        let mut msg: Option<SequencedGenericMessage> = None;
-        loop {
-            let mut existing_bytes = std::io::Cursor::new(&bytes_mut);
-
-            match SequencedGenericMessage::try_read_from_buf(&mut existing_bytes) {
-                Ok(sgm) => {
-                    msg.insert(sgm);
-                    break;
-                }
-                Err(e) => {
-                    if let BufferUnbufferError::NeedMoreData(_) = e {
-                        let mut body_buf = [0u8; 2048];
-                        let n = AsyncReadExt::read(&mut stream, &mut body_buf).await?;
-                        bytes_mut.extend_from_slice(&body_buf[..n]);
-
-                        continue;
-                    } else {
-                        return Err(e.into());
-                    }
-                }
+    match SequencedGenericMessage::try_read_from_buf(&mut existing_bytes) {
+        Ok(sgm) => {
+            // consume the bytes from the original buffer.
+            let consumed = bytes_mut.remaining() - existing_bytes.remaining();
+            bytes_mut.advance(consumed);
+            println!(
+                "consumed {} bytes, {} remain in buffer",
+                consumed,
+                bytes_mut.remaining()
+            );
+            return Ok(Some(sgm));
+        }
+        Err(e) => {
+            if let BufferUnbufferError::NeedMoreData(_) = e {
+                return Ok(None);
+            } else {
+                return Err(e.into());
             }
         }
-        eprintln!("{:?}", msg.unwrap().into_inner());
+    }
+}
+
+async fn try_read_header(stream: &mut TcpStream, bytes_mut: &mut BytesMut) -> Result<MessageSize> {
+    assert!(bytes_mut.is_empty());
+    let mut header_buf = [0u8; 24];
+    AsyncReadExt::read_exact(stream, &mut header_buf).await?;
+    let size = {
+        let mut size_buf = std::io::Cursor::new(&header_buf);
+        let total_len = u32::unbuffer_from(&mut size_buf).unwrap();
+        MessageSize::try_from_length_field(total_len).unwrap()
+    };
+    bytes_mut.extend_from_slice(&header_buf[..]);
+    println!("Got header {:?}", size);
+    Ok(size)
+}
+
+async fn try_get_message(
+    stream: &mut TcpStream,
+    bytes_mut: &mut BytesMut,
+) -> Result<SequencedGenericMessage> {
+    loop {
+        match try_decode(bytes_mut) {
+            Ok(Some(msg)) => return Ok(msg),
+            Ok(None) => {
+                let mut body_buf = [0u8; 2048];
+                let n = AsyncReadExt::read(stream, &mut body_buf).await?;
+                bytes_mut.extend_from_slice(&body_buf[..n]);
+
+                continue;
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        }
     }
 }
 fn main() {
-    // let main_task = task::spawn(async {
-    //     match async_main().await {
-    //         Ok(_) => todo!(),
-    //         Err(_) => todo!(),
-    //     }
-    // });
     task::block_on(async_main()).unwrap()
 }
