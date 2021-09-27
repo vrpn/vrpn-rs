@@ -11,43 +11,24 @@
 extern crate bytes;
 extern crate vrpn;
 
-use std::convert::TryInto;
-use std::pin::Pin;
-use std::task::Poll;
-
-use async_std::io::{self, Cursor};
 use async_std::{
-    io::BufReader,
     net::{SocketAddr, TcpStream},
     prelude::*,
     task,
 };
-use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::io::Read;
-use futures::{ready, AsyncBufReadExt, AsyncRead, AsyncReadExt, FutureExt};
+use bytes::{Buf, BytesMut};
+
+use futures::AsyncReadExt;
 use vrpn::buffer_unbuffer::BufferUnbufferError;
-use vrpn::vrpn_async_std::{read_n_into_bytes_mut, BytesMutReader};
+
 use vrpn::{
-    buffer_unbuffer::{peek_u32, BufferTo, BytesMutExtras, UnbufferFrom},
+    buffer_unbuffer::{BufferTo, UnbufferFrom},
     data_types::{
         cookie::check_ver_nonfile_compatible, CookieData, MessageSize, SequencedGenericMessage,
-        TypedMessage,
     },
-    handler::{HandlerCode, TypedHandler},
-    tracker::PoseReport,
     vrpn_async_std::read_cookie,
-    Result, TypeDispatcher, VrpnError,
+    Result,
 };
-
-#[derive(Debug)]
-struct TrackerHandler {}
-impl TypedHandler for TrackerHandler {
-    type Item = PoseReport;
-    fn handle_typed(&mut self, msg: &TypedMessage<PoseReport>) -> Result<HandlerCode> {
-        println!("{:?}\n   {:?}", msg.header, msg.body);
-        Ok(HandlerCode::ContinueProcessing)
-    }
-}
 
 async fn async_main() -> Result<()> {
     let addr: SocketAddr = "127.0.0.1:3883".parse().unwrap();
@@ -59,7 +40,7 @@ async fn async_main() -> Result<()> {
     {
         buf.clear();
         CookieData::make_cookie().buffer_to(&mut buf)?;
-        let cookie_buf = buf.split(); // BytesMut::allocate_and_buffer(CookieData::make_cookie())?;
+        let cookie_buf = buf.split();
         stream.write_all(&cookie_buf[..]).await?;
         println!("wrote cookie");
     }
@@ -96,15 +77,13 @@ fn try_decode(bytes_mut: &mut BytesMut) -> Result<Option<SequencedGenericMessage
                 bytes_mut.remaining()
             );
             println!("{:?}", bytes_mut);
-            return Ok(Some(sgm));
+            Ok(Some(sgm))
         }
         Err(BufferUnbufferError::NeedMoreData(requirement)) => {
             println!("need more data: {} bytes", requirement);
-            return Ok(None);
+            Ok(None)
         }
-        Err(e) => {
-            return Err(e.into());
-        }
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -138,7 +117,7 @@ async fn try_get_message(
                 continue;
             }
             Err(e) => {
-                return Err(e.into());
+                return Err(e);
             }
         }
     }

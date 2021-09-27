@@ -5,11 +5,11 @@
 extern crate pin_project_lite;
 
 use crate::{
-    buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, UnbufferFrom},
-    data_types::cookie::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData},
+    buffer_unbuffer::{ConstantBufferSize},
+    data_types::cookie::{CookieData},
     VrpnError,
 };
-use bytes::{Bytes, BytesMut};
+use bytes::{BytesMut};
 use futures::AsyncRead;
 use futures::{prelude::*, AsyncReadExt};
 

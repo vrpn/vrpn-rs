@@ -11,7 +11,7 @@ extern crate bytes;
 
 use crate::{
     buffer_unbuffer::{
-        peek_u32, size_requirement::MayContainSizeRequirement, BufferUnbufferError, BytesMutExtras,
+        peek_u32, size_requirement::MayContainSizeRequirement, BytesMutExtras,
         ConstantBufferSize, SizeRequirement,
     },
     data_types::{

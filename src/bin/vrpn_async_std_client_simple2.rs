@@ -11,34 +11,21 @@
 extern crate bytes;
 extern crate vrpn;
 
-use std::convert::TryInto;
-use std::pin::Pin;
-use std::task::Poll;
-
-use async_std::io::{self, Cursor};
 use async_std::{
-    io::BufReader,
     net::{SocketAddr, TcpStream},
-    prelude::*,
     task,
 };
-use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::io::Read;
-use futures::stream::StreamFuture;
-use futures::{ready, AsyncBufReadExt, AsyncRead, AsyncReadExt, FutureExt, StreamExt};
-use vrpn::buffer_unbuffer::BufferUnbufferError;
+
+use futures::StreamExt;
+
 use vrpn::vrpn_async_std::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie};
-use vrpn::vrpn_async_std::{read_n_into_bytes_mut, BytesMutReader};
+
 use vrpn::{
-    buffer_unbuffer::{peek_u32, BufferTo, BytesMutExtras, UnbufferFrom},
-    data_types::{
-        cookie::check_ver_nonfile_compatible, CookieData, MessageSize, SequencedGenericMessage,
-        TypedMessage,
-    },
+    data_types::TypedMessage,
     handler::{HandlerCode, TypedHandler},
     tracker::PoseReport,
-    vrpn_async_std::{read_cookie, AsyncReadMessagesExt},
-    Result, TypeDispatcher, VrpnError,
+    vrpn_async_std::AsyncReadMessagesExt,
+    Result,
 };
 
 #[derive(Debug)]
@@ -69,7 +56,7 @@ async fn async_main() -> Result<()> {
             }
             Some(Err(e)) => {
                 eprintln!("Got error {:?}", e);
-                Err(e)?;
+                return Err(e);
             }
             None => {
                 eprintln!("EOF reached (?)");
