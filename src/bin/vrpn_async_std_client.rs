@@ -115,28 +115,25 @@ async fn async_main() -> Result<()> {
 
     // let mut reader = BufReader::new(&stream);
     // let mut endpoint = EndpointSyncTcp::new(stream);
+    let mut bytes_mut = BytesMut::with_capacity(2048);
     loop {
-        // Read the message header and padding
-        // let mut buf = BytesMut::new();
-        let mut bytes_mut_reader = BytesMutReader::with_capacity(2048)
-            .read_from(&mut stream)
-            .await?;
+        bytes_mut.clear();
+        let mut header_buf = [0u8; 24];
+        AsyncReadExt::read_exact(&mut stream, &mut header_buf).await?;
 
-        println!("Got data len {}", bytes_mut_reader.len());
         // Peek the size field, to compute the MessageSize.
         let size = {
-            let buf = bytes_mut_reader.take_contents();
-            let mut size_buf = std::io::Cursor::new(buf.chunk());
+            let mut size_buf = std::io::Cursor::new(&header_buf);
             let total_len = u32::unbuffer_from(&mut size_buf).unwrap();
-            bytes_mut_reader = bytes_mut_reader.give_back_contents(buf);
             MessageSize::try_from_length_field(total_len).unwrap()
         };
         println!("Got header {:?}", size);
         println!("reading body");
+        bytes_mut.extend_from_slice(&header_buf[..]);
 
         let mut msg: Option<SequencedGenericMessage> = None;
         loop {
-            let mut existing_bytes = bytes_mut_reader.take_contents();
+            let mut existing_bytes = std::io::Cursor::new(&bytes_mut);
 
             match SequencedGenericMessage::try_read_from_buf(&mut existing_bytes) {
                 Ok(sgm) => {
@@ -145,7 +142,10 @@ async fn async_main() -> Result<()> {
                 }
                 Err(e) => {
                     if let BufferUnbufferError::NeedMoreData(_) = e {
-                        bytes_mut_reader = bytes_mut_reader.give_back_contents(existing_bytes);
+                        let mut body_buf = [0u8; 2048];
+                        let n = AsyncReadExt::read(&mut stream, &mut body_buf).await?;
+                        bytes_mut.extend_from_slice(&body_buf[..n]);
+
                         continue;
                     } else {
                         return Err(e.into());
