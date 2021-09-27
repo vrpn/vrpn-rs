@@ -13,7 +13,7 @@ extern crate vrpn;
 
 use std::convert::TryInto;
 
-use async_std::io;
+use async_std::io::{self, Cursor};
 use async_std::{
     io::BufReader,
     net::{SocketAddr, TcpStream},
@@ -22,6 +22,8 @@ use async_std::{
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{AsyncBufReadExt, AsyncRead, AsyncReadExt};
+use vrpn::buffer_unbuffer::BufferUnbufferError;
+use vrpn::vrpn_async_std::{read_n_into_bytes_mut, BytesMutReader};
 use vrpn::{
     buffer_unbuffer::{peek_u32, BufferTo, BytesMutExtras, UnbufferFrom},
     data_types::{
@@ -116,60 +118,42 @@ async fn async_main() -> Result<()> {
     loop {
         // Read the message header and padding
         // let mut buf = BytesMut::new();
-        buf.clear();
+        let mut bytes_mut_reader = BytesMutReader::with_capacity(2048)
+            .read_from(&mut stream)
+            .await?;
 
-        let after_header = buf.split_off(24);
-        // let mut header_buf = [0u8; 24];
-        AsyncReadExt::read_exact(&mut stream, &mut buf)
-            .await
-            .unwrap();
-        println!("Got header");
+        println!("Got data len {}", bytes_mut_reader.len());
         // Peek the size field, to compute the MessageSize.
         let size = {
-            let total_len = u32::unbuffer_from(&mut buf.clone().split().freeze()).unwrap();
+            let buf = bytes_mut_reader.take_contents();
+            let mut size_buf = std::io::Cursor::new(buf.chunk());
+            let total_len = u32::unbuffer_from(&mut size_buf).unwrap();
+            bytes_mut_reader = bytes_mut_reader.give_back_contents(buf);
             MessageSize::try_from_length_field(total_len).unwrap()
         };
-        buf.unsplit(after_header);
+        println!("Got header {:?}", size);
         println!("reading body");
 
+        let mut msg: Option<SequencedGenericMessage> = None;
         loop {
-            let mut existing_bytes = buf.split();
-            let n = AsyncReadExt::read(&mut stream, &mut buf).await?;
-            let len = buf.len();
-            existing_bytes.unsplit(buf);
-            buf = existing_bytes;
-            println!("n={}, len={}, total_len={}", n, len, buf.len());
+            let mut existing_bytes = bytes_mut_reader.take_contents();
+
+            match SequencedGenericMessage::try_read_from_buf(&mut existing_bytes) {
+                Ok(sgm) => {
+                    msg.insert(sgm);
+                    break;
+                }
+                Err(e) => {
+                    if let BufferUnbufferError::NeedMoreData(_) = e {
+                        bytes_mut_reader = bytes_mut_reader.give_back_contents(existing_bytes);
+                        continue;
+                    } else {
+                        return Err(e.into());
+                    }
+                }
+            }
         }
-        // let body_stream =
-        //     AsyncReadExt::take(stream.clone(), size.padded_body_size().try_into().unwrap());
-        //     body_stream.read_to_end(buf)
-        let mut header_buf = buf.clone();
-        let after_body = buf.split_off(size.padded_body_size());
-
-        // Read the body of the message
-        AsyncReadExt::read_exact(&mut stream, &mut buf)
-            .await
-            .unwrap();
-        header_buf.unsplit(buf);
-        let mut message_buf = header_buf;
-        // // let mut body_buf = [0u8; size.padded_body_size()];
-        // body_buf.resize(size.padded_body_size(), 0);
-        // stream.read_exact(body_buf.as_mut()).await.unwrap();
-        // println!("Got body");
-        // // Combine the body with the header
-        // let mut full_buf = BytesMut::with_capacity(size.padded_message_size());
-        // full_buf.extend_from_slice(&buf[..]);
-        // full_buf.extend_from_slice(&body_buf[..]);
-        // // let mut buf =  Bytes::from(
-        // // async_std::io::ReadExt::chain(, ));
-        // // buf.extend_from_slice(&body_buf[..]);
-        // let mut full_buf = full_buf.freeze();
-
-        // Unbuffer the message.
-        let unbuffered = SequencedGenericMessage::try_read_from_buf(&mut message_buf).unwrap();
-        eprintln!("{:?}", unbuffered.into_inner());
-        message_buf.unsplit(after_body);
-        buf = message_buf;
+        eprintln!("{:?}", msg.unwrap().into_inner());
     }
 }
 fn main() {
