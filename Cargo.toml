@@ -59,7 +59,6 @@ required-features = ["vrpn-async-std"]
 name = "vrpn_async_std_client_simple2"
 required-features = ["vrpn-async-std"]
 
-# The development profile, used for `cargo build`
-[profile.dev]
-debug = true # Controls whether the compiler passes `-g`
-opt-level = 0 # Controls the --opt-level the compiler builds with
+[[bin]]
+name = "vrpn_async_std_client_simple3"
+required-features = ["vrpn-async-std"]
