@@ -3,7 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
-    buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, UnbufferFrom},
+    buffer_unbuffer::{BytesMutExtras, UnbufferFrom},
     data_types::{
         constants::COOKIE_SIZE,
         cookie::{check_ver_file_compatible, check_ver_nonfile_compatible, CookieData},
