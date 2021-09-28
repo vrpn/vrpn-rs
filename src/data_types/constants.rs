@@ -37,8 +37,10 @@ pub const FILE_MAGIC_DATA: Version = Version { major: 4, minor: 0 };
 pub const MAGIC_PREFIX: &[u8] = b"vrpn: ver. ";
 pub const MAGICLEN: usize = 16; // Must be a multiple of vrpn_ALIGN bytes!
 
-// NOTE: This needs to remain the same size unless we change the major version
-// number for VRPN.  It is the length that is written into the stream.
+/// This is the size, in bytes, of the "magic cookie" message.
+///
+/// NOTE: This needs to remain the same size unless we change the major version
+/// number for VRPN.  It is the length that is written into the stream.
 pub const COOKIE_SIZE: usize = MAGICLEN + ALIGN;
 
 #[cfg(test)]
