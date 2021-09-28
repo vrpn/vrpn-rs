@@ -23,7 +23,7 @@ impl std::fmt::Display for MessageSizeInvalid {
 impl std::error::Error for MessageSizeInvalid {}
 
 /// Error type returned by buffering/unbuffering.
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum BufferUnbufferError {
     #[error("unbuffering ran out of buffered bytes: need {0} additional bytes")]
     NeedMoreData(SizeRequirement),

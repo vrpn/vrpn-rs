@@ -6,12 +6,6 @@ use crate::{constants, Result, VrpnError};
 use std::{net::SocketAddr, str::FromStr};
 use url::Url;
 
-impl From<url::ParseError> for VrpnError {
-    fn from(e: url::ParseError) -> VrpnError {
-        VrpnError::Other(Box::new(e))
-    }
-}
-
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Scheme {
     UdpAndTcp,

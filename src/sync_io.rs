@@ -86,7 +86,7 @@ impl EndpointSyncTcp {
             match e.kind() {
                 WouldBlock | TimedOut => VrpnError::from(SizeRequirement::Unknown),
                 // Not a "need more data"
-                _ => VrpnError::Other(Box::new(e)),
+                _ => e.into(),
             }
         })?;
 

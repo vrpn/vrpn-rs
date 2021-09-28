@@ -36,24 +36,15 @@ pub enum VrpnError {
     #[error("{0}")]
     MessageSizeInvalid(MessageSizeInvalid),
     #[error("{0}")]
-    VersionMismatch(crate::data_types::cookie::VersionMismatch),
+    VersionMismatch(#[from] crate::data_types::cookie::VersionMismatch),
     #[error("{0}")]
-    Other(#[from] Box<dyn std::error::Error + Send>),
+    UrlParseError(#[from] url::ParseError),
+    #[error("{0}")]
+    IoError(#[from] std::io::Error),
     #[error("{0}")]
     OtherMessage(String),
 }
 
-impl From<std::io::Error> for VrpnError {
-    fn from(e: std::io::Error) -> Self {
-        VrpnError::Other(Box::new(e))
-    }
-}
-
-impl From<crate::data_types::cookie::VersionMismatch> for VrpnError {
-    fn from(e: crate::data_types::cookie::VersionMismatch) -> Self {
-        VrpnError::VersionMismatch(e)
-    }
-}
 impl MayContainSizeRequirement for VrpnError {
     fn try_get_size_requirement(self) -> Option<SizeRequirement> {
         match self {

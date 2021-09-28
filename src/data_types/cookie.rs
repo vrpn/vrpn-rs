@@ -177,6 +177,8 @@ impl Display for VersionMismatch {
     }
 }
 
+impl std::error::Error for VersionMismatch {}
+
 pub fn check_ver_nonfile_compatible(ver: Version) -> Result<(), VersionMismatch> {
     if ver.major == constants::MAGIC_DATA.major {
         Ok(())
