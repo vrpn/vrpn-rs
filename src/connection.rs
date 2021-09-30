@@ -188,6 +188,7 @@ pub trait Connection: Send + Sync {
         let mut endpoints = self.connection_core().endpoints.lock()?;
         let dispatcher = self.connection_core().type_dispatcher.lock()?;
         for ep in endpoints.iter_mut().flatten() {
+            pack_all_descriptions(endpoints, dispatcher);
             ep.pack_all_descriptions(&dispatcher)?;
         }
         Ok(())

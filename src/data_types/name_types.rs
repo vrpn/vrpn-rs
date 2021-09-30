@@ -14,9 +14,13 @@ use super::{
 /// A named, unwrapped ID
 pub trait IdWithName: UnwrappedId
 where
-    Self::Name: Into<Bytes>,
+    Self::Name: NameIntoBytes,
 {
     type Name;
+}
+
+pub trait NameIntoBytes {
+    fn into_bytes(self) -> Bytes;
 }
 
 /// Wrapper for a fixed sender name, as a static byte array.
@@ -53,6 +57,7 @@ impl From<StaticSenderName> for Bytes {
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct SenderName(pub Bytes);
 
+
 impl From<StaticSenderName> for SenderName {
     fn from(val: StaticSenderName) -> SenderName {
         SenderName(Bytes::from(val))
@@ -63,6 +68,16 @@ impl From<SenderName> for Bytes {
     fn from(val: SenderName) -> Bytes {
         val.0
     }
+}
+
+impl NameIntoBytes for SenderName {
+    fn into_bytes(self) -> Bytes {
+        self.0
+    }
+}
+
+impl IdWithName for SenderId {
+    type Name = SenderName;
 }
 
 /// Be able to compare `StaticSenderName` and `SenderName`
@@ -123,11 +138,12 @@ impl std::cmp::PartialEq<StaticMessageTypeName> for MessageTypeName {
         self.0 == Bytes::from_static(other.0)
     }
 }
+impl NameIntoBytes for MessageTypeName {
+    fn into_bytes(self) -> Bytes {
+        self.0
+    }
+}
 
 impl IdWithName for MessageTypeId {
     type Name = MessageTypeName;
-}
-
-impl IdWithName for SenderId {
-    type Name = SenderName;
 }

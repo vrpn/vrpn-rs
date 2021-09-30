@@ -11,10 +11,10 @@ extern crate vrpn;
 
 use std::sync::Arc;
 use vrpn::{
-    vrpn_tokio::{ping, ConnectionIp, ConnectionIpStream, StreamExtras},
     handler::{HandlerCode, TypedHandler},
     prelude::*,
     tracker::PoseReport,
+    vrpn_tokio::{ping, ConnectionIp, ConnectionIpStream, StreamExtras},
     Message, Result, ServerInfo, StaticSenderName,
 };
 

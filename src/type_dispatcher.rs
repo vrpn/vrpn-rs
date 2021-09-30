@@ -6,14 +6,17 @@ use crate::{
     buffer_unbuffer::constants::GENERIC,
     data_types::{
         constants,
+        descriptions::{IdWithDescription, InnerDescription},
         id_types::*,
         message::{GenericMessage, MessageTypeIdentifier, TypedMessageBody},
-        name_types::{MessageTypeName, SenderName},
+        name_types::{MessageTypeName, NameIntoBytes, SenderName},
+        Description, IdWithName,
     },
     handler::*,
     Result, VrpnError,
 };
 use bytes::Bytes;
+use chrono::Local;
 use std::{collections::HashMap, convert::TryFrom, fmt, hash::Hash};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -192,6 +195,24 @@ impl Default for TypeDispatcher {
     }
 }
 
+fn description_message<T>(id: LocalId<T>, name: &T::Name) -> Result<GenericMessage>
+where
+    T: IdWithName + IdWithDescription,
+    InnerDescription<T>: TypedMessageBody,
+{
+    let desc = Description::new(id.into_id(), name.into_bytes());
+    let desc_msg = crate::data_types::TypedMessage::from(desc);
+    Ok(GenericMessage::try_from(desc_msg)?)
+}
+
+fn description_message_pairs<T>(pair: (LocalId<T>, &T::Name)) -> Result<GenericMessage>
+where
+    T: IdWithName + IdWithDescription,
+    InnerDescription<T>: TypedMessageBody,
+{
+    description_message(pair.0, pair.1)
+}
+
 impl TypeDispatcher {
     pub fn new() -> TypeDispatcher {
         let mut disp = TypeDispatcher {
@@ -335,15 +356,13 @@ impl TypeDispatcher {
         mapping.call(msg)
     }
 
-    pub fn senders_iter(
-        &'_ self,
-    ) -> impl Iterator<Item = (LocalId<SenderId>, &'_ SenderName)> + '_ {
+    fn senders_iter(&'_ self) -> impl Iterator<Item = (LocalId<SenderId>, &'_ SenderName)> + '_ {
         self.senders
             .iter()
             .enumerate()
             .map(|(i, name)| (LocalId(SenderId(i as i32)), name))
     }
-    pub fn types_iter(
+    fn types_iter(
         &'_ self,
     ) -> impl Iterator<Item = (LocalId<MessageTypeId>, MessageTypeName)> + '_ {
         self.types.iter().enumerate().map(|(i, callbacks)| {
@@ -355,20 +374,16 @@ impl TypeDispatcher {
     }
 
     /// Pack all sender and type descriptions into a vector of generic messages.
-    pub fn pack_all_descriptions(&self) -> Result<Vec<GenericMessage>> {
+    pub fn pack_all_descriptions(&self) -> Result< impl Iterator<Item=GenericMessage>> {
         let mut messages = Vec::with_capacity(self.types.len() + self.senders.len());
-        for (id, name) in self.senders_iter() {
-            let desc_msg = crate::data_types::TypedMessage::from(
-                crate::data_types::Description::new(id.into_id(), name.0.clone()),
-            );
-            messages.push(GenericMessage::try_from(desc_msg)?);
-        }
-        for (id, name) in self.types_iter() {
-            let desc_msg = crate::data_types::TypedMessage::from(
-                crate::data_types::Description::new(id.into_id(), name.0.clone()),
-            );
-            messages.push(GenericMessage::try_from(desc_msg)?);
-        }
+
+        let  sender_messages = self
+            .senders_iter()
+            .map(description_message_pairs)
+            .collect::<Result<Vec<GenericMessage>>>()?;
+
+        let type_messages = self.types_iter().map(description_message_pairs).collect::<Result<Vec<GenericMessage>>>()?;
+        
         Ok(messages)
     }
 }
