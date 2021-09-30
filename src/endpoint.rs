@@ -18,16 +18,14 @@ use crate::{
         MessageHeader, MessageTypeId, MessageTypeName, SenderName, TypedMessage, TypedMessageBody,
         UdpDescription,
     },
-    translation_table,
-    type_dispatcher::IntoDescriptionMessage,
-    MatchingTable, Result, TranslationTables, TypeDispatcher, VrpnError,
+    translation_table, MatchingTable, Result, TranslationTables, TypeDispatcher, VrpnError,
 };
 
 /// These are all "system commands".
 /// They are converted from system messages by Endpoint::handle_message_as_system
 /// (and thus Endpoint::passthrough_nonsystem_message).
 ///
-/// The commands enumerated that aren't Extended are handled by the default implementation of Endpoint::handle_system_command.
+/// The commands enumerated that aren't Extended are handled by handle_system_command.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum SystemCommand {
     SenderDescription(Description<SenderId>),
@@ -42,6 +40,7 @@ pub enum ExtendedSystemCommand {
     LogDescription(LogFileNames),
     DisconnectMessage,
 }
+
 /// Parse a "system" message (for which message_type.is_system_message() returns true).
 ///
 /// Call from within your dispatch function once you've recognized that a message is a system message.
@@ -113,6 +112,11 @@ pub fn handle_system_command(
         SystemCommand::Extended(cmd) => Ok(Some(cmd)),
     }
 }
+
+/// An endpoint for communication.
+///
+/// An endpoint must own:
+/// - a set of `TranslationTables`
 pub trait Endpoint {
     /// Access the translation tables.
     fn translation_tables(&self) -> &TranslationTables;
@@ -127,6 +131,7 @@ pub trait Endpoint {
     /// Queue up a generic message for sending.
     fn buffer_generic_message(&mut self, msg: GenericMessage, class: ClassOfService) -> Result<()>;
 
+    /// Pack all descriptions from the dispatcher and send them.
     fn send_all_descriptions(&mut self, dispatcher: &TypeDispatcher) -> Result<()> {
         for msg in dispatcher.pack_all_descriptions()? {
             self.buffer_generic_message(msg, ClassOfService::RELIABLE)?;
@@ -134,12 +139,10 @@ pub trait Endpoint {
         Ok(())
     }
 
-    fn clear_other_senders_and_types(&mut self) {
-        self.translation_tables_mut().clear();
-    }
+    // fn clear_other_senders_and_types(&mut self) {
+    //     self.translation_tables_mut().clear();
+    // }
 }
-
-// impl_downcast!(Endpoint);
 
 /// Endpoint-related methods that must be separate from the main Endpoint trait,
 /// because they are generic/have type parameters. (or depend on those methods)

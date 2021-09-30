@@ -111,7 +111,7 @@ impl EndpointSyncTcp {
                 Ok(msg) => {
                     let msg = self.map_remote_message_to_local(msg.into_inner())?;
                     if msg.is_system_message() {
-                        self.send_system_change(parse_system_message(msg)?);
+                        self.send_system_change(parse_system_message(msg)?)?;
                     } else {
                         dispatcher.call(&msg)?;
                     }
