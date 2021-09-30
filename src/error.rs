@@ -33,6 +33,8 @@ pub enum VrpnError {
     NotSystemMessage,
     #[error("un-recognized system message id {0}")]
     UnrecognizedSystemMessage(IdType),
+    #[error("endpoint is closed or closing")]
+    EndpointClosed,
     #[error("{0}")]
     MessageSizeInvalid(MessageSizeInvalid),
     #[error("{0}")]
@@ -109,6 +111,11 @@ impl From<MessageSizeInvalid> for VrpnError {
         todo!()
     }
 }
+
+pub fn to_other_error<T: std::error::Error + std::fmt::Display>(e: T) -> VrpnError {
+    VrpnError::OtherMessage(e.to_string())
+}
+
 // #[deprecated(note = "Use std::result::Result with explicit error type instead")]
 pub type Result<T> = std::result::Result<T, VrpnError>;
 

@@ -28,6 +28,7 @@ enum MessageStreamState {
     Error,
 }
 pin_project! {
+    #[derive(Debug)]
     pub struct MessageStream<R> {
         #[pin]
         stream: R,

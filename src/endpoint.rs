@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 use bytes::Bytes;
-use downcast_rs::Downcast;
+// use downcast_rs::Downcast;
 
 use crate::{
     buffer_unbuffer::BufferTo,
@@ -39,8 +39,78 @@ pub enum ExtendedSystemCommand {
     LogDescription(LogFileNames),
     DisconnectMessage,
 }
+/// Parse a "system" message (for which message_type.is_system_message() returns true).
+///
+/// Call from within your dispatch function once you've recognized that a message is a system message.
+pub fn parse_system_message(msg: GenericMessage) -> Result<SystemCommand> {
+    if !msg.is_system_message() {
+        return Err(VrpnError::NotSystemMessage);
+    }
+    Ok(match msg.header.message_type {
+        constants::TYPE_DESCRIPTION => {
+            let msg: TypedMessage<InnerDescription<MessageTypeId>> = TypedMessage::try_from(&msg)?;
+            SystemCommand::TypeDescription(msg.into())
+        }
+        constants::SENDER_DESCRIPTION => {
+            let msg: TypedMessage<InnerDescription<SenderId>> = TypedMessage::try_from(&msg)?;
+            SystemCommand::SenderDescription(msg.into())
+        }
+        constants::UDP_DESCRIPTION => {
+            let msg: TypedMessage<UdpInnerDescription> = TypedMessage::try_from(&msg)?;
+            SystemCommand::Extended(ExtendedSystemCommand::UdpDescription(msg.into()))
+        }
+        constants::LOG_DESCRIPTION => {
+            let msg: TypedMessage<LogFileNames> = TypedMessage::try_from(&msg)?;
+            SystemCommand::Extended(ExtendedSystemCommand::LogDescription(msg.body))
+        }
+        constants::DISCONNECT_MESSAGE => {
+            SystemCommand::Extended(ExtendedSystemCommand::DisconnectMessage)
+        }
+        _ => {
+            return Err(VrpnError::UnrecognizedSystemMessage(
+                msg.header.message_type.get(),
+            ));
+        }
+    })
+}
 
-pub trait Endpoint: Downcast {
+/// Apply the changes from a system command to your TypeDispatcher and TranslationTables.
+///
+/// Passes through any extended commands.
+pub fn handle_system_command(
+    dispatcher: &mut TypeDispatcher,
+    translation_tables: &mut TranslationTables,
+    system_command: SystemCommand,
+) -> Result<Option<ExtendedSystemCommand>> {
+    match system_command {
+        SystemCommand::SenderDescription(desc) => {
+            let local_id = dispatcher
+                .register_sender(SenderName(desc.name.clone()))?
+                .get();
+            eprintln!(
+                "Registering sender {:?}: local {:?} = remote {:?}",
+                desc.name, local_id, desc.which
+            );
+            let _ =
+                translation_tables.add_remote_entry(desc.name, RemoteId(desc.which), local_id)?;
+            Ok(None)
+        }
+        SystemCommand::TypeDescription(desc) => {
+            let local_id = dispatcher
+                .register_type(MessageTypeName(desc.name.clone()))?
+                .get();
+            eprintln!(
+                "Registering type {:?}: local {:?} = remote {:?}",
+                desc.name, local_id, desc.which
+            );
+            let _ =
+                translation_tables.add_remote_entry(desc.name, RemoteId(desc.which), local_id)?;
+            Ok(None)
+        }
+        SystemCommand::Extended(cmd) => Ok(Some(cmd)),
+    }
+}
+pub trait Endpoint {
     /// Access the translation tables.
     fn translation_tables(&self) -> &TranslationTables;
     /// Access the translation tables mutably.
@@ -54,103 +124,97 @@ pub trait Endpoint: Downcast {
     /// Queue up a generic message for sending.
     fn buffer_generic_message(&mut self, msg: GenericMessage, class: ClassOfService) -> Result<()>;
 
-    /// Handle a "system" message (for which message_type.is_system_message() returns true).
-    ///
-    /// Call from within your dispatch function once you've recognized that a message is a system message.
-    fn handle_message_as_system(&self, msg: GenericMessage) -> Result<()> {
-        if !msg.is_system_message() {
-            return Err(VrpnError::NotSystemMessage);
-        }
-        match msg.header.message_type {
-            constants::TYPE_DESCRIPTION => {
-                let msg: TypedMessage<InnerDescription<MessageTypeId>> =
-                    TypedMessage::try_from(&msg)?;
-                self.send_system_change(SystemCommand::TypeDescription(msg.into()))?;
-            }
-            constants::SENDER_DESCRIPTION => {
-                let msg: TypedMessage<InnerDescription<SenderId>> = TypedMessage::try_from(&msg)?;
-                self.send_system_change(SystemCommand::SenderDescription(msg.into()))?;
-            }
-            constants::UDP_DESCRIPTION => {
-                let msg: TypedMessage<UdpInnerDescription> = TypedMessage::try_from(&msg)?;
-                self.send_system_change(SystemCommand::Extended(
-                    ExtendedSystemCommand::UdpDescription(msg.into()),
-                ))?;
-            }
-            constants::LOG_DESCRIPTION => {
-                let msg: TypedMessage<LogFileNames> = TypedMessage::try_from(&msg)?;
-                self.send_system_change(SystemCommand::Extended(
-                    ExtendedSystemCommand::LogDescription(msg.body),
-                ))?;
-            }
-            constants::DISCONNECT_MESSAGE => {
-                self.send_system_change(SystemCommand::Extended(
-                    ExtendedSystemCommand::DisconnectMessage,
-                ))?;
-            }
-            _ => {
-                return Err(VrpnError::UnrecognizedSystemMessage(
-                    msg.header.message_type.get(),
-                ));
-            }
-        }
-        Ok(())
-    }
+    // /// Handle a "system" message (for which message_type.is_system_message() returns true).
+    // ///
+    // /// Call from within your dispatch function once you've recognized that a message is a system message.
+    // fn parse_system_message(&self, msg: GenericMessage) -> Result<SystemCommand> {
+    //     if !msg.is_system_message() {
+    //         return Err(VrpnError::NotSystemMessage);
+    //     }
+    //     let sys_msg = match msg.header.message_type {
+    //         constants::TYPE_DESCRIPTION => {
+    //             let msg: TypedMessage<InnerDescription<MessageTypeId>> =
+    //                 TypedMessage::try_from(&msg)?;
+    //             SystemCommand::TypeDescription(msg.into())
+    //         }
+    //         constants::SENDER_DESCRIPTION => {
+    //             let msg: TypedMessage<InnerDescription<SenderId>> = TypedMessage::try_from(&msg)?;
+    //             SystemCommand::SenderDescription(msg.into())
+    //         }
+    //         constants::UDP_DESCRIPTION => {
+    //             let msg: TypedMessage<UdpInnerDescription> = TypedMessage::try_from(&msg)?;
+    //             SystemCommand::Extended(ExtendedSystemCommand::UdpDescription(msg.into()))
+    //         }
+    //         constants::LOG_DESCRIPTION => {
+    //             let msg: TypedMessage<LogFileNames> = TypedMessage::try_from(&msg)?;
+    //             SystemCommand::Extended(ExtendedSystemCommand::LogDescription(msg.body))
+    //         }
+    //         constants::DISCONNECT_MESSAGE => {
+    //             SystemCommand::Extended(ExtendedSystemCommand::DisconnectMessage)
+    //         }
+    //         _ => {
+    //             return Err(VrpnError::UnrecognizedSystemMessage(
+    //                 msg.header.message_type.get(),
+    //             ));
+    //         }
+    //     };
+    //     Ok(sys_msg)
+    // }
 
-    /// If a message is a system message, handle it, otherwise pass it through unmodified.
-    ///
-    /// Call from within your dispatch function, when processing unbuffered messages
-    fn passthrough_nonsystem_message(&self, msg: GenericMessage) -> Result<Option<GenericMessage>> {
-        if msg.is_system_message() {
-            self.handle_message_as_system(msg)?;
-            Ok(None)
-        } else {
-            Ok(Some(msg))
-        }
-    }
+    // /// If a message is a system message, handle it, otherwise pass it through unmodified.
+    // ///
+    // /// Call from within your dispatch function, when processing unbuffered messages
+    // fn passthrough_nonsystem_message(&self, msg: GenericMessage) -> Result<Option<GenericMessage>> {
+    //     if msg.is_system_message() {
+    //         self.parse_system_message(msg)?;
+    //         Ok(None)
+    //     } else {
+    //         Ok(Some(msg))
+    //     }
+    // }
 
-    /// Call from within your dispatch function when you're looping through the contents of your queue of SystemCommand objects.
-    ///
-    /// Passes through any extended system commands.
-    fn handle_system_command(
-        &mut self,
-        dispatcher: &mut TypeDispatcher,
-        system_command: SystemCommand,
-    ) -> Result<Option<ExtendedSystemCommand>> {
-        match system_command {
-            SystemCommand::SenderDescription(desc) => {
-                let local_id = dispatcher
-                    .register_sender(SenderName(desc.name.clone()))?
-                    .get();
-                eprintln!(
-                    "Registering sender {:?}: local {:?} = remote {:?}",
-                    desc.name, local_id, desc.which
-                );
-                let _ = self.translation_tables_mut().add_remote_entry(
-                    desc.name,
-                    RemoteId(desc.which),
-                    local_id,
-                )?;
-                Ok(None)
-            }
-            SystemCommand::TypeDescription(desc) => {
-                let local_id = dispatcher
-                    .register_type(MessageTypeName(desc.name.clone()))?
-                    .get();
-                eprintln!(
-                    "Registering type {:?}: local {:?} = remote {:?}",
-                    desc.name, local_id, desc.which
-                );
-                let _ = self.translation_tables_mut().add_remote_entry(
-                    desc.name,
-                    RemoteId(desc.which),
-                    local_id,
-                )?;
-                Ok(None)
-            }
-            SystemCommand::Extended(cmd) => Ok(Some(cmd)),
-        }
-    }
+    // /// Call from within your dispatch function when you're looping through the contents of your queue of SystemCommand objects.
+    // ///
+    // /// Passes through any extended system commands.
+    // fn handle_system_command(
+    //     &mut self,
+    //     dispatcher: &mut TypeDispatcher,
+    //     system_command: SystemCommand,
+    // ) -> Result<Option<ExtendedSystemCommand>> {
+    //     match system_command {
+    //         SystemCommand::SenderDescription(desc) => {
+    //             let local_id = dispatcher
+    //                 .register_sender(SenderName(desc.name.clone()))?
+    //                 .get();
+    //             eprintln!(
+    //                 "Registering sender {:?}: local {:?} = remote {:?}",
+    //                 desc.name, local_id, desc.which
+    //             );
+    //             let _ = self.translation_tables_mut().add_remote_entry(
+    //                 desc.name,
+    //                 RemoteId(desc.which),
+    //                 local_id,
+    //             )?;
+    //             Ok(None)
+    //         }
+    //         SystemCommand::TypeDescription(desc) => {
+    //             let local_id = dispatcher
+    //                 .register_type(MessageTypeName(desc.name.clone()))?
+    //                 .get();
+    //             eprintln!(
+    //                 "Registering type {:?}: local {:?} = remote {:?}",
+    //                 desc.name, local_id, desc.which
+    //             );
+    //             let _ = self.translation_tables_mut().add_remote_entry(
+    //                 desc.name,
+    //                 RemoteId(desc.which),
+    //                 local_id,
+    //             )?;
+    //             Ok(None)
+    //         }
+    //         SystemCommand::Extended(cmd) => Ok(Some(cmd)),
+    //     }
+    // }
 
     fn pack_all_descriptions(&mut self, dispatcher: &TypeDispatcher) -> Result<()> {
         let mut messages = Vec::new();
@@ -173,7 +237,7 @@ pub trait Endpoint: Downcast {
     }
 }
 
-impl_downcast!(Endpoint);
+// impl_downcast!(Endpoint);
 
 /// Endpoint-related methods that must be separate from the main Endpoint trait,
 /// because they are generic/have type parameters. (or depend on those methods)

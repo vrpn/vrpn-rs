@@ -11,15 +11,16 @@ extern crate bytes;
 
 use crate::{
     buffer_unbuffer::{
-        peek_u32, size_requirement::MayContainSizeRequirement, BytesMutExtras,
-        ConstantBufferSize, SizeRequirement,
+        peek_u32, size_requirement::MayContainSizeRequirement, BytesMutExtras, ConstantBufferSize,
+        SizeRequirement,
     },
     data_types::{
-        self, id_types::SequenceNumber, CookieData, GenericMessage, MessageSize,
+        self, id_types::SequenceNumber, CookieData, GenericMessage, Message, MessageSize,
         SequencedGenericMessage,
     },
     endpoint::SystemCommand,
     error::VrpnError,
+    handle_system_command, parse_system_message,
     translation_table::Tables as TranslationTables,
     Endpoint, EndpointGeneric, TypeDispatcher,
 };
@@ -109,7 +110,9 @@ impl EndpointSyncTcp {
             match self.read_single_message() {
                 Ok(msg) => {
                     let msg = self.map_remote_message_to_local(msg.into_inner())?;
-                    if let Some(msg) = self.passthrough_nonsystem_message(msg)? {
+                    if msg.is_system_message() {
+                        self.send_system_change(parse_system_message(msg)?);
+                    } else {
                         dispatcher.call(&msg)?;
                     }
                 }
@@ -125,7 +128,9 @@ impl EndpointSyncTcp {
         loop {
             match self.system_rx.recv_timeout(Duration::from_micros(1)) {
                 Ok(cmd) => {
-                    if self.handle_system_command(&mut dispatcher, cmd)?.is_some() {
+                    if handle_system_command(&mut dispatcher, self.translation_tables_mut(), cmd)?
+                        .is_some()
+                    {
                         // we don't handle any other system commands in this endpoint right now
                     }
                 }

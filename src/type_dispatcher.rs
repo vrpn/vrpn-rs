@@ -14,7 +14,7 @@ use crate::{
     Result, VrpnError,
 };
 use bytes::Bytes;
-use std::{collections::HashMap, fmt, hash::Hash};
+use std::{collections::HashMap, convert::TryFrom, fmt, hash::Hash};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum RegisterMapping<T: UnwrappedId> {
@@ -352,6 +352,24 @@ impl TypeDispatcher {
                 MessageTypeName(callbacks.name.clone()),
             )
         })
+    }
+
+    /// Pack all sender and type descriptions into a vector of generic messages.
+    pub fn pack_all_descriptions(&self) -> Result<Vec<GenericMessage>> {
+        let mut messages = Vec::with_capacity(self.types.len() + self.senders.len());
+        for (id, name) in self.senders_iter() {
+            let desc_msg = crate::data_types::TypedMessage::from(
+                crate::data_types::Description::new(id.into_id(), name.0.clone()),
+            );
+            messages.push(GenericMessage::try_from(desc_msg)?);
+        }
+        for (id, name) in self.types_iter() {
+            let desc_msg = crate::data_types::TypedMessage::from(
+                crate::data_types::Description::new(id.into_id(), name.0.clone()),
+            );
+            messages.push(GenericMessage::try_from(desc_msg)?);
+        }
+        Ok(messages)
     }
 }
 #[cfg(test)]
