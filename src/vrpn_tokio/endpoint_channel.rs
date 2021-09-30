@@ -52,8 +52,9 @@ where
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let maybe_msg = ready!(self.rx.poll_next_unpin(cx)).map(SequencedGenericMessage::into_inner);
-        match  {
+        let maybe_msg =
+            ready!(self.rx.poll_next_unpin(cx)).map(SequencedGenericMessage::into_inner);
+        match maybe_msg {
             Some(msg) => Poll::Ready(Some(msg)),
             None => Poll::Pending,
         }

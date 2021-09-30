@@ -3,17 +3,21 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
+    connection::*,
     vrpn_tokio::{
         // codec::FramedMessageCodec,
         connect::{incoming_handshake, ConnectionIpInfo},
         endpoint_ip::EndpointIp,
     },
-    connection::*,
     Error, LogFileNames, Result, ServerInfo, TypeSafeId,
 };
-use futures::{Future, Stream, ready};
-use std::{net::{Incoming, IpAddr, Ipv4Addr, SocketAddr}, sync::{Arc, Mutex, Weak}, task::Poll};
-use tokio::{net::TcpListener};
+use futures::{ready, Future, Stream};
+use std::{
+    net::{Incoming, IpAddr, Ipv4Addr, SocketAddr},
+    sync::{Arc, Mutex, Weak},
+    task::Poll,
+};
+use tokio::net::TcpListener;
 
 #[derive(Debug)]
 pub struct ConnectionIp {
@@ -209,9 +213,11 @@ impl ConnectionIpAcceptor {
 }
 impl Stream for ConnectionIpAcceptor {
     type Item = Result<()>;
-    
-    fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
-        
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         let mut incoming = self.server_tcp.lock()?;
         loop {
             let connection = match self.connection.upgrade() {

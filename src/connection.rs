@@ -10,14 +10,13 @@ use std::{
 use crate::{
     buffer_unbuffer::BufferTo,
     data_types::{
-        descriptions::{IdWithDescription, InnerDescription},
-        id_types::*,
-        ClassOfService, GenericMessage, LogFileNames, MessageTypeId, MessageTypeIdentifier,
+        descriptions::InnerDescription, id_types::*, ClassOfService, GenericMessage,
+        IdWithNameAndDescription, LogFileNames, MessageTypeId, MessageTypeIdentifier,
         MessageTypeName, SenderName, TimeVal, TypedMessage, TypedMessageBody,
     },
     type_dispatcher::HandlerHandle,
-    Endpoint, EndpointGeneric, Handler, MatchingTable, RegisterMapping, Result, TranslationTables,
-    TypeDispatcher, TypedHandler,
+    Endpoint, EndpointGeneric, Handler, RegisterMapping, Result, TranslationTables, TypeDispatcher,
+    TypedHandler,
 };
 
 pub type EndpointVec<EP> = Vec<Option<EP>>;
@@ -165,31 +164,32 @@ pub trait Connection: Send + Sync {
         self.pack_message(message, class)
     }
 
-    /// Pack an ID description (either message type or sender) on all endpoints.
-    ///
-    /// May not actually send immediately, might need to poll the connection somehow.
-    fn pack_description<T>(&self, id: LocalId<T>) -> Result<()>
-    where
-        T: UnwrappedId + IdWithDescription,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: MatchingTable<T>,
-    {
-        let mut endpoints = self.connection_core().endpoints.lock()?;
-        for ep in endpoints.iter_mut().flatten() {
-            ep.pack_description(id)?;
-        }
-        Ok(())
-    }
+    // /// Pack an ID description (either message type or sender) on all endpoints.
+    // ///
+    // /// May not actually send immediately, might need to poll the connection somehow.
+    // fn send_description<T>(&self, id: LocalId<T>) -> Result<()>
+    // where
+    //     T: IdWithNameAndDescription + PackDescription,
+    //     InnerDescription<T>: TypedMessageBody,
+    //     TranslationTables: MatchingTable<T>,
+    // {
+    //     let mut endpoints = self.connection_core().endpoints.lock()?;
+    //     let dispatcher = self.connection_core().type_dispatcher.lock()?;
+    //     dispatcher.pack_all_descriptions()
+    //     for ep in endpoints.iter_mut().flatten() {
+    //         ep.se(id)?;
+    //     }
+    //     Ok(())
+    // }
 
     /// Pack all message type and sender descriptions on all endpoints.
     ///
     /// May not actually send immediately, might need to poll the connection somehow.
-    fn pack_all_descriptions(&self) -> Result<()> {
+    fn send_all_descriptions(&self) -> Result<()> {
         let mut endpoints = self.connection_core().endpoints.lock()?;
         let dispatcher = self.connection_core().type_dispatcher.lock()?;
         for ep in endpoints.iter_mut().flatten() {
-            pack_all_descriptions(endpoints, dispatcher);
-            ep.pack_all_descriptions(&dispatcher)?;
+            ep.send_all_descriptions(&dispatcher)?;
         }
         Ok(())
     }

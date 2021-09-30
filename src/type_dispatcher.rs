@@ -6,11 +6,11 @@ use crate::{
     buffer_unbuffer::constants::GENERIC,
     data_types::{
         constants,
-        descriptions::{IdWithDescription, InnerDescription},
+        descriptions::InnerDescription,
         id_types::*,
         message::{GenericMessage, MessageTypeIdentifier, TypedMessageBody},
-        name_types::{MessageTypeName, NameIntoBytes, SenderName},
-        Description, IdWithName,
+        name_types::{IdWithNameAndDescription, MessageTypeName, NameIntoBytes, SenderName},
+        Description,
     },
     handler::*,
     Result, VrpnError,
@@ -195,22 +195,30 @@ impl Default for TypeDispatcher {
     }
 }
 
-fn description_message<T>(id: LocalId<T>, name: &T::Name) -> Result<GenericMessage>
-where
-    T: IdWithName + IdWithDescription,
-    InnerDescription<T>: TypedMessageBody,
-{
-    let desc = Description::new(id.into_id(), name.into_bytes());
-    let desc_msg = crate::data_types::TypedMessage::from(desc);
-    Ok(GenericMessage::try_from(desc_msg)?)
+pub trait IntoDescriptionMessage {
+    fn into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage>;
 }
 
-fn description_message_pairs<T>(pair: (LocalId<T>, &T::Name)) -> Result<GenericMessage>
+impl<T> IntoDescriptionMessage for T
 where
-    T: IdWithName + IdWithDescription,
+    T: IdWithNameAndDescription,
     InnerDescription<T>: TypedMessageBody,
 {
-    description_message(pair.0, pair.1)
+    fn into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage> {
+        let desc = Description::from_id_and_name(self, name.into());
+        let desc_msg = crate::data_types::TypedMessage::from(desc);
+        Ok(GenericMessage::try_from(desc_msg)?)
+    }
+}
+
+// Forward calls on the LocalId wrapper
+impl<T> IntoDescriptionMessage for LocalId<T>
+where
+    T: IntoDescriptionMessage + UnwrappedId,
+{
+    fn into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage> {
+        self.into_id().into_description_message(name)
+    }
 }
 
 impl TypeDispatcher {
@@ -362,6 +370,7 @@ impl TypeDispatcher {
             .enumerate()
             .map(|(i, name)| (LocalId(SenderId(i as i32)), name))
     }
+
     fn types_iter(
         &'_ self,
     ) -> impl Iterator<Item = (LocalId<MessageTypeId>, MessageTypeName)> + '_ {
@@ -374,17 +383,18 @@ impl TypeDispatcher {
     }
 
     /// Pack all sender and type descriptions into a vector of generic messages.
-    pub fn pack_all_descriptions(&self) -> Result< impl Iterator<Item=GenericMessage>> {
-        let mut messages = Vec::with_capacity(self.types.len() + self.senders.len());
-
-        let  sender_messages = self
+    pub fn pack_all_descriptions(&self) -> Result<impl Iterator<Item = GenericMessage>> {
+        let sender_messages = self
             .senders_iter()
-            .map(description_message_pairs)
+            .map(|(id, name)| id.into_description_message(name.clone()))
             .collect::<Result<Vec<GenericMessage>>>()?;
 
-        let type_messages = self.types_iter().map(description_message_pairs).collect::<Result<Vec<GenericMessage>>>()?;
-        
-        Ok(messages)
+        let type_messages = self
+            .types_iter()
+            .map(|(id, name)| id.into_description_message(name))
+            .collect::<Result<Vec<GenericMessage>>>()?;
+
+        Ok(sender_messages.into_iter().chain(type_messages.into_iter()))
     }
 }
 #[cfg(test)]

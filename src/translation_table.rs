@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{data_types::id_types::*, Result, VrpnError};
+use std::convert::TryFrom;
+
+use crate::{
+    data_types::{id_types::*, GenericMessage, IdWithNameAndDescription},
+    type_dispatcher::IntoDescriptionMessage,
+    Result, VrpnError,
+};
 use bytes::Bytes;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -32,6 +38,14 @@ impl<T: UnwrappedId> Entry<T> {
     }
     pub fn remote_id(&self) -> RemoteId<T> {
         self.remote_id
+    }
+}
+
+impl<T: IntoDescriptionMessage + UnwrappedId> TryFrom<Entry<T>> for GenericMessage {
+    type Error = VrpnError;
+
+    fn try_from(value: Entry<T>) -> std::result::Result<Self, Self::Error> {
+        value.local_id.into_description_message(value.name)
     }
 }
 

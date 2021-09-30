@@ -7,16 +7,22 @@
 use bytes::Bytes;
 
 use super::{
+    constants,
+    descriptions::InnerDescription,
     id_types::{SenderId, UnwrappedId},
-    MessageTypeId,
+    time::Seconds,
+    MessageTypeId, TypedMessageBody,
 };
 
 /// A named, unwrapped ID
-pub trait IdWithName: UnwrappedId
+///
+/// Implemented only by MessageTypeId and SenderId
+pub trait IdWithNameAndDescription: UnwrappedId
 where
-    Self::Name: NameIntoBytes,
+    InnerDescription<Self>: TypedMessageBody,
 {
-    type Name;
+    type Name: NameIntoBytes;
+    fn description_message_type() -> MessageTypeId;
 }
 
 pub trait NameIntoBytes {
@@ -57,7 +63,6 @@ impl From<StaticSenderName> for Bytes {
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct SenderName(pub Bytes);
 
-
 impl From<StaticSenderName> for SenderName {
     fn from(val: StaticSenderName) -> SenderName {
         SenderName(Bytes::from(val))
@@ -76,8 +81,11 @@ impl NameIntoBytes for SenderName {
     }
 }
 
-impl IdWithName for SenderId {
+impl IdWithNameAndDescription for SenderId {
     type Name = SenderName;
+    fn description_message_type() -> MessageTypeId {
+        constants::SENDER_DESCRIPTION
+    }
 }
 
 /// Be able to compare `StaticSenderName` and `SenderName`
@@ -144,6 +152,9 @@ impl NameIntoBytes for MessageTypeName {
     }
 }
 
-impl IdWithName for MessageTypeId {
+impl IdWithNameAndDescription for MessageTypeId {
     type Name = MessageTypeName;
+    fn description_message_type() -> MessageTypeId {
+        constants::TYPE_DESCRIPTION
+    }
 }

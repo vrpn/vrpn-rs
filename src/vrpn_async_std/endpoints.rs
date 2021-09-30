@@ -140,7 +140,7 @@ impl EndpointStatus {
         }
     }
     pub(crate) fn accumulate_closed(&mut self, other: EndpointStatus) {
-        let max  = self.max(&mut other);
+        let max = self.max(&mut other);
         self = max;
         // if self == EndpointStatus::Closed {return;}
         // if other == EndpointStatus::Closed {

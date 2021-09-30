@@ -3,6 +3,7 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Buf, BufMut, Bytes};
+use chrono::Local;
 use std::io::BufRead;
 use std::{
     marker::PhantomData,
@@ -13,41 +14,25 @@ use crate::buffer_unbuffer::{
     check_buffer_remaining, BufferResult, BufferSize, BufferTo, UnbufferFrom, UnbufferResult,
 };
 
+use super::name_types::NameIntoBytes;
 use super::{
-    constants, id_types::*, length_prefixed, IdWithName, MessageTypeIdentifier, TypedMessage,
-    TypedMessageBody,
+    constants, id_types::*, length_prefixed, name_types::IdWithNameAndDescription,
+    MessageTypeIdentifier, TypedMessage, TypedMessageBody,
 };
-
-/// Trait for the base type safe ID, extending `TypeSafeId`.
-///
-/// This is implemented only by `MessageTypeId` and `SenderId`, not their local/remote wrappers.
-pub trait IdWithDescription:
-    UnwrappedId + Clone + Copy + std::fmt::Debug + PartialEq + Eq + IdWithName
-{
-    fn description_message_type() -> MessageTypeId;
-}
-
-impl IdWithDescription for MessageTypeId {
-    fn description_message_type() -> MessageTypeId {
-        constants::TYPE_DESCRIPTION
-    }
-}
-
-impl IdWithDescription for SenderId {
-    fn description_message_type() -> MessageTypeId {
-        constants::SENDER_DESCRIPTION
-    }
-}
 
 /// Body struct for use in Message<T> for sender/type descriptions
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct InnerDescription<T: IdWithDescription> {
+pub struct InnerDescription<T> {
     pub(crate) name: Bytes,
     phantom: PhantomData<T>,
 }
 
-impl<T: IdWithDescription> InnerDescription<T> {
-    pub fn new(name: Bytes) -> InnerDescription<T> {
+impl<T> InnerDescription<T>
+where
+    T: IdWithNameAndDescription,
+    InnerDescription<T>: TypedMessageBody,
+{
+    fn new(name: Bytes) -> InnerDescription<T> {
         InnerDescription {
             name,
             phantom: PhantomData,
@@ -66,7 +51,7 @@ impl TypedMessageBody for InnerDescription<MessageTypeId> {
 
 impl<T> TypedMessage<InnerDescription<T>>
 where
-    T: IdWithDescription,
+    T: IdWithNameAndDescription,
     InnerDescription<T>: TypedMessageBody,
 {
     fn which(&self) -> T {
@@ -76,12 +61,12 @@ where
 
 impl<T> From<TypedMessage<InnerDescription<T>>> for Description<T>
 where
-    T: IdWithDescription,
+    T: IdWithNameAndDescription,
     InnerDescription<T>: TypedMessageBody,
 {
     fn from(v: TypedMessage<InnerDescription<T>>) -> Description<T> {
         let id: T = v.which();
-        Description::new(id, v.body.name)
+        Description::from_id_and_name(id, v.body.name)
     }
 }
 
@@ -89,22 +74,29 @@ where
 ///
 /// Converted to a Message<InnerDescription> before being sent.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct Description<T: IdWithDescription> {
+pub struct Description<T> {
     /// The ID
     pub which: T,
     /// The name associated with the ID (no null termination in this string)
     pub name: Bytes,
 }
 
-impl<T: IdWithDescription> Description<T> {
-    pub fn new(which: T, name: Bytes) -> Description<T> {
-        Description { which, name }
+impl<T> Description<T>
+where
+    T: IdWithNameAndDescription,
+    InnerDescription<T>: TypedMessageBody,
+{
+    pub fn from_id_and_name(id: T, name: Bytes) -> Description<T> {
+        Description {
+            which: id.into_id(),
+            name: name,
+        }
     }
 }
 
 impl<T> From<Description<T>> for TypedMessage<InnerDescription<T>>
 where
-    T: IdWithDescription,
+    T: IdWithNameAndDescription,
     InnerDescription<T>: TypedMessageBody,
 {
     fn from(v: Description<T>) -> TypedMessage<InnerDescription<T>> {
@@ -173,7 +165,11 @@ impl From<UdpDescription> for TypedMessage<UdpInnerDescription> {
     }
 }
 
-impl<T: IdWithDescription> BufferSize for InnerDescription<T> {
+impl<T> BufferSize for InnerDescription<T>
+where
+    T: IdWithNameAndDescription,
+    InnerDescription<T>: TypedMessageBody,
+{
     fn buffer_size(&self) -> usize {
         length_prefixed::buffer_size(
             self.name.as_ref(),
@@ -182,7 +178,11 @@ impl<T: IdWithDescription> BufferSize for InnerDescription<T> {
     }
 }
 
-impl<U: IdWithDescription> BufferTo for InnerDescription<U> {
+impl<U> BufferTo for InnerDescription<U>
+where
+    U: IdWithNameAndDescription,
+    InnerDescription<U>: TypedMessageBody,
+{
     fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         length_prefixed::buffer_string(
             self.name.as_ref(),
@@ -193,7 +193,11 @@ impl<U: IdWithDescription> BufferTo for InnerDescription<U> {
     }
 }
 
-impl<T: IdWithDescription> UnbufferFrom for InnerDescription<T> {
+impl<T> UnbufferFrom for InnerDescription<T>
+where
+    T: IdWithNameAndDescription,
+    InnerDescription<T>: TypedMessageBody,
+{
     fn unbuffer_from<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
         length_prefixed::unbuffer_string(buf).map(InnerDescription::new)
     }

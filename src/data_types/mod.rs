@@ -30,7 +30,8 @@ pub use crate::data_types::{
         TypedMessageBody,
     },
     name_types::{
-        IdWithName, MessageTypeName, SenderName, StaticMessageTypeName, StaticSenderName,
+        IdWithNameAndDescription, MessageTypeName, SenderName, StaticMessageTypeName,
+        StaticSenderName,
     },
 };
 

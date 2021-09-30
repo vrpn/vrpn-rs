@@ -64,7 +64,9 @@ impl EndpointIp {
             Some(rx) => match ready!(rx.as_mut().poll_next(cx)) {
                 None => Poll::Ready(Ok(EndpointStatus::Closed)),
                 Some(cmd) => {
-                    if let Some(cmd) = handle_system_command(&mut dispatcher, self.translation_tables_mut(), cmd)? {
+                    if let Some(cmd) =
+                        handle_system_command(&mut dispatcher, self.translation_tables_mut(), cmd)?
+                    {
                         match cmd {
                             ExtendedSystemCommand::UdpDescription(desc) => {
                                 eprintln!("UdpDescription: {:?}", desc);
@@ -160,7 +162,7 @@ impl Endpoint for EndpointIp {
         }
     }
 
-    fn pack_all_descriptions(&mut self, dispatcher: &TypeDispatcher) -> Result<()> {
+    fn send_all_descriptions(&mut self, dispatcher: &TypeDispatcher) -> Result<()> {
         let mut messages = dispatcher.pack_all_descriptions()?;
         for msg in messages.into_iter() {
             self.buffer_generic_message(msg, crate::data_types::ClassOfService::RELIABLE)?;
@@ -172,9 +174,7 @@ impl Endpoint for EndpointIp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        ServerInfo,
-    };
+    use crate::ServerInfo;
 
     #[ignore] // because it requires an external server to be running.
     #[test]

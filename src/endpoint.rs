@@ -11,12 +11,15 @@ use crate::{
     buffer_unbuffer::BufferTo,
     data_types::{
         constants,
-        descriptions::{IdWithDescription, InnerDescription, UdpInnerDescription},
+        descriptions::{InnerDescription, UdpInnerDescription},
         id_types::*,
         message::Message,
-        ClassOfService, Description, GenericMessage, IdWithName, LogFileNames, MessageHeader,
-        MessageTypeId, MessageTypeName, SenderName, TypedMessage, TypedMessageBody, UdpDescription,
+        ClassOfService, Description, GenericMessage, IdWithNameAndDescription, LogFileNames,
+        MessageHeader, MessageTypeId, MessageTypeName, SenderName, TypedMessage, TypedMessageBody,
+        UdpDescription,
     },
+    translation_table,
+    type_dispatcher::IntoDescriptionMessage,
     MatchingTable, Result, TranslationTables, TypeDispatcher, VrpnError,
 };
 
@@ -124,9 +127,8 @@ pub trait Endpoint {
     /// Queue up a generic message for sending.
     fn buffer_generic_message(&mut self, msg: GenericMessage, class: ClassOfService) -> Result<()>;
 
-    fn pack_all_descriptions(&mut self, dispatcher: &TypeDispatcher) -> Result<()> {
-        let mut messages = dispatcher.pack_all_descriptions()?;
-        for msg in messages.into_iter() {
+    fn send_all_descriptions(&mut self, dispatcher: &TypeDispatcher) -> Result<()> {
+        for msg in dispatcher.pack_all_descriptions()? {
             self.buffer_generic_message(msg, ClassOfService::RELIABLE)?;
         }
         Ok(())
@@ -146,24 +148,12 @@ pub trait EndpointGeneric: Endpoint {
     where
         T: BufferTo + TypedMessageBody;
 
-    fn pack_description_impl<T>(&mut self, name: Bytes, local_id: LocalId<T>) -> Result<()>
-    where
-        T: UnwrappedId + IdWithDescription,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: MatchingTable<T>;
-
-    fn pack_description<T>(&mut self, local_id: LocalId<T>) -> Result<()>
-    where
-        T: UnwrappedId + IdWithDescription,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: MatchingTable<T>;
-
     fn new_local_id<T, V>(&mut self, name: V, local_id: LocalId<T>) -> Result<()>
     where
-        T: IdWithName + UnwrappedId + IdWithDescription,
+        T: IdWithNameAndDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
-        V: Into<<T as IdWithName>::Name>;
+        V: Into<<T as IdWithNameAndDescription>::Name>;
 
     fn map_to_local_id<T>(&self, remote_id: RemoteId<T>) -> Option<LocalId<T>>
     where
@@ -171,6 +161,28 @@ pub trait EndpointGeneric: Endpoint {
         TranslationTables: MatchingTable<T>;
 
     fn map_remote_message_to_local(&self, msg: GenericMessage) -> Result<GenericMessage>;
+}
+
+pub trait PackDescription {
+    fn pack_description<T>(&self, local_id: LocalId<T>) -> Result<GenericMessage>
+    where
+        T: IdWithNameAndDescription,
+        InnerDescription<T>: TypedMessageBody,
+        TranslationTables: translation_table::MatchingTable<T>;
+}
+
+impl PackDescription for TranslationTables {
+    fn pack_description<T>(&self, local_id: LocalId<T>) -> Result<GenericMessage>
+    where
+        T: IdWithNameAndDescription,
+        InnerDescription<T>: TypedMessageBody,
+        TranslationTables: translation_table::MatchingTable<T>,
+    {
+        self.find_by_local_id(local_id)
+            .ok_or_else(|| VrpnError::InvalidId(local_id.get()))?
+            .clone()
+            .try_into()
+    }
 }
 
 impl<U> EndpointGeneric for U
@@ -184,44 +196,19 @@ where
         let generic_msg = GenericMessage::try_from(msg)?;
         self.buffer_generic_message(generic_msg, class)
     }
-    fn pack_description_impl<T>(&mut self, name: Bytes, local_id: LocalId<T>) -> Result<()>
-    where
-        T: IdWithDescription,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: MatchingTable<T>,
-    {
-        let desc_msg = TypedMessage::from(Description::new(local_id.0, name));
-        self.buffer_message(desc_msg, ClassOfService::RELIABLE)
-            .map(|_| ())
-    }
-
-    fn pack_description<T>(&mut self, local_id: LocalId<T>) -> Result<()>
-    where
-        T: IdWithDescription,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: MatchingTable<T>,
-    {
-        let name = self
-            .translation_tables()
-            .find_by_local_id(local_id)
-            .ok_or_else(|| VrpnError::InvalidId(local_id.get()))
-            .map(|entry| entry.name().clone())?;
-
-        self.pack_description_impl(name, local_id)
-    }
 
     fn new_local_id<T, V>(&mut self, name: V, local_id: LocalId<T>) -> Result<()>
     where
-        T: IdWithName + IdWithDescription,
+        T: IdWithNameAndDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
-        V: Into<<T as IdWithName>::Name>,
+        V: Into<<T as IdWithNameAndDescription>::Name>,
     {
-        let name: <T as IdWithName>::Name = name.into();
-        let name: Bytes = name.into();
-        self.translation_tables_mut()
-            .add_local_id(name.clone(), local_id);
-        self.pack_description_impl(name, local_id)
+        todo!();
+        // self.translation_tables_mut()
+        //     .add_local_id(name.into().clone(), local_id);
+        // self.pack_description_impl(name, local_id)
+        Ok(())
     }
 
     /// Convert remote sender/type ID to local sender/type ID

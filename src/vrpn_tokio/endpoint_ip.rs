@@ -3,11 +3,11 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use crate::{
+    endpoint::*,
     vrpn_tokio::{
         codec::{self, FramedMessageCodec},
         endpoint_channel::{poll_and_dispatch, EndpointChannel},
     },
-    endpoint::*,
     Result, TranslationTables, TypeDispatcher,
 };
 use futures::channel::mpsc;
