@@ -17,16 +17,14 @@ use async_std::{
     task,
 };
 use bytes::{Buf, BytesMut};
-
 use futures::AsyncReadExt;
-use vrpn::buffer_unbuffer::BufferUnbufferError;
-
+use std::io::Cursor;
 use vrpn::{
-    buffer_unbuffer::{BufferTo, UnbufferFrom},
+    buffer_unbuffer::{BufferTo, BufferUnbufferError, UnbufferFrom},
     data_types::{
         cookie::check_ver_nonfile_compatible, CookieData, MessageSize, SequencedGenericMessage,
     },
-    vrpn_async_std::read_cookie,
+    vrpn_async_std::cookie::read_cookie,
     Result,
 };
 
@@ -45,15 +43,12 @@ async fn async_main() -> Result<()> {
         println!("wrote cookie");
     }
     {
-        buf.clear();
-        read_cookie(&mut stream, &mut buf).await?;
-        let mut cookie_buf = buf.split();
-        eprintln!("{:?}", String::from_utf8_lossy(cookie_buf.chunk()));
+        let cookie_buf = read_cookie(&mut stream).await?;
+        eprintln!("{:?}", String::from_utf8_lossy(&cookie_buf[..]));
         println!("read cookie");
+        let mut cookie_buf = Cursor::new(&cookie_buf[..]);
         let msg = CookieData::unbuffer_from(&mut cookie_buf)?;
         check_ver_nonfile_compatible(msg.version)?;
-        cookie_buf.unsplit(buf);
-        buf = cookie_buf;
     }
 
     loop {

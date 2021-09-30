@@ -27,7 +27,7 @@ where
 /// Reads a cookie's worth of data into a temporary buffer.
 ///
 /// Future resolves to (stream, buffer) on success.
-async fn read_cookie<T>(stream: &mut T) -> Result<Vec<u8>, VrpnError>
+pub async fn read_cookie<T>(stream: &mut T) -> Result<Vec<u8>, VrpnError>
 where
     T: AsyncRead + Unpin,
 {

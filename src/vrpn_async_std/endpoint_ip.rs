@@ -3,8 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use super::{
-    endpoints::{poll_and_dispatch, EndpointRx, EndpointStatus, EndpointTx, ToEndpointStatus},
-    AsyncReadMessagesExt, MessageStream,
+    endpoints::{merge_status, poll_and_dispatch, EndpointRx, EndpointStatus, ToEndpointStatus},
+    AsyncReadMessagesExt, MessageStream, UnboundedMessageSender,
 };
 use crate::{
     data_types::{ClassOfService, GenericMessage, Message},
@@ -13,8 +13,8 @@ use crate::{
     Result, TranslationTables, TypeDispatcher, VrpnError,
 };
 use async_std::{net::TcpStream, task::current};
-use futures::Sink;
-use futures::{channel::mpsc, ready, task, Stream, StreamExt};
+use futures::{channel::mpsc, ready, task, Future, Stream, StreamExt};
+use futures::{future::BoxFuture, Sink};
 use socket2::TcpKeepalive;
 use std::{
     ops::DerefMut,
@@ -31,18 +31,18 @@ use std::{
 struct MessageFramedUdp(());
 
 #[derive(Debug)]
-pub struct EndpointIp {
+pub struct EndpointIp<'ep> {
     translation: TranslationTables,
-    reliable_tx: Arc<Mutex<EndpointTx<TcpStream>>>,
+    reliable_tx: Pin<Box<UnboundedMessageSender<'ep>>>,
     reliable_rx: Arc<Mutex<EndpointRx<MessageStream<TcpStream>>>>,
     low_latency_channel: Option<MessageFramedUdp>,
     system_rx: Option<Pin<Box<mpsc::UnboundedReceiver<SystemCommand>>>>,
     system_tx: Option<Pin<Box<mpsc::UnboundedSender<SystemCommand>>>>,
 }
 
-impl EndpointIp {
-    pub(crate) fn new(reliable_stream: TcpStream) -> EndpointIp {
-        let reliable_tx = EndpointTx::new(reliable_stream.clone());
+impl<'ep> EndpointIp<'ep> {
+    pub(crate) fn new(reliable_stream: TcpStream) -> EndpointIp<'ep> {
+        let reliable_tx = UnboundedMessageSender::new(reliable_stream.clone());
         let reliable_rx = EndpointRx::from_reader(reliable_stream);
         let (system_tx, system_rx) = mpsc::unbounded();
         EndpointIp {
@@ -88,42 +88,45 @@ impl EndpointIp {
 
     pub(crate) fn poll_endpoint(
         &mut self,
-        mut dispatcher: &mut TypeDispatcher,
+        dispatcher: &mut TypeDispatcher,
         cx: &mut Context<'_>,
     ) -> Poll<Result<()>> {
-        // {
-
-        // let channel_tx_arc = Arc::clone(&self.reliable_tx);
-        // let mut channel_tx = channel_tx_arc.lock().map_err(to_other_error)?;
-        // let _ = channel_tx.poll_complete()?;
-        // }
         let channel_rx_arc = Arc::clone(&self.reliable_rx);
         let mut channel_rx = channel_rx_arc.lock().map_err(to_other_error)?;
 
         //
         let mut endpoint_status =
-            poll_and_dispatch(self, channel_rx.deref_mut(), dispatcher, cx)?.to_endpoint_status();
+            poll_and_dispatch(self, channel_rx.deref_mut(), dispatcher, cx).to_endpoint_status();
 
+        match self.reliable_tx.as_mut().poll(cx) {
+            Poll::Ready(Ok(())) => {
+                println!("Remote end of reliable connection has shut down.");
+                endpoint_status = merge_status(endpoint_status, EndpointStatus::Closed);
+            }
+            Poll::Ready(Err(e)) => endpoint_status = EndpointStatus::ClosedError(e),
+            Poll::Pending => {}
+        }
         // todo UDP here.
 
         // Now, process the messages we sent ourself.
         loop {
             match self.poll_system_rx(dispatcher, cx) {
-                Poll::Ready(Ok(new_status)) => endpoint_status.accumulate_closed(new_status),
+                Poll::Ready(Ok(new_status)) => {
+                    endpoint_status = merge_status(endpoint_status, new_status)
+                }
                 Poll::Ready(Err(e)) => {}
                 Poll::Pending => break,
             }
         }
-
-        if endpoint_status == EndpointStatus::Closed {
-            Poll::Ready(Ok(()))
-        } else {
-            Poll::Pending
+        if endpoint_status.is_closed() {
+            self.reliable_tx.close();
         }
+
+        endpoint_status.into()
     }
 }
 
-impl Endpoint for EndpointIp {
+impl Endpoint for EndpointIp<'_> {
     fn translation_tables(&self) -> &TranslationTables {
         &self.translation
     }
@@ -134,28 +137,16 @@ impl Endpoint for EndpointIp {
 
     fn send_system_change(&self, message: SystemCommand) -> Result<()> {
         println!("send_system_change {:?}", message);
-        self.system_tx
-            .ok_or(VrpnError::EndpointClosed)?
-            .as_mut()
-            .unbounded_send(message)
-            .map_err(to_other_error)?;
+        if let Some(tx) = self.system_tx.clone().as_deref_mut() {
+            tx.unbounded_send(message).map_err(to_other_error)?;
+        }
         Ok(())
     }
 
     fn buffer_generic_message(&mut self, msg: GenericMessage, class: ClassOfService) -> Result<()> {
         if class.contains(ClassOfService::RELIABLE) || self.low_latency_channel.is_none() {
             // We either need reliable, or don't have low-latency
-            let mut channel = self.reliable_tx.lock().map_err(to_other_error)?;
-
-            match channel
-                .start_send(msg)
-                .map_err(|e| VrpnError::OtherMessage(e.to_string()))?
-            {
-                Poll::Ready(_) => Ok(()),
-                Poll::Pending => Err(VrpnError::OtherMessage(String::from(
-                    "Didn't have room in send buffer",
-                ))),
-            }
+            self.reliable_tx.as_mut().unbounded_send(msg)
         } else {
             // have and can use low-latency
             unimplemented!()
@@ -173,46 +164,43 @@ impl Endpoint for EndpointIp {
 
 #[cfg(test)]
 mod tests {
+    use futures::executor::block_on;
+    use futures::prelude::*;
+    use futures::TryFutureExt;
+
     use super::*;
-    use crate::ServerInfo;
+    use crate::{vrpn_async_std::connect_and_handshake, ServerInfo};
 
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn make_endpoint() {
         let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
-        let connector = Connect::new(server).expect("should be able to create connection future");
-
-        let _ = connector
-            .and_then(|ConnectResults { tcp, udp: _ }| {
-                let ep = EndpointIp::new(tcp.unwrap(), None);
-                for _i in 0..4 {
-                    let _ = ep.reliable_channel.lock()?.poll()?.map(|msg| {
-                        eprintln!("Received message {:?}", msg);
-                        msg
-                    });
-                }
-                Ok(())
-            })
-            .wait()
-            .unwrap();
+        let result: Result<EndpointIp> = block_on(async {
+            let tcp = connect_and_handshake(server).await?;
+            Ok(EndpointIp::new(tcp))
+        });
+        result.unwrap();
     }
 
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn run_endpoint() {
         let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
-        let connector = Connect::new(server).expect("should be able to create connection future");
+        let result: Result<()> = block_on(async {
+            let tcp = connect_and_handshake(server).await.unwrap();
 
-        let _ = connector
-            .and_then(|ConnectResults { tcp, udp: _ }| {
-                let mut ep = EndpointIp::new(tcp.unwrap(), None);
-                let mut disp = TypeDispatcher::new();
-                for _i in 0..4 {
-                    let _ = ep.poll_endpoint(&mut disp).unwrap();
-                }
-                Ok(())
-            })
-            .wait()
-            .unwrap();
+            let ep = EndpointIp::new(tcp);
+            let rx = Arc::clone(&ep.reliable_rx);
+            for _i in 0..4 {
+                let msg = rx
+                    .lock()?
+                    .next()
+                    .await
+                    .ok_or(VrpnError::GenericErrorReturn)?;
+                eprintln!("Received message {:?}", msg);
+            }
+            Ok(())
+        });
+        result.unwrap();
     }
 }

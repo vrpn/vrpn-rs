@@ -10,8 +10,13 @@ use crate::error::to_other_error;
 use crate::{endpoint::*, Result, TranslationTables, TypeDispatcher, VrpnError};
 use bytes::{Bytes, BytesMut};
 use futures::channel::mpsc;
-use futures::{ready, AsyncWriteExt};
+use futures::future::{BoxFuture, Fuse, FusedFuture, LocalBoxFuture};
+use futures::io::{BufReader, BufWriter};
+use futures::{pin_mut, ready, AsyncWriteExt, Future, FutureExt};
 use futures::{AsyncRead, AsyncWrite, Sink, SinkExt, Stream, StreamExt};
+use std::fmt::Debug;
+use std::io;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 use std::{
@@ -22,87 +27,18 @@ use std::{
 use super::AsyncReadMessagesExt;
 use pin_project_lite::pin_project;
 
-pin_project! {
-    #[derive(Debug)]
-    pub(crate) struct EndpointTx<T> {
-        #[pin]
-        writer: T,
-        now_sending: Option<Bytes>,
-        seq: AtomicUsize,
-        channel_rx: mpsc::UnboundedReceiver<SequencedGenericMessage>,
-        channel_tx: mpsc::UnboundedSender<SequencedGenericMessage>,
-    }
-}
-
-impl<T: AsyncWrite + Unpin> EndpointTx<T> {
-    pub(crate) fn new(writer: T) -> Arc<Mutex<EndpointTx<T>>> {
-        let (channel_tx, channel_rx) = mpsc::unbounded();
-        Arc::new(Mutex::new(EndpointTx {
-            writer,
-            now_sending: None,
-            seq: AtomicUsize::new(0),
-            channel_rx,
-            channel_tx,
-        }))
-    }
-
-    pub async fn send_generic_message(&mut self, msg: GenericMessage) -> Result<()> {
-        let seq = self.seq.fetch_add(1, Ordering::SeqCst);
-
-        let msg = msg.into_sequenced_message(SequenceNumber(seq as u32));
-        let buf = msg.try_into_buf()?;
-        self.writer.write_all(&buf[..]).await?;
-        Ok(())
-    }
-}
-
-// impl<T: AsyncWrite> Sink<GenericMessage> for EndpointTx<T> {
-//     type Error = VrpnError;
-
-//     fn poll_ready(
-//         self: std::pin::Pin<&mut Self>,
-//         cx: &mut std::task::Context<'_>,
-//     ) -> Poll<std::result::Result<(), Self::Error>> {
-//         ready!(self.channel_tx.poll_ready_unpin(cx).map_err(to_other_error)?);
-//         if let Some(sending) = self.now_sending {
-
-//             self.project().writer.poll_write(cx, buf)
-//         }
-//     }
-
-//     fn start_send(
-//         self: std::pin::Pin<&mut Self>,
-//         item: GenericMessage,
-//     ) -> std::result::Result<(), Self::Error> {
-//         todo!()
-//     }
-
-//     fn poll_flush(
-//         self: std::pin::Pin<&mut Self>,
-//         cx: &mut std::task::Context<'_>,
-//     ) -> Poll<std::result::Result<(), Self::Error>> {
-//         todo!()
-//     }
-
-//     fn poll_close(
-//         self: std::pin::Pin<&mut Self>,
-//         cx: &mut std::task::Context<'_>,
-//     ) -> Poll<std::result::Result<(), Self::Error>> {
-//         todo!()
-//     }
-// }
-
 #[derive(Debug)]
 pub(crate) struct EndpointRx<T> {
-    stream: T,
+    stream: Pin<Box<T>>,
     error: Option<VrpnError>,
 }
 
 impl<T> EndpointRx<T> where T: Stream<Item = SequencedGenericMessage> {}
+
 impl<U: AsyncRead + Unpin> EndpointRx<MessageStream<U>> {
     pub(crate) fn from_reader(reader: U) -> Arc<Mutex<EndpointRx<MessageStream<U>>>> {
         Arc::new(Mutex::new(EndpointRx {
-            stream: AsyncReadMessagesExt::messages(reader),
+            stream: Box::pin(AsyncReadMessagesExt::messages(reader)),
             error: None,
         }))
     }
@@ -111,11 +47,11 @@ impl<U: AsyncRead + Unpin> EndpointRx<MessageStream<U>> {
 impl<T: Stream<Item = Result<SequencedGenericMessage>>> Stream for EndpointRx<T> {
     type Item = GenericMessage;
 
-    fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.error.is_some() {
             return Poll::Ready(None);
         }
-        match ready!(Box::pin(self.stream).poll_next_unpin(cx)) {
+        match ready!(self.stream.as_mut().poll_next(cx)) {
             Some(Err(e)) => {
                 self.error = Some(e);
                 Poll::Ready(None)
@@ -126,26 +62,52 @@ impl<T: Stream<Item = Result<SequencedGenericMessage>>> Stream for EndpointRx<T>
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug)]
 pub(crate) enum EndpointStatus {
-    Open = 0,
-    Closed = 1,
+    Open,
+    Closed,
+    ClosedError(VrpnError),
 }
 
 impl EndpointStatus {
+    pub(crate) fn is_error(&self) -> bool {
+        match self {
+            EndpointStatus::Open => false,
+            EndpointStatus::Closed => false,
+            EndpointStatus::ClosedError(_) => true,
+        }
+    }
+    pub(crate) fn is_closed(&self) -> bool {
+        match self {
+            EndpointStatus::Open => false,
+            EndpointStatus::Closed => true,
+            EndpointStatus::ClosedError(_) => true,
+        }
+    }
     pub(crate) fn from_closed(closed: bool) -> EndpointStatus {
         match closed {
             true => EndpointStatus::Closed,
             false => EndpointStatus::Open,
         }
     }
-    pub(crate) fn accumulate_closed(&mut self, other: EndpointStatus) {
-        let max = self.max(&mut other);
-        self = max;
-        // if self == EndpointStatus::Closed {return;}
-        // if other == EndpointStatus::Closed {
-        //     self = EndpointStatus
-        // }
+    // pub(crate) fn accumulate_closed(&mut self, other: EndpointStatus) {
+    //     let max = self.max(&mut other);
+    //     self = max;
+    //     // if self == EndpointStatus::Closed {return;}
+    //     // if other == EndpointStatus::Closed {
+    //     //     self = EndpointStatus
+    //     // }
+    // }
+}
+pub(crate) fn merge_status(a: EndpointStatus, b: EndpointStatus) -> EndpointStatus {
+    if a.is_error() {
+        a
+    } else if b.is_error() {
+        b
+    } else if a.is_closed() || b.is_closed() {
+        EndpointStatus::Closed
+    } else {
+        EndpointStatus::Open
     }
 }
 
@@ -153,11 +115,22 @@ pub(crate) trait ToEndpointStatus {
     fn to_endpoint_status(self) -> EndpointStatus;
 }
 
-impl<T> ToEndpointStatus for std::task::Poll<T> {
+impl ToEndpointStatus for std::task::Poll<std::result::Result<(), VrpnError>> {
     fn to_endpoint_status(self) -> EndpointStatus {
         match self {
-            Poll::Ready(_) => EndpointStatus::Closed,
+            Poll::Ready(Ok(())) => EndpointStatus::Closed,
+            Poll::Ready(Err(e)) => EndpointStatus::ClosedError(e),
             Poll::Pending => EndpointStatus::Open,
+        }
+    }
+}
+
+impl From<EndpointStatus> for std::task::Poll<std::result::Result<(), VrpnError>> {
+    fn from(val: EndpointStatus) -> Self {
+        match val {
+            EndpointStatus::Open => Poll::Pending,
+            EndpointStatus::Closed => Poll::Ready(Ok(())),
+            EndpointStatus::ClosedError(e) => Poll::Ready(Err(e)),
         }
     }
 }
