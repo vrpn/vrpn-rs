@@ -10,8 +10,8 @@ use std::{
 use crate::{
     buffer_unbuffer::BufferTo,
     data_types::{
-        id_types::*, ClassOfService, GenericMessage, LogFileNames, MessageTypeId,
-        MessageTypeIdentifier, MessageTypeName, SenderName, TimeVal, TypedMessage,
+        id_types::*, name_types::NameIntoBytes, ClassOfService, GenericMessage, LogFileNames,
+        MessageTypeId, MessageTypeIdentifier, MessageTypeName, SenderName, TimeVal, TypedMessage,
         TypedMessageBody,
     },
     type_dispatcher::HandlerHandle,
@@ -69,7 +69,7 @@ pub trait Connection: Send + Sync {
     /// If the string is already registered, the returned ID will be the previously-assigned one.
     fn register_sender<T>(&self, name: T) -> Result<LocalId<SenderId>>
     where
-        T: Into<SenderName> + Clone,
+        T: Into<SenderName> + Clone + NameIntoBytes,
     {
         let mut dispatcher = self.connection_core().type_dispatcher.lock()?;
         match dispatcher.register_sender(name.clone())? {

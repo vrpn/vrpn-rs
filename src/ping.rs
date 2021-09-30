@@ -7,8 +7,8 @@
 use crate::{
     buffer_unbuffer::EmptyMessage,
     data_types::{
-        id_types::*, ClassOfService, MessageHeader, MessageTypeId, MessageTypeIdentifier,
-        SenderName, StaticMessageTypeName, TypedMessage, TypedMessageBody,
+        id_types::*, name_types::NameIntoBytes, ClassOfService, MessageHeader, MessageTypeId,
+        MessageTypeIdentifier, SenderName, StaticMessageTypeName, TypedMessage, TypedMessageBody,
     },
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
     Connection, VrpnError,
@@ -131,7 +131,7 @@ impl<T: Connection + 'static> Client<T> {
         Ok(client)
     }
     pub fn new_from_name(
-        sender: impl Into<SenderName> + Clone,
+        sender: impl Into<SenderName> + NameIntoBytes + Clone,
         connection: Arc<T>,
     ) -> Result<Client<T>, VrpnError> {
         let sender_id = connection.register_sender(sender)?;
@@ -225,7 +225,7 @@ impl Server {
     }
 
     pub fn new_from_name<T: Connection + 'static>(
-        sender: impl Into<SenderName> + Clone,
+        sender: impl Into<SenderName> + NameIntoBytes + Clone,
         connection: Arc<T>,
     ) -> Result<Server, VrpnError> {
         let sender_id = connection.register_sender(sender)?;

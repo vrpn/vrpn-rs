@@ -11,11 +11,14 @@ use crate::{
         descriptions::{InnerDescription, UdpInnerDescription},
         id_types::*,
         message::Message,
+        name_types::NameIntoBytes,
         ClassOfService, Description, GenericMessage, IdWithNameAndDescription, LogFileNames,
         MessageHeader, MessageTypeId, MessageTypeName, SenderName, TypedMessage, TypedMessageBody,
         UdpDescription,
     },
-    translation_table, MatchingTable, Result, TranslationTables, TypeDispatcher, VrpnError,
+    translation_table,
+    type_dispatcher::IntoDescriptionMessage,
+    MatchingTable, Result, TranslationTables, TypeDispatcher, VrpnError,
 };
 
 /// These are all "system commands".
@@ -153,7 +156,7 @@ pub trait EndpointGeneric: Endpoint {
         T: IdWithNameAndDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
-        V: Into<<T as IdWithNameAndDescription>::Name>;
+        V: NameIntoBytes;
 
     fn map_to_local_id<T>(&self, remote_id: RemoteId<T>) -> Option<LocalId<T>>
     where
@@ -197,18 +200,21 @@ where
         self.buffer_generic_message(generic_msg, class)
     }
 
-    fn new_local_id<T, V>(&mut self, _name: V, _local_id: LocalId<T>) -> Result<()>
+    fn new_local_id<T, V>(&mut self, name: V, local_id: LocalId<T>) -> Result<()>
     where
         T: IdWithNameAndDescription,
         InnerDescription<T>: TypedMessageBody,
         TranslationTables: MatchingTable<T>,
-        V: Into<<T as IdWithNameAndDescription>::Name>,
+        V: NameIntoBytes,
     {
-        todo!();
-        // self.translation_tables_mut()
-        //     .add_local_id(name.into().clone(), local_id);
-        // self.pack_description_impl(name, local_id)
-        Ok(())
+        let name = name.into_bytes();
+        self.translation_tables_mut()
+            .add_local_id(name.clone(), local_id);
+
+        self.buffer_generic_message(
+            local_id.into_description_message(name)?,
+            ClassOfService::RELIABLE,
+        )
     }
 
     /// Convert remote sender/type ID to local sender/type ID
