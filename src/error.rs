@@ -27,6 +27,8 @@ pub enum VrpnError {
     TooManyMappings,
     #[error("handler not found")]
     HandlerNotFound,
+    #[error("could not connect")]
+    CouldNotConnect,
     #[error("handler returned an error")]
     GenericErrorReturn,
     #[error("a non-system message was forwarded to Endpoint::handle_message_as_system()")]

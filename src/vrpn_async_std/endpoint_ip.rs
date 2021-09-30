@@ -164,13 +164,23 @@ impl Endpoint for EndpointIp<'_> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::ServerInfo;
+    use crate::vrpn_async_std::cookie;
+    use async_std::net::{TcpStream, ToSocketAddrs};
     use futures::executor::block_on;
     use futures::prelude::*;
-    use futures::TryFutureExt;
+    use std::net::IpAddr;
 
-    use super::*;
-    use crate::{vrpn_async_std::connect_and_handshake, ServerInfo};
+    async fn connect_and_handshake(server_info: ServerInfo) -> crate::Result<TcpStream> {
+        let mut stream = TcpStream::connect(server_info.socket_addr).await?;
+        stream.set_nodelay(true)?;
 
+        // We first write our cookie, then read and check the server's cookie, before the loop.
+        cookie::send_nonfile_cookie(&mut stream).await?;
+        cookie::read_and_check_nonfile_cookie(&mut stream).await?;
+        Ok(stream)
+    }
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn make_endpoint() {
