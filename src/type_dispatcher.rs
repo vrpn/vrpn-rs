@@ -9,14 +9,14 @@ use crate::{
         descriptions::InnerDescription,
         id_types::*,
         message::{GenericMessage, MessageTypeIdentifier, TypedMessageBody},
-        name_types::{IdWithNameAndDescription, MessageTypeName, NameIntoBytes, SenderName},
+        name_types::{IdWithNameAndDescription, MessageTypeName, SenderName},
         Description,
     },
     handler::*,
     Result, VrpnError,
 };
 use bytes::Bytes;
-use chrono::Local;
+
 use std::{collections::HashMap, convert::TryFrom, fmt, hash::Hash};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]

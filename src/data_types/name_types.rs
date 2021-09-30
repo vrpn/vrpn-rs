@@ -10,7 +10,6 @@ use super::{
     constants,
     descriptions::InnerDescription,
     id_types::{SenderId, UnwrappedId},
-    time::Seconds,
     MessageTypeId, TypedMessageBody,
 };
 

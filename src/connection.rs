@@ -10,13 +10,12 @@ use std::{
 use crate::{
     buffer_unbuffer::BufferTo,
     data_types::{
-        descriptions::InnerDescription, id_types::*, ClassOfService, GenericMessage,
-        IdWithNameAndDescription, LogFileNames, MessageTypeId, MessageTypeIdentifier,
-        MessageTypeName, SenderName, TimeVal, TypedMessage, TypedMessageBody,
+        id_types::*, ClassOfService, GenericMessage, LogFileNames, MessageTypeId,
+        MessageTypeIdentifier, MessageTypeName, SenderName, TimeVal, TypedMessage,
+        TypedMessageBody,
     },
     type_dispatcher::HandlerHandle,
-    Endpoint, EndpointGeneric, Handler, RegisterMapping, Result, TranslationTables, TypeDispatcher,
-    TypedHandler,
+    Endpoint, EndpointGeneric, Handler, RegisterMapping, Result, TypeDispatcher, TypedHandler,
 };
 
 pub type EndpointVec<EP> = Vec<Option<EP>>;

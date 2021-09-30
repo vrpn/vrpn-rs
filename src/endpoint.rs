@@ -1,11 +1,8 @@
-// Copyright 2018, Collabora, Ltd.
+// Copyright 2018-2021, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use std::convert::{TryFrom, TryInto};
-
-use bytes::Bytes;
-// use downcast_rs::Downcast;
 
 use crate::{
     buffer_unbuffer::BufferTo,
@@ -200,7 +197,7 @@ where
         self.buffer_generic_message(generic_msg, class)
     }
 
-    fn new_local_id<T, V>(&mut self, name: V, local_id: LocalId<T>) -> Result<()>
+    fn new_local_id<T, V>(&mut self, _name: V, _local_id: LocalId<T>) -> Result<()>
     where
         T: IdWithNameAndDescription,
         InnerDescription<T>: TypedMessageBody,

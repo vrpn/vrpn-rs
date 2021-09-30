@@ -5,7 +5,7 @@
 use std::convert::TryFrom;
 
 use crate::{
-    data_types::{id_types::*, GenericMessage, IdWithNameAndDescription},
+    data_types::{id_types::*, GenericMessage},
     type_dispatcher::IntoDescriptionMessage,
     Result, VrpnError,
 };

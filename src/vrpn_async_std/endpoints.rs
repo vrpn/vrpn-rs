@@ -47,7 +47,10 @@ impl<U: AsyncRead + Unpin> EndpointRx<MessageStream<U>> {
 impl<T: Stream<Item = Result<SequencedGenericMessage>>> Stream for EndpointRx<T> {
     type Item = GenericMessage;
 
-    fn poll_next(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         if self.error.is_some() {
             return Poll::Ready(None);
         }

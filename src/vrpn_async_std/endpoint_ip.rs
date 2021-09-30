@@ -165,8 +165,8 @@ impl Endpoint for EndpointIp<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ServerInfo;
     use crate::vrpn_async_std::cookie;
+    use crate::ServerInfo;
     use async_std::net::{TcpStream, ToSocketAddrs};
     use futures::executor::block_on;
     use futures::prelude::*;

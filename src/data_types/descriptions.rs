@@ -3,9 +3,9 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use bytes::{Buf, BufMut, Bytes};
-use chrono::Local;
-use std::io::BufRead;
+
 use std::{
+    io::BufRead,
     marker::PhantomData,
     net::{IpAddr, SocketAddr},
 };
@@ -14,7 +14,6 @@ use crate::buffer_unbuffer::{
     check_buffer_remaining, BufferResult, BufferSize, BufferTo, UnbufferFrom, UnbufferResult,
 };
 
-use super::name_types::NameIntoBytes;
 use super::{
     constants, id_types::*, length_prefixed, name_types::IdWithNameAndDescription,
     MessageTypeIdentifier, TypedMessage, TypedMessageBody,
@@ -89,7 +88,7 @@ where
     pub fn from_id_and_name(id: T, name: Bytes) -> Description<T> {
         Description {
             which: id.into_id(),
-            name: name,
+            name,
         }
     }
 }
