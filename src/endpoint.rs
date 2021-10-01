@@ -51,19 +51,19 @@ pub fn parse_system_message(msg: GenericMessage) -> Result<SystemCommand> {
     }
     Ok(match msg.header.message_type {
         constants::TYPE_DESCRIPTION => {
-            let msg: TypedMessage<InnerDescription<MessageTypeId>> = TypedMessage::try_from(&msg)?;
+            let msg = TypedMessage::try_from(&msg)?;
             SystemCommand::TypeDescription(msg.into())
         }
         constants::SENDER_DESCRIPTION => {
-            let msg: TypedMessage<InnerDescription<SenderId>> = TypedMessage::try_from(&msg)?;
+            let msg = TypedMessage::try_from(&msg)?;
             SystemCommand::SenderDescription(msg.into())
         }
         constants::UDP_DESCRIPTION => {
-            let msg: TypedMessage<UdpInnerDescription> = TypedMessage::try_from(&msg)?;
+            let msg = TypedMessage::try_from(&msg)?;
             SystemCommand::Extended(ExtendedSystemCommand::UdpDescription(msg.into()))
         }
         constants::LOG_DESCRIPTION => {
-            let msg: TypedMessage<LogFileNames> = TypedMessage::try_from(&msg)?;
+            let msg = TypedMessage::try_from(&msg)?;
             SystemCommand::Extended(ExtendedSystemCommand::LogDescription(msg.body))
         }
         constants::DISCONNECT_MESSAGE => {
@@ -148,33 +148,37 @@ pub trait EndpointGeneric: Endpoint {
     where
         T: BufferTo + TypedMessageBody;
 
-    fn new_local_id<T>(&mut self, name: &Bytes, local_id: LocalId<T>) -> Result<()>
+    fn new_local_id<I: IdWithNameAndDescription>(
+        &mut self,
+        name: &Bytes,
+        local_id: LocalId<I>,
+    ) -> Result<()>
     where
-        T: IdWithNameAndDescription,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: AsMut<TranslationTable<T>>;
+        TranslationTables: AsMut<TranslationTable<I>>;
 
-    fn map_to_local_id<T: UnwrappedId>(&self, remote_id: RemoteId<T>) -> Option<LocalId<T>>
+    fn map_to_local_id<I: UnwrappedId>(&self, remote_id: RemoteId<I>) -> Option<LocalId<I>>
     where
-        TranslationTables: AsRef<TranslationTable<T>>;
+        TranslationTables: AsRef<TranslationTable<I>>;
 
     fn map_remote_message_to_local(&self, msg: GenericMessage) -> Result<GenericMessage>;
 }
 
 pub trait PackDescription {
-    fn pack_description<T>(&self, local_id: LocalId<T>) -> Result<GenericMessage>
+    fn pack_description<I: IdWithNameAndDescription>(
+        &self,
+        local_id: LocalId<I>,
+    ) -> Result<GenericMessage>
     where
-        T: IdWithNameAndDescription,
-        TranslationTables: AsRef<TranslationTable<T>>,
-        InnerDescription<T>: TypedMessageBody;
+        TranslationTables: AsRef<TranslationTable<I>>;
 }
 
 impl PackDescription for TranslationTables {
-    fn pack_description<T>(&self, local_id: LocalId<T>) -> Result<GenericMessage>
+    fn pack_description<I: IdWithNameAndDescription>(
+        &self,
+        local_id: LocalId<I>,
+    ) -> Result<GenericMessage>
     where
-        T: IdWithNameAndDescription,
-        Self: AsRef<TranslationTable<T>>,
-        InnerDescription<T>: TypedMessageBody,
+        Self: AsRef<TranslationTable<I>>,
     {
         self.find_by_local_id(local_id)
             .ok_or_else(|| VrpnError::InvalidId(local_id.get()))?
@@ -187,21 +191,24 @@ impl<U> EndpointGeneric for U
 where
     U: Endpoint,
 {
-    fn buffer_message<T>(&mut self, msg: TypedMessage<T>, class: ClassOfService) -> Result<()>
-    where
-        T: BufferTo + TypedMessageBody,
-    {
+    fn buffer_message<T: BufferTo + TypedMessageBody>(
+        &mut self,
+        msg: TypedMessage<T>,
+        class: ClassOfService,
+    ) -> Result<()> {
         let generic_msg = GenericMessage::try_from(msg)?;
         self.buffer_generic_message(generic_msg, class)
     }
 
-    fn new_local_id<T>(&mut self, name: &Bytes, local_id: LocalId<T>) -> Result<()>
+    fn new_local_id<I: IdWithNameAndDescription>(
+        &mut self,
+        name: &Bytes,
+        local_id: LocalId<I>,
+    ) -> Result<()>
     where
-        T: IdWithNameAndDescription,
-        InnerDescription<T>: TypedMessageBody,
-        TranslationTables: AsMut<TranslationTable<T>>,
+        TranslationTables: AsMut<TranslationTable<I>>,
     {
-        (self.translation_tables_mut().as_mut() as &mut TranslationTable<T>)
+        (self.translation_tables_mut().as_mut() as &mut TranslationTable<I>)
             .add_local_id(name.clone(), local_id);
 
         self.buffer_generic_message(
@@ -211,11 +218,11 @@ where
     }
 
     /// Convert remote sender/type ID to local sender/type ID
-    fn map_to_local_id<T: UnwrappedId>(&self, remote_id: RemoteId<T>) -> Option<LocalId<T>>
+    fn map_to_local_id<I: UnwrappedId>(&self, remote_id: RemoteId<I>) -> Option<LocalId<I>>
     where
-        TranslationTables: AsRef<TranslationTable<T>>,
+        TranslationTables: AsRef<TranslationTable<I>>,
     {
-        (self.translation_tables().as_ref() as &TranslationTable<T>)
+        (self.translation_tables().as_ref() as &TranslationTable<I>)
             .map_to_local_id(remote_id)
             .ok()
             .unwrap_or_default()

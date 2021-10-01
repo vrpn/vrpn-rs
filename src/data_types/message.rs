@@ -30,7 +30,8 @@ pub trait TypedMessageBody: std::fmt::Debug {
 
 // Implementation for all IdWithNameAndDescription
 impl<I: IdWithNameAndDescription> TypedMessageBody for InnerDescription<I> {
-    const MESSAGE_IDENTIFIER: MessageTypeIdentifier = I::ID_KIND_MESSAGE_IDENTIFIER;
+    const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
+        MessageTypeIdentifier::SystemMessageId(I::DESCRIPTION_MESSAGE_TYPE);
 }
 
 /// Header information for a message.

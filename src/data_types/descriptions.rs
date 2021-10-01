@@ -38,28 +38,15 @@ impl<I: IdWithNameAndDescription> InnerDescription<I> {
     }
 }
 
-// impl TypedMessageBody for InnerDescription<SenderId> {
-//     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-//         MessageTypeIdentifier::SystemMessageId(constants::SENDER_DESCRIPTION);
-// }
-// impl TypedMessageBody for InnerDescription<MessageTypeId> {
-//     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-//         MessageTypeIdentifier::SystemMessageId(constants::TYPE_DESCRIPTION);
-// }
-
 impl<I: IdWithNameAndDescription> TypedMessage<InnerDescription<I>> {
     fn which(&self) -> I {
         I::new(self.header.sender.0)
     }
 }
 
-impl<T> From<TypedMessage<InnerDescription<T>>> for Description<T>
-where
-    T: IdWithNameAndDescription,
-    InnerDescription<T>: TypedMessageBody,
-{
-    fn from(v: TypedMessage<InnerDescription<T>>) -> Description<T> {
-        let id: T = v.which();
+impl<I: IdWithNameAndDescription> From<TypedMessage<InnerDescription<I>>> for Description<I> {
+    fn from(v: TypedMessage<InnerDescription<I>>) -> Description<I> {
+        let id: I = v.which();
         Description::from_id_and_name(id, v.body.name)
     }
 }
@@ -75,12 +62,8 @@ pub struct Description<T> {
     pub name: Bytes,
 }
 
-impl<T> Description<T>
-where
-    T: IdWithNameAndDescription,
-    InnerDescription<T>: TypedMessageBody,
-{
-    pub fn from_id_and_name(id: T, name: Bytes) -> Description<T> {
+impl<I: IdWithNameAndDescription> Description<I> {
+    pub fn from_id_and_name(id: I, name: Bytes) -> Description<I> {
         Description {
             which: id.into_id(),
             name,
@@ -88,15 +71,11 @@ where
     }
 }
 
-impl<T> From<Description<T>> for TypedMessage<InnerDescription<T>>
-where
-    T: IdWithNameAndDescription,
-    InnerDescription<T>: TypedMessageBody,
-{
-    fn from(v: Description<T>) -> TypedMessage<InnerDescription<T>> {
+impl<I: IdWithNameAndDescription> From<Description<I>> for TypedMessage<InnerDescription<I>> {
+    fn from(v: Description<I>) -> TypedMessage<InnerDescription<I>> {
         TypedMessage::new(
             None,
-            T::description_message_type(),
+            I::DESCRIPTION_MESSAGE_TYPE,
             SenderId(v.which.get()),
             InnerDescription::new(v.name),
         )
@@ -159,10 +138,9 @@ impl From<UdpDescription> for TypedMessage<UdpInnerDescription> {
     }
 }
 
-impl<T> BufferSize for InnerDescription<T>
+impl<I> BufferSize for InnerDescription<I>
 where
-    T: IdWithNameAndDescription,
-    InnerDescription<T>: TypedMessageBody,
+    I: IdWithNameAndDescription,
 {
     fn buffer_size(&self) -> usize {
         length_prefixed::buffer_size(
@@ -172,11 +150,7 @@ where
     }
 }
 
-impl<U> BufferTo for InnerDescription<U>
-where
-    U: IdWithNameAndDescription,
-    InnerDescription<U>: TypedMessageBody,
-{
+impl<I: IdWithNameAndDescription> BufferTo for InnerDescription<I> {
     fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         length_prefixed::buffer_string(
             self.name.as_ref(),
@@ -187,12 +161,8 @@ where
     }
 }
 
-impl<T> UnbufferFrom for InnerDescription<T>
-where
-    T: IdWithNameAndDescription,
-    InnerDescription<T>: TypedMessageBody,
-{
-    fn unbuffer_from<U: Buf>(buf: &mut U) -> UnbufferResult<Self> {
+impl<I: IdWithNameAndDescription> UnbufferFrom for InnerDescription<I> {
+    fn unbuffer_from<T: Buf>(buf: &mut T) -> UnbufferResult<Self> {
         length_prefixed::unbuffer_string(buf).map(InnerDescription::new)
     }
 }
@@ -216,6 +186,7 @@ impl BufferSize for UdpInnerDescription {
         self.address.to_string().len() + 1
     }
 }
+
 impl BufferTo for UdpInnerDescription {
     fn buffer_to<T: BufMut>(&self, buf: &mut T) -> BufferResult {
         let addr_str = self.address.to_string();

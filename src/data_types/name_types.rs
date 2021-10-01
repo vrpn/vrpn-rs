@@ -30,8 +30,7 @@ pub enum MessageTypeIdentifier {
 /// Implemented only by MessageTypeId and SenderId
 pub trait IdWithNameAndDescription: UnwrappedId {
     type Name: NameIntoBytes;
-    const ID_KIND_MESSAGE_IDENTIFIER: MessageTypeIdentifier;
-    fn description_message_type() -> MessageTypeId;
+    const DESCRIPTION_MESSAGE_TYPE: MessageTypeId;
 }
 
 pub trait NameIntoBytes {
@@ -99,12 +98,7 @@ impl NameIntoBytes for SenderName {
 impl IdWithNameAndDescription for SenderId {
     type Name = SenderName;
 
-    fn description_message_type() -> MessageTypeId {
-        constants::SENDER_DESCRIPTION
-    }
-
-    const ID_KIND_MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-        MessageTypeIdentifier::SystemMessageId(constants::SENDER_DESCRIPTION);
+    const DESCRIPTION_MESSAGE_TYPE: MessageTypeId = constants::SENDER_DESCRIPTION;
 }
 
 /// Be able to compare `StaticSenderName` and `SenderName`
@@ -179,10 +173,5 @@ impl NameIntoBytes for MessageTypeName {
 impl IdWithNameAndDescription for MessageTypeId {
     type Name = SenderName;
 
-    fn description_message_type() -> MessageTypeId {
-        constants::SENDER_DESCRIPTION
-    }
-
-    const ID_KIND_MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-        MessageTypeIdentifier::SystemMessageId(constants::TYPE_DESCRIPTION);
+    const DESCRIPTION_MESSAGE_TYPE: MessageTypeId = constants::TYPE_DESCRIPTION;
 }
