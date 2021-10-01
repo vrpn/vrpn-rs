@@ -151,7 +151,7 @@ where
             Poll::Ready(Some(msg)) => {
                 let msg = endpoint.map_remote_message_to_local(msg)?;
                 if msg.is_system_message() {
-                    endpoint.send_system_change(parse_system_message(msg)?);
+                    endpoint.send_system_change(parse_system_message(msg)?)?;
                 } else {
                     dispatcher.call(&msg)?;
                 }

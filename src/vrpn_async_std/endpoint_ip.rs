@@ -52,7 +52,7 @@ impl EndpointIp {
             translation: TranslationTables::new(),
             reliable_tx,
             reliable_rx,
-            low_latency_channel: udp.map(|x| MessageFramedUdp(x)),
+            low_latency_channel: udp.map(MessageFramedUdp),
             system_tx: Some(Box::pin(system_tx)),
             system_rx: Some(Box::pin(system_rx)),
         }

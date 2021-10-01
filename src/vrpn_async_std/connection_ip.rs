@@ -122,7 +122,7 @@ impl ConnectionIp {
                         endpoints.push(Some(EndpointIp::new(results.tcp, results.udp)));
                         *client_info = ConnectionIpInfo::ClientConnectionInfo(results.server_info)
                     }
-                    Poll::Ready(Err(e)) => Err(e)?,
+                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                     Poll::Pending => return Poll::Pending,
                 }
             };
