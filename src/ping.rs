@@ -16,6 +16,7 @@ use crate::{
 use std::{
     fmt,
     sync::{Arc, Mutex, Weak},
+    time::{Duration, Instant},
 };
 
 /// Periodic "Ping" message.
@@ -93,9 +94,9 @@ pub struct Client<T: Connection + 'static> {
 
 struct ClientInner {
     /// The time of the first unanswered ping.
-    unanswered_ping: Option<DateTime<Utc>>,
+    unanswered_ping: Option<Instant>,
     /// The time of the last warning message and unanswered ping.
-    last_warning: Option<DateTime<Utc>>,
+    last_warning: Option<Instant>,
     /// whether the server seems disconnected or unresponsive
     flatlined: bool,
 }
@@ -140,7 +141,7 @@ impl<T: Connection + 'static> Client<T> {
     pub fn initiate_ping_cycle(&self) -> Result<(), VrpnError> {
         {
             let mut inner = self.inner.lock()?;
-            inner.unanswered_ping = Some(Utc::now());
+            inner.unanswered_ping = Some(Instant::now());
         }
         self.send_ping()
     }
@@ -154,11 +155,11 @@ impl<T: Connection + 'static> Client<T> {
         if let (Some(unanswered), Some(last_warning)) =
             (inner.unanswered_ping, &mut inner.last_warning)
         {
-            let now = Utc::now();
-            let radio_silence = now.signed_duration_since(unanswered);
-            if now.signed_duration_since(*last_warning) > Duration::seconds(1) {
+            let now = Instant::now();
+            let radio_silence = now.checked_duration_since(unanswered).unwrap();
+            if now.checked_duration_since(*last_warning).unwrap() > Duration::from_secs(1) {
                 *last_warning = now;
-                if radio_silence > Duration::seconds(10) {
+                if radio_silence > Duration::from_secs(10) {
                     inner.flatlined = true;
                 }
                 self.send_ping()?;
