@@ -20,12 +20,10 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 use std::{
-    ops::DerefMut,
     sync::{Arc, Mutex},
 };
 
 use super::AsyncReadMessagesExt;
-use pin_project_lite::pin_project;
 
 #[derive(Debug)]
 pub(crate) struct EndpointRx<T> {

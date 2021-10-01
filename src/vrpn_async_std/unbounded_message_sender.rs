@@ -8,8 +8,8 @@ use crate::{
     Result, VrpnError,
 };
 use futures::{
-    channel::mpsc, future::FusedFuture, io::BufWriter, AsyncWrite, AsyncWriteExt, Future,
-    FutureExt, StreamExt,
+    channel::mpsc, future::FusedFuture, io::BufWriter, stream::futures_unordered, AsyncWrite,
+    AsyncWriteExt, Future, FutureExt, StreamExt,
 };
 use std::{
     fmt::Debug,
