@@ -6,6 +6,7 @@ extern crate pin_project_lite;
 
 pub mod bytes_mut_reader;
 pub mod connect;
+pub mod connection_ip;
 pub mod cookie;
 pub mod endpoint_ip;
 mod endpoints;
