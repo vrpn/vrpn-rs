@@ -8,7 +8,7 @@ use std::convert::TryFrom;
 
 use crate::{
     data_types::{id_types::*, GenericMessage},
-    type_dispatcher::IntoDescriptionMessage,
+    type_dispatcher::TryIntoDescriptionMessage,
     Result, VrpnError,
 };
 use bytes::Bytes;
@@ -46,11 +46,11 @@ impl<T: UnwrappedId> Entry<T> {
     }
 }
 
-impl<T: IntoDescriptionMessage + UnwrappedId> TryFrom<Entry<T>> for GenericMessage {
+impl<T: TryIntoDescriptionMessage + UnwrappedId> TryFrom<Entry<T>> for GenericMessage {
     type Error = VrpnError;
 
     fn try_from(value: Entry<T>) -> std::result::Result<Self, Self::Error> {
-        value.local_id.into_description_message(value.name)
+        value.local_id.try_into_description_message(value.name)
     }
 }
 

@@ -9,16 +9,12 @@ use bytes::Bytes;
 use crate::{
     buffer_unbuffer::BufferTo,
     data_types::{
-        constants,
-        descriptions::{InnerDescription, UdpInnerDescription},
-        id_types::*,
-        message::Message,
-        ClassOfService, Description, GenericMessage, IdWithNameAndDescription, LogFileNames,
-        MessageHeader, MessageTypeId, MessageTypeName, SenderName, TypedMessage, TypedMessageBody,
-        UdpDescription,
+        constants, id_types::*, message::Message, ClassOfService, Description, GenericMessage,
+        IdWithNameAndDescription, LogFileNames, MessageHeader, MessageTypeId, MessageTypeName,
+        SenderName, TypedMessage, TypedMessageBody, UdpDescription,
     },
     translation_table::{TranslationTable, TranslationTableExt},
-    type_dispatcher::IntoDescriptionMessage,
+    type_dispatcher::TryIntoDescriptionMessage,
     Result, TranslationTables, TypeDispatcher, VrpnError,
 };
 
@@ -89,7 +85,7 @@ pub fn handle_system_command(
         SystemCommand::SenderDescription(desc) => {
             let local_id = dispatcher
                 .register_sender(SenderName(desc.name.clone()))?
-                .get();
+                .into_inner();
             eprintln!(
                 "Registering sender {:?}: local {:?} = remote {:?}",
                 desc.name, local_id, desc.which
@@ -101,7 +97,7 @@ pub fn handle_system_command(
         SystemCommand::TypeDescription(desc) => {
             let local_id = dispatcher
                 .register_type(MessageTypeName(desc.name.clone()))?
-                .get();
+                .into_inner();
             eprintln!(
                 "Registering type {:?}: local {:?} = remote {:?}",
                 desc.name, local_id, desc.which
@@ -212,7 +208,7 @@ where
             .add_local_id(name.clone(), local_id);
 
         self.buffer_generic_message(
-            local_id.into_description_message(name.clone())?,
+            local_id.try_into_description_message(name.clone())?,
             ClassOfService::RELIABLE,
         )
     }

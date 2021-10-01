@@ -6,7 +6,6 @@ use crate::{
     buffer_unbuffer::constants::GENERIC,
     data_types::{
         constants,
-        descriptions::InnerDescription,
         id_types::*,
         message::{GenericMessage, TypedMessageBody},
         name_types::{IdWithNameAndDescription, MessageTypeName, SenderName},
@@ -20,16 +19,16 @@ use bytes::Bytes;
 use std::{collections::HashMap, convert::TryFrom, fmt, hash::Hash};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub enum RegisterMapping<T: UnwrappedId> {
+pub enum RegisterMapping<I: UnwrappedId> {
     /// This was an existing mapping with the given ID
-    Found(LocalId<T>),
+    Found(LocalId<I>),
     /// This was a new mapping, which has been registered and received the given ID
-    NewMapping(LocalId<T>),
+    NewMapping(LocalId<I>),
 }
 
-impl<T: UnwrappedId> RegisterMapping<T> {
+impl<I: UnwrappedId> RegisterMapping<I> {
     /// Access the wrapped ID, no matter if it was new or not.
-    pub fn get(&self) -> LocalId<T> {
+    pub fn into_inner(&self) -> LocalId<I> {
         match self {
             RegisterMapping::Found(v) => *v,
             RegisterMapping::NewMapping(v) => *v,
@@ -195,16 +194,12 @@ impl Default for TypeDispatcher {
     }
 }
 
-pub trait IntoDescriptionMessage {
-    fn into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage>;
+pub trait TryIntoDescriptionMessage {
+    fn try_into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage>;
 }
 
-impl<T> IntoDescriptionMessage for T
-where
-    T: IdWithNameAndDescription,
-    InnerDescription<T>: TypedMessageBody,
-{
-    fn into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage> {
+impl<I: IdWithNameAndDescription> TryIntoDescriptionMessage for I {
+    fn try_into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage> {
         let desc = Description::from_id_and_name(self, name.into());
         let desc_msg = crate::data_types::TypedMessage::from(desc);
         Ok(GenericMessage::try_from(desc_msg)?)
@@ -212,12 +207,9 @@ where
 }
 
 // Forward calls on the LocalId wrapper
-impl<T> IntoDescriptionMessage for LocalId<T>
-where
-    T: IntoDescriptionMessage + UnwrappedId,
-{
-    fn into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage> {
-        self.into_id().into_description_message(name)
+impl<I: TryIntoDescriptionMessage + UnwrappedId> TryIntoDescriptionMessage for LocalId<I> {
+    fn try_into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage> {
+        self.into_id().try_into_description_message(name)
     }
 }
 
@@ -343,7 +335,7 @@ impl TypeDispatcher {
         T: TypedHandler + Handler + Sized,
     {
         let message_type = match T::Item::MESSAGE_IDENTIFIER {
-            MessageTypeIdentifier::UserMessageName(name) => self.register_type(name)?.get(),
+            MessageTypeIdentifier::UserMessageName(name) => self.register_type(name)?.into_inner(),
             MessageTypeIdentifier::SystemMessageId(id) => LocalId(id),
         };
         self.add_handler(handler, Some(message_type), sender_filter)
@@ -386,12 +378,12 @@ impl TypeDispatcher {
     pub fn pack_all_descriptions(&self) -> Result<impl Iterator<Item = GenericMessage>> {
         let sender_messages = self
             .senders_iter()
-            .map(|(id, name)| id.into_description_message(name.clone()))
+            .map(|(id, name)| id.try_into_description_message(name.clone()))
             .collect::<Result<Vec<GenericMessage>>>()?;
 
         let type_messages = self
             .types_iter()
-            .map(|(id, name)| id.into_description_message(name))
+            .map(|(id, name)| id.try_into_description_message(name))
             .collect::<Result<Vec<GenericMessage>>>()?;
 
         Ok(sender_messages.into_iter().chain(type_messages.into_iter()))
