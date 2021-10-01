@@ -56,17 +56,6 @@ impl unbuffer::UnbufferFrom for Vec3 {
     }
 }
 
-impl From<cgmath::Vector3<f64>> for Vec3 {
-    fn from(v: cgmath::Vector3<f64>) -> Self {
-        Vec3::new(v.x, v.y, v.z)
-    }
-}
-
-impl From<Vec3> for cgmath::Vector3<f64> {
-    fn from(v: Vec3) -> Self {
-        cgmath::Vector3::new(v.x, v.y, v.z)
-    }
-}
 
 /// A (typically unit) quaternion corresponding to a rotation.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -119,20 +108,5 @@ impl unbuffer::UnbufferFrom for Quat {
         let v = Vec3::unbuffer_from(buf)?;
         let w = f64::unbuffer_from(buf)?;
         Ok(Quat::from_sv(w, v))
-    }
-}
-
-impl From<cgmath::Quaternion<f64>> for Quat {
-    fn from(q: cgmath::Quaternion<f64>) -> Self {
-        Quat {
-            s: q.s,
-            v: q.v.into(),
-        }
-    }
-}
-
-impl From<Quat> for cgmath::Quaternion<f64> {
-    fn from(q: Quat) -> Self {
-        cgmath::Quaternion::from_sv(q.s, q.v.into())
     }
 }

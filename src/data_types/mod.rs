@@ -15,6 +15,10 @@ pub(crate) mod message;
 pub mod name_types;
 mod time;
 
+#[cfg(cgmath)]
+pub mod math_cgmath;
+
+
 #[doc(inline)]
 pub use crate::data_types::{
     cookie::{CookieData, Version},
