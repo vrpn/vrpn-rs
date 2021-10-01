@@ -29,7 +29,7 @@ pub enum MessageTypeIdentifier {
 ///
 /// Implemented only by MessageTypeId and SenderId
 pub trait IdWithNameAndDescription: UnwrappedId {
-    type Name: NameIntoBytes;
+    type Name: Clone + NameIntoBytes;
     const DESCRIPTION_MESSAGE_TYPE: MessageTypeId;
 }
 
@@ -171,7 +171,7 @@ impl NameIntoBytes for MessageTypeName {
 }
 
 impl IdWithNameAndDescription for MessageTypeId {
-    type Name = SenderName;
+    type Name = MessageTypeName;
 
     const DESCRIPTION_MESSAGE_TYPE: MessageTypeId = constants::TYPE_DESCRIPTION;
 }

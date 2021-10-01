@@ -195,7 +195,7 @@ impl WrappedConstantSize for Sensor {
     }
 }
 
-pub(crate) enum RangedId {
+pub(crate) enum CategorizedId {
     BelowZero(IdType),
     InArray(IdTypeUnsigned),
     AboveArray(IdType),
@@ -206,11 +206,11 @@ pub(crate) enum RangedId {
 /// Typically, calling code will then match on the result and make one or more
 /// of the variants produce an error. However, which ones are errors vary between
 /// functions.
-pub(crate) fn determine_id_range<T: UnwrappedId>(id: T, len: usize) -> RangedId {
+pub(crate) fn categorize_id<T: UnwrappedId>(id: T, len: usize) -> CategorizedId {
     let id = id.get();
     match u32::try_from(id) {
-        Ok(id_u32) if (id_u32 as usize) < len => RangedId::InArray(id_u32),
-        Ok(_) => RangedId::AboveArray(id),
-        Err(_) => RangedId::BelowZero(id),
+        Ok(id_u32) if (id_u32 as usize) < len => CategorizedId::InArray(id_u32),
+        Ok(_) => CategorizedId::AboveArray(id),
+        Err(_) => CategorizedId::BelowZero(id),
     }
 }

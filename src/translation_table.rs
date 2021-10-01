@@ -74,13 +74,13 @@ impl<T: UnwrappedId> TranslationTable<T> {
         }
     }
 
-    fn determine_remote_id_range(&self, id: RemoteId<T>) -> RangedId {
-        determine_id_range(id.into_id(), self.entries.len())
+    fn determine_remote_id_range(&self, id: RemoteId<T>) -> CategorizedId {
+        categorize_id(id.into_id(), self.entries.len())
     }
 
     /// Converts a remote ID to the corresponding local ID
     pub(crate) fn map_to_local_id(&self, id: RemoteId<T>) -> Result<Option<LocalId<T>>> {
-        use RangedId::*;
+        use CategorizedId::*;
         match self.determine_remote_id_range(id) {
             BelowZero(_) => Ok(None),
             AboveArray(v) => Err(VrpnError::InvalidId(v)),
@@ -97,7 +97,7 @@ impl<T: UnwrappedId> TranslationTable<T> {
         remote_id: RemoteId<T>,
         local_id: LocalId<T>,
     ) -> Result<RemoteId<T>> {
-        use RangedId::*;
+        use CategorizedId::*;
         let index = match self.determine_remote_id_range(remote_id) {
             BelowZero(v) => return Err(VrpnError::InvalidId(v)),
             AboveArray(v) => {

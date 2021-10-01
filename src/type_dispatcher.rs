@@ -12,11 +12,21 @@ use crate::{
         Description, MessageTypeIdentifier,
     },
     handler::*,
+    name_registration::{
+        ExtraDataById, InsertOrGet, IntoCorrespondingName, IterableNameRegistration,
+        LocalNameRegistration, NameRegistrationContainer, PerIdData,
+    },
     Result, VrpnError,
 };
 use bytes::Bytes;
+use futures::future::LocalBoxFuture;
 
-use std::{collections::HashMap, convert::TryFrom, fmt, hash::Hash};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+    fmt,
+    hash::Hash,
+};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum RegisterMapping<I: UnwrappedId> {
@@ -32,6 +42,15 @@ impl<I: UnwrappedId> RegisterMapping<I> {
         match self {
             RegisterMapping::Found(v) => *v,
             RegisterMapping::NewMapping(v) => *v,
+        }
+    }
+}
+
+impl<I: UnwrappedId> From<InsertOrGet<LocalId<I>>> for RegisterMapping<I> {
+    fn from(val: InsertOrGet<LocalId<I>>) -> Self {
+        match val {
+            InsertOrGet::Found(i) => RegisterMapping::Found(i),
+            InsertOrGet::New(i) => RegisterMapping::NewMapping(i),
         }
     }
 }
@@ -103,12 +122,17 @@ struct CallbackCollection {
     callbacks: Vec<Option<MsgCallbackEntry>>,
     next_handle: HandlerHandleInnerType,
 }
+impl Default for CallbackCollection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl CallbackCollection {
     /// Create CallbackCollection instance
-    pub fn new(name: Bytes) -> CallbackCollection {
+    pub fn new() -> CallbackCollection {
         CallbackCollection {
-            name,
+            name: Bytes::new(),
             callbacks: Vec::new(),
             next_handle: 0,
         }
@@ -158,41 +182,47 @@ impl CallbackCollection {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub(crate) struct MessageTypeIndex(usize);
+
+pub(crate) trait TryIntoIndex {
+    type Index;
+    fn try_into_index(self, len: usize) -> Result<Self::Index>;
+}
+
+impl TryIntoIndex for MessageTypeId {
+    type Index = MessageTypeIndex;
+    fn try_into_index(self, len: usize) -> Result<Self::Index> {
+        use CategorizedId::*;
+        match categorize_id(self, len) {
+            BelowZero(v) => Err(VrpnError::InvalidId(v)),
+            AboveArray(v) => Err(VrpnError::InvalidId(v)),
+            InArray(index) => Ok(MessageTypeIndex(index as usize)),
+        }
+    }
+}
+#[deprecated = "Use TryIntoIndex instead"]
 fn message_type_into_index(message_type: MessageTypeId, len: usize) -> Result<usize> {
-    use RangedId::*;
-    match determine_id_range(message_type, len) {
+    use CategorizedId::*;
+    match categorize_id(message_type, len) {
         BelowZero(v) => Err(VrpnError::InvalidId(v)),
         AboveArray(v) => Err(VrpnError::InvalidId(v)),
         InArray(v) => Ok(v as usize),
     }
 }
 
+// impl TryIntoIndex for SenderId {
+//     fn try_into_index(self, len: usize) -> Result<Index> {
+//         use RangedId::*;
+//         match determine_id_range(self, len) {
+//             BelowZero(v) => Err(VrpnError::InvalidId(v)),
+//             AboveArray(v) => Err(VrpnError::InvalidId(v)),
+//             InArray(index) => Ok(Index(index as usize)),
+//         }
+//     }
+// }
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct Name(Bytes);
-
-/// Structure holding and dispatching generic and message-filtered callbacks.
-///
-/// Unlike in the mainline C++ code, this does **not** handle "system" message types.
-/// The main reason is that they are easiest hard-coded and need to access the endpoint
-/// they're operating on, which can be a struggle to get past the borrow checker.
-/// Thus, a hard-coded setup simply turns system messages into SystemCommand enum values,
-/// which get queued through the Endpoint trait using interior mutability (e.g. with something like mpsc)type_dispatcher
-#[derive(Debug)]
-pub struct TypeDispatcher {
-    /// Index is the local type ID
-    types: Vec<CallbackCollection>,
-    types_by_name: HashMap<Name, LocalId<MessageTypeId>>,
-    generic_callbacks: CallbackCollection,
-    /// Index is the local sender ID
-    senders: Vec<SenderName>,
-    senders_by_name: HashMap<Name, LocalId<SenderId>>,
-}
-
-impl Default for TypeDispatcher {
-    fn default() -> TypeDispatcher {
-        TypeDispatcher::new()
-    }
-}
 
 pub trait TryIntoDescriptionMessage {
     fn try_into_description_message<N: Into<Bytes>>(self, name: N) -> Result<GenericMessage>;
@@ -213,26 +243,49 @@ impl<I: TryIntoDescriptionMessage + UnwrappedId> TryIntoDescriptionMessage for L
     }
 }
 
+pub(crate) fn try_register_system_senders_and_messages(
+    sender_registration: &mut impl LocalNameRegistration<IdType = SenderId>,
+    message_type_registration: &mut impl LocalNameRegistration<IdType = MessageTypeId>,
+) -> Result<()> {
+    sender_registration.try_insert_or_get(constants::CONTROL)?;
+    message_type_registration.try_insert_or_get(constants::GOT_FIRST_CONNECTION)?;
+    message_type_registration.try_insert_or_get(constants::GOT_CONNECTION)?;
+    message_type_registration.try_insert_or_get(constants::DROPPED_CONNECTION)?;
+    message_type_registration.try_insert_or_get(constants::DROPPED_LAST_CONNECTION)?;
+    Ok(())
+}
+
+/// Structure holding and dispatching generic and message-filtered callbacks.
+///
+/// Unlike in the mainline C++ code, this does **not** handle "system" message types.
+/// The main reason is that they are easiest hard-coded and need to access the endpoint
+/// they're operating on, which can be a struggle to get past the borrow checker.
+/// Thus, a hard-coded setup simply turns system messages into SystemCommand enum values,
+/// which get queued through the Endpoint trait using interior mutability (e.g. with something like mpsc)
+#[derive(Debug)]
+pub struct TypeDispatcher {
+    /// Index is the local type ID
+    message_types: PerIdData<NameRegistrationContainer<MessageTypeId>, CallbackCollection>,
+    generic_callbacks: CallbackCollection,
+    /// Index is the local sender ID
+    senders: NameRegistrationContainer<SenderId>,
+}
+
+impl Default for TypeDispatcher {
+    fn default() -> TypeDispatcher {
+        TypeDispatcher::new()
+    }
+}
+
 impl TypeDispatcher {
     pub fn new() -> TypeDispatcher {
         let mut disp = TypeDispatcher {
-            types: Vec::new(),
-            types_by_name: HashMap::new(),
-            generic_callbacks: CallbackCollection::new(Bytes::from_static(GENERIC)),
-            senders: Vec::new(),
-            senders_by_name: HashMap::new(),
+            message_types: PerIdData::new(NameRegistrationContainer::default()),
+            generic_callbacks: CallbackCollection::new(/* Bytes::from_static(GENERIC) */),
+            senders: NameRegistrationContainer::default(),
         };
 
-        disp.register_sender(constants::CONTROL)
-            .expect("couldn't register CONTROL sender");
-        disp.register_type(constants::GOT_FIRST_CONNECTION)
-            .expect("couldn't register GOT_FIRST_CONNECTION type");
-        disp.register_type(constants::GOT_CONNECTION)
-            .expect("couldn't register GOT_FIRST_CONNECTION type");
-        disp.register_type(constants::DROPPED_CONNECTION)
-            .expect("couldn't register DROPPED_CONNECTION type");
-        disp.register_type(constants::DROPPED_LAST_CONNECTION)
-            .expect("couldn't register DROPPED_LAST_CONNECTION type");
+        try_register_system_senders_and_messages(&mut disp.senders, &mut disp.message_types);
         disp
     }
 
@@ -243,34 +296,9 @@ impl TypeDispatcher {
         type_id_filter: Option<LocalId<MessageTypeId>>,
     ) -> Result<&'_ mut CallbackCollection> {
         match type_id_filter {
-            Some(i) => {
-                let index = message_type_into_index(i.into_id(), self.types.len())?;
-                Ok(&mut self.types[index])
-            }
+            Some(id) => self.message_types.try_get_data_mut(id.into_id()),
             None => Ok(&mut self.generic_callbacks),
         }
-    }
-
-    fn add_type(&mut self, name: impl Into<MessageTypeName>) -> Result<LocalId<MessageTypeId>> {
-        if self.types.len() > MAX_VEC_USIZE {
-            return Err(VrpnError::TooManyMappings);
-        }
-        let name = name.into();
-        self.types.push(CallbackCollection::new(name.clone().0));
-        let id = LocalId(MessageTypeId((self.types.len() - 1) as IdType));
-        self.types_by_name.insert(Name(name.0), id);
-        Ok(id)
-    }
-
-    fn add_sender(&mut self, name: impl Into<SenderName>) -> Result<LocalId<SenderId>> {
-        if self.senders.len() > (IdType::max_value() - 2) as usize {
-            return Err(VrpnError::TooManyMappings);
-        }
-        let name = name.into();
-        self.senders.push(name.clone());
-        let id = LocalId(SenderId((self.senders.len() - 1) as IdType));
-        self.senders_by_name.insert(Name(name.0), id);
-        Ok(id)
     }
 
     /// Returns the ID for the type name, if found.
@@ -279,8 +307,7 @@ impl TypeDispatcher {
         T: Into<MessageTypeName>,
     {
         let name: MessageTypeName = name.into();
-        let name: Bytes = name.into();
-        self.types_by_name.get(&Name(name)).cloned()
+        self.message_types.try_get_id_by_name(name)
     }
 
     /// Calls add_type if get_type_id() returns None.
@@ -289,11 +316,7 @@ impl TypeDispatcher {
         &mut self,
         name: impl Into<MessageTypeName>,
     ) -> Result<RegisterMapping<MessageTypeId>> {
-        let name: MessageTypeName = name.into();
-        match self.get_type_id(name.clone()) {
-            Some(i) => Ok(RegisterMapping::Found(i)),
-            None => self.add_type(name).map(RegisterMapping::NewMapping),
-        }
+        Ok(self.message_types.try_insert_or_get(name)?.into())
     }
 
     /// Calls add_sender if get_sender_id() returns None.
@@ -301,18 +324,12 @@ impl TypeDispatcher {
         &mut self,
         name: impl Into<SenderName>,
     ) -> Result<RegisterMapping<SenderId>> {
-        let name: SenderName = name.into();
-        match self.get_sender_id(name.clone()) {
-            Some(i) => Ok(RegisterMapping::Found(i)),
-            None => self.add_sender(name).map(RegisterMapping::NewMapping),
-        }
+        Ok(self.senders.try_insert_or_get(name)?.into())
     }
 
     /// Returns the ID for the sender name, if found.
     pub fn get_sender_id(&self, name: impl Into<SenderName>) -> Option<LocalId<SenderId>> {
-        let name: SenderName = name.into();
-        let name: Bytes = name.into();
-        self.senders_by_name.get(&Name(name)).cloned()
+        self.senders.try_get_id_by_name(name)
     }
 
     pub fn add_handler(
@@ -321,6 +338,13 @@ impl TypeDispatcher {
         message_type_filter: Option<LocalId<MessageTypeId>>,
         sender_filter: Option<LocalId<SenderId>>,
     ) -> Result<HandlerHandle> {
+        // let mut collection = match message_type_filter {
+        //     Some(message_type) => self
+        //         .message_types
+        //         .try_get_data_mut(message_type.into_id())?,
+        //     None => &mut self.generic_callbacks,
+        // };
+        // collection
         self.get_type_callbacks_mut(message_type_filter)?
             .add(handler, sender_filter)
             .map(|h| h.into_handler_handle(message_type_filter))
@@ -349,29 +373,28 @@ impl TypeDispatcher {
 
     /// Akin to vrpn_TypeDispatcher::doCallbacksFor
     pub fn call(&mut self, msg: &GenericMessage) -> Result<()> {
-        let index = message_type_into_index(msg.header.message_type, self.types.len())?;
-        let mapping = &mut self.types[index];
-
         self.generic_callbacks.call(msg)?;
-        mapping.call(msg)
+        if let Ok(mapping) = self.message_types.try_get_data_mut(msg.header.message_type) {
+            mapping.call(msg)?;
+        }
+        Ok(())
     }
 
-    fn senders_iter(&'_ self) -> impl Iterator<Item = (LocalId<SenderId>, &'_ SenderName)> + '_ {
+    /// caution: expensive
+    fn senders_iter(&'_ self) -> impl Iterator<Item = (LocalId<SenderId>, SenderName)> + '_ {
         self.senders
             .iter()
-            .enumerate()
-            .map(|(i, name)| (LocalId(SenderId(i as i32)), name))
+            .map(|(id, name)| (id, SenderName(name.as_ref().clone())))
     }
 
+    /// caution: expensive
     fn types_iter(
         &'_ self,
     ) -> impl Iterator<Item = (LocalId<MessageTypeId>, MessageTypeName)> + '_ {
-        self.types.iter().enumerate().map(|(i, callbacks)| {
-            (
-                LocalId(MessageTypeId(i as i32)),
-                MessageTypeName(callbacks.name.clone()),
-            )
-        })
+        self.message_types
+            .as_ref()
+            .iter()
+            .map(|(id, name)| (id, MessageTypeName(name.as_ref().clone())))
     }
 
     /// Pack all sender and type descriptions into a vector of generic messages.
@@ -428,7 +451,7 @@ mod tests {
         let b = Arc::clone(&val);
         let sample_callback2 = SetTo15 { val: b };
 
-        let mut collection = CallbackCollection::new(Bytes::from_static(b"dummy"));
+        let mut collection = CallbackCollection::new();
         let handler = collection
             .add(Box::new(sample_callback.clone()), None)
             .unwrap();
