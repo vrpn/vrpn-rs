@@ -2,21 +2,20 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::MessageStream;
-use crate::data_types::{GenericMessage, Message, SequencedGenericMessage};
-use crate::{endpoint::*, Result, TypeDispatcher, VrpnError};
-use futures::future::{BoxFuture, Fuse, FusedFuture, LocalBoxFuture};
-use futures::io::{BufReader, BufWriter};
-use futures::{pin_mut, ready, AsyncWriteExt, Future, FutureExt};
-use futures::{AsyncRead, AsyncWrite, Sink, SinkExt, Stream, StreamExt};
-use std::fmt::Debug;
-use std::io;
-use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll};
+use super::{AsyncReadMessagesExt, MessageStream};
+use crate::{
+    data_types::{GenericMessage, Message, SequencedGenericMessage},
+    endpoint::*,
+    Result, TypeDispatcher, VrpnError,
+};
 
-use super::AsyncReadMessagesExt;
+use futures::{ready, AsyncRead, Stream, StreamExt};
+use std::{
+    fmt::Debug,
+    pin::Pin,
+    sync::{Arc, Mutex},
+    task::{Context, Poll},
+};
 
 #[derive(Debug)]
 pub(crate) struct EndpointRx<T> {

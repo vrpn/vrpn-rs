@@ -9,9 +9,8 @@ use std::{
 };
 
 use async_std::{
-    future::{timeout, TimeoutError},
+    future::timeout,
     net::{TcpListener, TcpStream, UdpSocket},
-    task,
 };
 use bytes::{BufMut, Bytes, BytesMut};
 use socket2::{SockAddr, SockRef};
@@ -26,7 +25,7 @@ pub struct ConnectResults {
     pub(crate) udp: Option<UdpSocket>,
 }
 
-pub fn make_tcp_socket(addr: SocketAddr) -> io::Result<socket2::Socket> {
+pub(crate) fn make_tcp_socket(addr: SocketAddr) -> io::Result<socket2::Socket> {
     use socket2::*;
     let domain = if addr.is_ipv4() {
         Domain::IPV4
@@ -125,7 +124,6 @@ async fn connect_tcp_and_udp(server: ServerInfo) -> Result<ConnectResults> {
         buf.put_u8(0);
         buf
     };
-    let ip = addr.ip();
     let lobbed_buf = lobbed_buf.freeze();
     for _ in 0..5 {
         if let Some((tcp_stream, _)) =

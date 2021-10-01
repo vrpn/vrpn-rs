@@ -4,21 +4,17 @@
 
 use super::{
     endpoints::{merge_status, poll_and_dispatch, EndpointRx, EndpointStatus, ToEndpointStatus},
-    AsyncReadMessagesExt, MessageStream, UnboundedMessageSender,
+    MessageStream, UnboundedMessageSender,
 };
 use crate::{
-    data_types::{ClassOfService, GenericMessage, Message},
+    data_types::{ClassOfService, GenericMessage},
     endpoint::*,
     error::to_other_error,
-    Result, TranslationTables, TypeDispatcher, VrpnError,
+    Result, TranslationTables, TypeDispatcher,
 };
-use async_std::{
-    net::{TcpStream, UdpSocket},
-    task::current,
-};
-use futures::{channel::mpsc, ready, task, Future, Stream, StreamExt};
-use futures::{future::BoxFuture, Sink};
-use socket2::TcpKeepalive;
+use async_std::net::{TcpStream, UdpSocket};
+use futures::{channel::mpsc, ready, Future, Stream, StreamExt};
+
 use std::{
     ops::DerefMut,
     sync::{Arc, Mutex},
@@ -169,11 +165,9 @@ impl Endpoint for EndpointIp {
 mod tests {
     use super::*;
     use crate::vrpn_async_std::cookie;
-    use crate::ServerInfo;
-    use async_std::net::{TcpStream, ToSocketAddrs};
+    use crate::{ServerInfo, VrpnError};
+    use async_std::net::TcpStream;
     use futures::executor::block_on;
-    use futures::prelude::*;
-    use std::net::IpAddr;
 
     async fn connect_and_handshake(server_info: ServerInfo) -> crate::Result<TcpStream> {
         let mut stream = TcpStream::connect(server_info.socket_addr).await?;

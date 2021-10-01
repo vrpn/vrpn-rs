@@ -33,18 +33,6 @@ pub struct DeviceInfo {
     pub server: ServerInfo,
 }
 
-impl DeviceInfo {
-    pub fn new(device: Option<String>, socket_addr: SocketAddr, scheme: Scheme) -> DeviceInfo {
-        DeviceInfo {
-            device,
-            server: ServerInfo {
-                socket_addr,
-                scheme,
-            },
-        }
-    }
-}
-
 const SCHEMES: &[&str] = &["x-vrpn:", "x-vrsh:", "tcp:", "mpi:"];
 
 /// Makes sure there's a scheme followed by ://, and ending with a trailing slash.
@@ -162,7 +150,10 @@ mod tests {
         );
         assert_eq!(
             "tcp://127.0.0.1:3883".parse::<DeviceInfo>().unwrap(),
-            DeviceInfo::new(None, to_addr("127.0.0.1:3883"), Scheme::TcpOnly)
+            DeviceInfo {
+                device: None,
+                server: ServerInfo::new(to_addr("127.0.0.1:3883"), Scheme::TcpOnly)
+            }
         );
         assert_eq!(
             "127.0.0.1:3883".parse::<ServerInfo>().unwrap(),
@@ -173,14 +164,12 @@ mod tests {
             "127.0.0.1:3883".parse::<ServerInfo>().unwrap(),
             "x-vrpn:127.0.0.1:3883".parse::<ServerInfo>().unwrap(),
         );
-
         assert_eq!(
             "Tracker0@127.0.0.1:3883".parse::<DeviceInfo>().unwrap(),
-            DeviceInfo::new(
-                Some("Tracker0".into()),
-                "127.0.0.1:3883".to_socket_addrs().unwrap().next().unwrap(),
-                Scheme::UdpAndTcp
-            )
+            DeviceInfo {
+                device: Some("Tracker0".into()),
+                server: ServerInfo::new(to_addr("127.0.0.1:3883"), Scheme::UdpAndTcp)
+            }
         );
     }
     proptest! {

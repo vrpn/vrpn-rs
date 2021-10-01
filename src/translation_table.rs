@@ -33,12 +33,14 @@ impl<T: UnwrappedId> Entry<T> {
         self.local_id = local_id;
     }
 
+    #[deprecated]
     pub(crate) fn name(&self) -> &Bytes {
         &self.name
     }
     pub(crate) fn local_id(&self) -> LocalId<T> {
         self.local_id
     }
+    #[deprecated]
     pub(crate) fn remote_id(&self) -> RemoteId<T> {
         self.remote_id
     }
@@ -147,6 +149,7 @@ impl<T: UnwrappedId> TranslationTable<T> {
     }
 
     /// Get an iterator to non-None table entries.
+    #[deprecated]
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
         self.entries.iter().flatten()
     }

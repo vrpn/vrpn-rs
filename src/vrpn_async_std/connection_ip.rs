@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use crate::{connection::*, data_types::log::LogFileNames, Result, ServerInfo, VrpnError};
+use crate::{connection::*, data_types::log::LogFileNames, Result, ServerInfo};
 use async_std::net::TcpListener;
-use futures::{future::BoxFuture, ready, Future, FutureExt, Stream};
+use futures::{future::BoxFuture, FutureExt, Stream};
 use std::{
-    net::{Incoming, IpAddr, Ipv4Addr, SocketAddr},
-    sync::{Arc, Mutex, Weak},
+    net::SocketAddr,
+    sync::{Arc, Mutex},
     task::Poll,
 };
 
@@ -53,7 +53,7 @@ impl ConnectionIp {
             core: ConnectionCore::new(Vec::new(), local_log_names, None),
             // server_acceptor: Arc::new(Mutex::new(None)),
             // server_tcp: Some(Mutex::new(server_tcp)),
-            server_tcp: todo!(),
+            server_tcp: None,
             client_info: Mutex::new(ConnectionIpInfo::Server),
         });
         // {
@@ -115,7 +115,6 @@ impl ConnectionIp {
             let mut client_info = self.client_info.lock()?;
             let ep_arc = self.endpoints();
             let mut endpoints = ep_arc.lock()?;
-            let num_endpoints = endpoints.len();
             if let ConnectionIpInfo::ClientConnectionSetupFuture(f) = &mut *client_info {
                 match f.as_mut().poll(cx) {
                     Poll::Ready(Ok(results)) => {
