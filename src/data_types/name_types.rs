@@ -58,6 +58,12 @@ impl From<StaticSenderName> for Bytes {
     }
 }
 
+impl NameIntoBytes for StaticSenderName {
+    fn into_bytes(self) -> Bytes {
+        SenderName::from(self).into_bytes()
+    }
+}
+
 /// Wrapper for an arbitrary sender name.
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct SenderName(pub Bytes);
@@ -118,6 +124,11 @@ impl std::cmp::PartialEq<MessageTypeName> for StaticMessageTypeName {
     }
 }
 
+impl NameIntoBytes for StaticMessageTypeName {
+    fn into_bytes(self) -> Bytes {
+        MessageTypeName::from(self).into_bytes()
+    }
+}
 /// Wrapper for an arbitrary message type name.
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct MessageTypeName(pub Bytes);
