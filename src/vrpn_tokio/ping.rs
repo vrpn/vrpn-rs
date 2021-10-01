@@ -51,7 +51,7 @@ impl<T: Connection + 'static> Stream for Client<T> {
         if let Some(radio_silence) = self.client.check_ping_cycle()? {
             eprintln!(
                 "It has been {} since the first unanswered ping was sent to the server!",
-                radio_silence
+                radio_silence.as_secs_f32()
             );
         }
         Poll::Ready(Some(Ok(())))

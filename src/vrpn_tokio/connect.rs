@@ -473,21 +473,21 @@ pub async fn connect(server: ServerInfo) -> Result<ConnectResults> {
         Scheme::TcpOnly => connect_tcp_only(server).await,
     }
 }
-// impl Connect {
-//     pub async fn new(server: ServerInfo) -> Result<Self> {
-//         match server.scheme {
-//             Scheme::UdpAndTcp => connect_tcp_and_udp(server).await,
-//             Scheme::TcpOnly => connect_tcp_only(server).await,
-//         }
-//     }
-// }
-// pub(crate) async fn connect(server: ServerInfo) -> Result<()> {
-//     let mut connect: Option<Connect> = None;
-//     match server.scheme {
-//         Scheme::UdpAndTcp => {}
-//         Scheme::TcpOnly => {}
-//     }
-// }
+impl Connect {
+    pub async fn new(server: ServerInfo) -> Result<Self> {
+        match server.scheme {
+            Scheme::UdpAndTcp => connect_tcp_and_udp(server).await,
+            Scheme::TcpOnly => connect_tcp_only(server).await,
+        }
+    }
+}
+pub(crate) async fn connect(server: ServerInfo) -> Result<()> {
+    let mut connect: Option<Connect> = None;
+    match server.scheme {
+        Scheme::UdpAndTcp => {}
+        Scheme::TcpOnly => {}
+    }
+}
 #[derive(Debug)]
 pub(crate) enum ConnectionIpInfo {
     ConnectionSetupFuture(Connect),
@@ -495,44 +495,44 @@ pub(crate) enum ConnectionIpInfo {
     Server,
 }
 
-// impl ConnectionIpInfo {
-//     pub(crate) fn new_client(server: ServerInfo) -> Result<ConnectionIpInfo> {
-//         Ok(ConnectionIpInfo::ConnectionSetupFuture(Connect::new(
-//             server,
-//         )?))
-//     }
+impl ConnectionIpInfo {
+    pub(crate) fn new_client(server: ServerInfo) -> Result<ConnectionIpInfo> {
+        Ok(ConnectionIpInfo::ConnectionSetupFuture(Connect::new(
+            server,
+        )?))
+    }
 
-//     pub(crate) fn new_server() -> Result<ConnectionIpInfo> {
-//         Ok(ConnectionIpInfo::Server)
-//     }
-//     pub(crate) fn poll(&mut self, num_endpoints: usize) -> Poll<Result<Option<ConnectResults>>> {
-//         loop {
-//             match self {
-//                 ConnectionIpInfo::ConnectionSetupFuture(fut) => {
-//                     let result = ready!(fut.poll());
-//                     *self = ConnectionIpInfo::Info(fut.server.clone());
-//                     return Ok(Poll::Ready(Some(result)));
-//                 }
-//                 ConnectionIpInfo::Info(info) => {
-//                     if num_endpoints == 0 {
-//                         eprintln!("No endpoints, despite claims we've already connected. Re-starting connection process.");
-//                         *self = ConnectionIpInfo::new_client(info.clone())?;
-//                     } else {
-//                         return Ok(Poll::Ready(None));
-//                     }
-//                 }
-//                 _ => return Ok(Poll::Ready(None)),
-//             }
-//         }
-//     }
-//     pub(crate) fn status(&self, num_endpoints: usize) -> ConnectionStatus {
-//         match *self {
-//             ConnectionIpInfo::ConnectionSetupFuture(_) => ConnectionStatus::ClientConnecting,
-//             ConnectionIpInfo::Info(_) => ConnectionStatus::ClientConnected,
-//             ConnectionIpInfo::Server => ConnectionStatus::Server(num_endpoints),
-//         }
-//     }
-// }
+    pub(crate) fn new_server() -> Result<ConnectionIpInfo> {
+        Ok(ConnectionIpInfo::Server)
+    }
+    pub(crate) fn poll(&mut self, num_endpoints: usize) -> Poll<Result<Option<ConnectResults>>> {
+        loop {
+            match self {
+                ConnectionIpInfo::ConnectionSetupFuture(fut) => {
+                    let result = ready!(fut.poll());
+                    *self = ConnectionIpInfo::Info(fut.server.clone());
+                    return Ok(Poll::Ready(Some(result)));
+                }
+                ConnectionIpInfo::Info(info) => {
+                    if num_endpoints == 0 {
+                        eprintln!("No endpoints, despite claims we've already connected. Re-starting connection process.");
+                        *self = ConnectionIpInfo::new_client(info.clone())?;
+                    } else {
+                        return Ok(Poll::Ready(None));
+                    }
+                }
+                _ => return Ok(Poll::Ready(None)),
+            }
+        }
+    }
+    pub(crate) fn status(&self, num_endpoints: usize) -> ConnectionStatus {
+        match *self {
+            ConnectionIpInfo::ConnectionSetupFuture(_) => ConnectionStatus::ClientConnecting,
+            ConnectionIpInfo::Info(_) => ConnectionStatus::ClientConnected,
+            ConnectionIpInfo::Server => ConnectionStatus::Server(num_endpoints),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

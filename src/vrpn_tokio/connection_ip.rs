@@ -4,14 +4,16 @@
 
 use crate::{
     connection::*,
+    data_types::id_types::Id,
+    data_types::log::LogFileNames,
     vrpn_tokio::{
         // codec::FramedMessageCodec,
         connect::{incoming_handshake, ConnectionIpInfo},
         endpoint_ip::EndpointIp,
     },
-    Error, LogFileNames, Result, ServerInfo, TypeSafeId,
+    Result, ServerInfo, VrpnError,
 };
-use futures::{ready, Future, Stream};
+use futures::{ready, Future, FutureExt, Stream};
 use std::{
     net::{Incoming, IpAddr, Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex, Weak},
@@ -62,7 +64,7 @@ impl ConnectionIp {
             server_acceptor: Arc::new(Mutex::new(None)),
             client_info: Mutex::new(ConnectionIpInfo::new_client(server)?),
         });
-        ret.pack_all_descriptions()?;
+        ret.send_all_descriptions()?;
         Ok(ret)
     }
 
@@ -98,7 +100,7 @@ impl ConnectionIp {
             let ep_arc = self.endpoints();
             let mut endpoints = ep_arc.lock()?;
             let num_endpoints = endpoints.len();
-            if let Some(results) = ready!(client_info.unwrap().poll(num_endpoints))? {
+            if let Some(results) = ready!(client_info.poll(num_endpoints))? {
                 todo!();
                 // OK, we finished a connection setup.
                 endpoints.push(Some(EndpointIp::new(
@@ -115,7 +117,7 @@ impl ConnectionIp {
                 match poll_result {
                     Poll::Pending => break,
                     Poll::Ready(Some(_)) => (),
-                    Poll::Ready(None) => return Ok(Poll::Ready(None)),
+                    Poll::Ready(None) => return Poll::Ready(Ok(None)),
                 }
             },
             None => (),
@@ -128,13 +130,16 @@ impl ConnectionIp {
             let mut got_not_ready = false;
             // Go through and poll each endpoint, "taking" the ones that are closed.
             for ep in endpoints.iter_mut() {
-                let ready = if let Some(endpoint) = ep {
-                    endpoint
-                        .poll_endpoint(&mut dispatcher)
-                        .map(|result| result.is_ready())
-                        .unwrap_or_else(|_| true)
-                } else {
-                    true
+                let ready = match ep {
+                    Some(endpoint) => match endpoint.poll_endpoint(&mut dispatcher) {
+                        Poll::Ready(Err(e)) => {
+                            println!("Got endpoint error: {:?}", e);
+                            true
+                        }
+                        Poll::Ready(_) => true,
+                        Poll::Pending => false,
+                    },
+                    _ => true,
                 };
                 if ready {
                     let _ = ep.take();
@@ -146,9 +151,9 @@ impl ConnectionIp {
             endpoints.retain(|ep| ep.is_some());
 
             if got_not_ready {
-                Ok(Poll::Pending)
+                Poll::Pending
             } else {
-                Ok(Poll::Ready(Some(())))
+                Poll::Ready(Ok(Some(())))
             }
         }
     }
@@ -257,7 +262,7 @@ mod tests {
     use crate::{
         handler::{HandlerCode, TypedHandler},
         tracker::*,
-        Message, StaticMessageTypeName, StaticSenderName, TypeSafeId,
+        Id, Message, StaticMessageTypeName, StaticSenderName,
     };
     use std::sync::{Arc, Mutex};
 
