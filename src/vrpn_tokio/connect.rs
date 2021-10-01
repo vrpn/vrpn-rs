@@ -511,17 +511,17 @@ pub(crate) enum ConnectionIpInfo {
 //                 ConnectionIpInfo::ConnectionSetupFuture(fut) => {
 //                     let result = ready!(fut.poll());
 //                     *self = ConnectionIpInfo::Info(fut.server.clone());
-//                     return Ok(Future::Ready(Some(result)));
+//                     return Ok(Poll::Ready(Some(result)));
 //                 }
 //                 ConnectionIpInfo::Info(info) => {
 //                     if num_endpoints == 0 {
 //                         eprintln!("No endpoints, despite claims we've already connected. Re-starting connection process.");
 //                         *self = ConnectionIpInfo::new_client(info.clone())?;
 //                     } else {
-//                         return Ok(Future::Ready(None));
+//                         return Ok(Poll::Ready(None));
 //                     }
 //                 }
-//                 _ => return Ok(Future::Ready(None)),
+//                 _ => return Ok(Poll::Ready(None)),
 //             }
 //         }
 //     }

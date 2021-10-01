@@ -134,9 +134,9 @@ impl ConnectionIp {
         //     Some(a) => loop {
         //         let poll_result = a.poll()?;
         //         match poll_result {
-        //             Future::NotReady => break,
-        //             Future::Ready(Some(_)) => (),
-        //             Future::Ready(None) => return Ok(Future::Ready(None)),
+        //             Poll::Pending => break,
+        //             Poll::Ready(Some(_)) => (),
+        //             Poll::Ready(None) => return Ok(Poll::Ready(None)),
         //         }
         //     },
         //     None => (),

@@ -113,9 +113,9 @@ impl ConnectionIp {
             Some(a) => loop {
                 let poll_result = a.poll()?;
                 match poll_result {
-                    Future::NotReady => break,
-                    Future::Ready(Some(_)) => (),
-                    Future::Ready(None) => return Ok(Future::Ready(None)),
+                    Poll::Pending => break,
+                    Poll::Ready(Some(_)) => (),
+                    Poll::Ready(None) => return Ok(Poll::Ready(None)),
                 }
             },
             None => (),
@@ -146,9 +146,9 @@ impl ConnectionIp {
             endpoints.retain(|ep| ep.is_some());
 
             if got_not_ready {
-                Ok(Future::NotReady)
+                Ok(Poll::Pending)
             } else {
-                Ok(Future::Ready(Some(())))
+                Ok(Poll::Ready(Some(())))
             }
         }
     }
@@ -222,11 +222,11 @@ impl Stream for ConnectionIpAcceptor {
         loop {
             let connection = match self.connection.upgrade() {
                 Some(c) => c,
-                None => return Ok(Future::Ready(None)),
+                None => return Ok(Poll::Ready(None)),
             };
             let socket = match ready!(incoming.poll()) {
                 Some(s) => s,
-                None => return Ok(Future::Ready(None)),
+                None => return Ok(Poll::Ready(None)),
             };
             // OK, we got a new one.
             let endpoints = connection.endpoints();
@@ -299,7 +299,7 @@ mod tests {
                 }
                 conn.remove_handler(handler_handle)
                     .expect("should be able to remove handler");
-                Ok(Future::Ready(()))
+                Ok(Poll::Ready(()))
             })
             .wait()
             .unwrap();
@@ -334,7 +334,7 @@ mod tests {
                 }
                 conn.remove_handler(handler_handle)
                     .expect("should be able to remove handler");
-                Ok(Future::Ready(()))
+                Ok(Poll::Ready(()))
             })
             .wait()
             .unwrap();
@@ -369,7 +369,7 @@ mod tests {
                 for _ in 0..4 {
                     let _ = conn.poll_endpoints()?;
                 }
-                Ok(Future::Ready(()))
+                Ok(Poll::Ready(()))
             })
             .wait()
             .unwrap();
