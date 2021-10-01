@@ -24,7 +24,7 @@ pub trait Id: Copy + Clone + Eq + PartialEq + Ord + PartialOrd {
 /// Implemented for all types satisfying `UnwrappedId` (so, `MessageTypeId` and `SenderId`)
 /// as well as the `LocalId<T>` and `RemoteId<T>` wrappers.
 pub trait IntoId: Id {
-    /// Base ID type. Self in the case of BaseTypeSafeId, otherwise the thing that's being wrapped.
+    /// Base ID type. Self in the case of UnwrappedId, otherwise the thing that's being wrapped.
     type BaseId: Id;
     fn into_id(self) -> Self::BaseId;
 }
@@ -44,7 +44,7 @@ impl<T: UnwrappedId> IntoId for T {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct LocalId<T: UnwrappedId>(pub T);
 
-/// Implement `Id` for all LocalId types wrapping a `BaseTypeSafeId`
+/// Implement `Id` for all LocalId types wrapping a `UnwrappedId`
 impl<T: UnwrappedId> Id for LocalId<T> {
     fn get(&self) -> IdType {
         self.0.get()
