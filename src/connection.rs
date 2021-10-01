@@ -10,9 +10,10 @@ use std::{
 use crate::{
     buffer_unbuffer::BufferTo,
     data_types::{
-        id_types::*, name_types::NameIntoBytes, ClassOfService, GenericMessage, LogFileNames,
-        MessageTypeId, MessageTypeIdentifier, MessageTypeName, SenderName, TimeVal, TypedMessage,
-        TypedMessageBody,
+        id_types::*,
+        name_types::{MessageTypeIdentifier, NameIntoBytes},
+        ClassOfService, GenericMessage, LogFileNames, MessageTypeId, MessageTypeName, SenderName,
+        TimeVal, TypedMessage, TypedMessageBody,
     },
     type_dispatcher::HandlerHandle,
     Endpoint, EndpointGeneric, Handler, RegisterMapping, Result, TypeDispatcher, TypedHandler,

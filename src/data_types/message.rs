@@ -17,25 +17,20 @@ use crate::{
     Result, VrpnError,
 };
 
-use super::{id_types::*, name_types::StaticMessageTypeName, TimeVal};
-
-/// The identification used for a typed message body type.
-#[derive(Debug)]
-pub enum MessageTypeIdentifier {
-    /// User message types are identified by a string which is dynamically associated
-    /// with an ID on each side.
-    UserMessageName(StaticMessageTypeName),
-
-    /// System message types are identified by a constant, negative message type ID.
-    ///
-    // TODO: find a way to assert/enforce that this is negative - maybe a SystemTypeId type?
-    SystemMessageId(MessageTypeId),
-}
+use super::{
+    descriptions::InnerDescription, id_types::*, name_types::MessageTypeIdentifier,
+    IdWithNameAndDescription, TimeVal,
+};
 
 /// Trait for typed message bodies.
 pub trait TypedMessageBody: std::fmt::Debug {
     /// The name string (for user messages) or type ID (for system messages) used to identify this message type.
     const MESSAGE_IDENTIFIER: MessageTypeIdentifier;
+}
+
+// Implementation for all IdWithNameAndDescription
+impl<I: IdWithNameAndDescription> TypedMessageBody for InnerDescription<I> {
+    const MESSAGE_IDENTIFIER: MessageTypeIdentifier = I::ID_KIND_MESSAGE_IDENTIFIER;
 }
 
 /// Header information for a message.

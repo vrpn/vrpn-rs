@@ -7,7 +7,7 @@ use crate::buffer_unbuffer::{
 };
 use bytes::{Buf, BufMut, Bytes};
 
-use super::{constants, MessageTypeIdentifier, TypedMessageBody};
+use super::{constants, name_types::MessageTypeIdentifier, TypedMessageBody};
 
 bitflags! {
     pub struct LogMode: u8  {

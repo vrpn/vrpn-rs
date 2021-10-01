@@ -11,10 +11,8 @@ use crate::{
         ConstantBufferSize,
     },
     data_types::{
-        id_types::Sensor,
-        message::{MessageTypeIdentifier, TypedMessageBody},
-        name_types::StaticMessageTypeName,
-        Quat, Vec3,
+        id_types::Sensor, message::TypedMessageBody, name_types::StaticMessageTypeName,
+        MessageTypeIdentifier, Quat, Vec3,
     },
 };
 use bytes::{Buf, BufMut};

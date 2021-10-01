@@ -4,17 +4,22 @@
 
 //! Basic ID types used across VRPN.
 
+use std::{convert::TryFrom, fmt::Debug, hash::Hash};
+
 use crate::buffer_unbuffer::WrappedConstantSize;
 
 /// Type wrapped by the various Id types - chosen to match VRPN C++.
 pub type IdType = i32;
+
+/// Unsigned version of IdType
+pub type IdTypeUnsigned = u32;
 
 pub const MAX_VEC_USIZE: usize = (IdType::max_value() - 2) as usize;
 
 /// Trait for types that wrap an integer to treat it as an ID, namely `MessageTypeId` and `SenderId`
 ///
 /// Provides easy, uniform construction and retrieval.
-pub trait Id: Copy + Clone + Eq + PartialEq + Ord + PartialOrd {
+pub trait Id: Copy + Clone + Eq + PartialEq + Ord + PartialOrd + Hash + Debug {
     fn get(&self) -> i32;
     fn new(val: i32) -> Self;
 }
@@ -192,7 +197,7 @@ impl WrappedConstantSize for Sensor {
 
 pub(crate) enum RangedId {
     BelowZero(IdType),
-    InArray(IdType),
+    InArray(IdTypeUnsigned),
     AboveArray(IdType),
 }
 
@@ -203,11 +208,9 @@ pub(crate) enum RangedId {
 /// functions.
 pub(crate) fn determine_id_range<T: UnwrappedId>(id: T, len: usize) -> RangedId {
     let id = id.get();
-    if id < 0 {
-        RangedId::BelowZero(id)
-    } else if (id as usize) < len {
-        RangedId::InArray(id)
-    } else {
-        RangedId::AboveArray(id)
+    match u32::try_from(id) {
+        Ok(id_u32) if (id_u32 as usize) < len => RangedId::InArray(id_u32),
+        Ok(_) => RangedId::AboveArray(id),
+        Err(_) => RangedId::BelowZero(id),
     }
 }

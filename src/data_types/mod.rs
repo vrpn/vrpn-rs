@@ -28,13 +28,12 @@ pub use crate::data_types::{
 pub use crate::data_types::{
     id_types::MessageTypeId,
     message::{
-        GenericBody, GenericMessage, Message, MessageHeader, MessageSize, MessageTypeIdentifier,
-        MessageTypeIdentifier::UserMessageName, SequencedGenericMessage, TypedMessage,
-        TypedMessageBody,
+        GenericBody, GenericMessage, Message, MessageHeader, MessageSize, SequencedGenericMessage,
+        TypedMessage, TypedMessageBody,
     },
     name_types::{
-        IdWithNameAndDescription, MessageTypeName, SenderName, StaticMessageTypeName,
-        StaticSenderName,
+        IdWithNameAndDescription, MessageTypeIdentifier, MessageTypeName, SenderName,
+        StaticMessageTypeName, StaticSenderName,
     },
 };
 

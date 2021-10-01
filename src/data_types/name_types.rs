@@ -8,19 +8,29 @@ use bytes::Bytes;
 
 use super::{
     constants,
-    descriptions::InnerDescription,
     id_types::{SenderId, UnwrappedId},
-    MessageTypeId, TypedMessageBody,
+    MessageTypeId,
 };
+
+/// The identification (name or ID) used for a typed message body type.
+#[derive(Debug)]
+pub enum MessageTypeIdentifier {
+    /// User message types are identified by a string which is dynamically associated
+    /// with an ID on each side.
+    UserMessageName(StaticMessageTypeName),
+
+    /// System message types are identified by a constant, negative message type ID.
+    ///
+    // TODO: find a way to assert/enforce that this is negative - maybe a SystemTypeId type?
+    SystemMessageId(MessageTypeId),
+}
 
 /// A named, unwrapped ID
 ///
 /// Implemented only by MessageTypeId and SenderId
-pub trait IdWithNameAndDescription: UnwrappedId
-where
-    InnerDescription<Self>: TypedMessageBody,
-{
+pub trait IdWithNameAndDescription: UnwrappedId {
     type Name: NameIntoBytes;
+    const ID_KIND_MESSAGE_IDENTIFIER: MessageTypeIdentifier;
     fn description_message_type() -> MessageTypeId;
 }
 
@@ -88,9 +98,13 @@ impl NameIntoBytes for SenderName {
 
 impl IdWithNameAndDescription for SenderId {
     type Name = SenderName;
+
     fn description_message_type() -> MessageTypeId {
         constants::SENDER_DESCRIPTION
     }
+
+    const ID_KIND_MESSAGE_IDENTIFIER: MessageTypeIdentifier =
+        MessageTypeIdentifier::SystemMessageId(constants::SENDER_DESCRIPTION);
 }
 
 /// Be able to compare `StaticSenderName` and `SenderName`
@@ -163,8 +177,12 @@ impl NameIntoBytes for MessageTypeName {
 }
 
 impl IdWithNameAndDescription for MessageTypeId {
-    type Name = MessageTypeName;
+    type Name = SenderName;
+
     fn description_message_type() -> MessageTypeId {
-        constants::TYPE_DESCRIPTION
+        constants::SENDER_DESCRIPTION
     }
+
+    const ID_KIND_MESSAGE_IDENTIFIER: MessageTypeIdentifier =
+        MessageTypeIdentifier::SystemMessageId(constants::TYPE_DESCRIPTION);
 }

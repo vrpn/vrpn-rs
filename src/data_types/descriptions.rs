@@ -15,23 +15,22 @@ use crate::buffer_unbuffer::{
 };
 
 use super::{
-    constants, id_types::*, length_prefixed, name_types::IdWithNameAndDescription,
-    MessageTypeIdentifier, TypedMessage, TypedMessageBody,
+    constants,
+    id_types::*,
+    length_prefixed,
+    name_types::{IdWithNameAndDescription, MessageTypeIdentifier},
+    TypedMessage, TypedMessageBody,
 };
 
 /// Body struct for use in Message<T> for sender/type descriptions
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct InnerDescription<T> {
+pub struct InnerDescription<I> {
     pub(crate) name: Bytes,
-    phantom: PhantomData<T>,
+    phantom: PhantomData<I>,
 }
 
-impl<T> InnerDescription<T>
-where
-    T: IdWithNameAndDescription,
-    InnerDescription<T>: TypedMessageBody,
-{
-    fn new(name: Bytes) -> InnerDescription<T> {
+impl<I: IdWithNameAndDescription> InnerDescription<I> {
+    fn new(name: Bytes) -> InnerDescription<I> {
         InnerDescription {
             name,
             phantom: PhantomData,
@@ -39,22 +38,18 @@ where
     }
 }
 
-impl TypedMessageBody for InnerDescription<SenderId> {
-    const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-        MessageTypeIdentifier::SystemMessageId(constants::SENDER_DESCRIPTION);
-}
-impl TypedMessageBody for InnerDescription<MessageTypeId> {
-    const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
-        MessageTypeIdentifier::SystemMessageId(constants::TYPE_DESCRIPTION);
-}
+// impl TypedMessageBody for InnerDescription<SenderId> {
+//     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
+//         MessageTypeIdentifier::SystemMessageId(constants::SENDER_DESCRIPTION);
+// }
+// impl TypedMessageBody for InnerDescription<MessageTypeId> {
+//     const MESSAGE_IDENTIFIER: MessageTypeIdentifier =
+//         MessageTypeIdentifier::SystemMessageId(constants::TYPE_DESCRIPTION);
+// }
 
-impl<T> TypedMessage<InnerDescription<T>>
-where
-    T: IdWithNameAndDescription,
-    InnerDescription<T>: TypedMessageBody,
-{
-    fn which(&self) -> T {
-        T::new(self.header.sender.0)
+impl<I: IdWithNameAndDescription> TypedMessage<InnerDescription<I>> {
+    fn which(&self) -> I {
+        I::new(self.header.sender.0)
     }
 }
 
