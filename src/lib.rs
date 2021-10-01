@@ -3,12 +3,13 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 extern crate bytes;
-extern crate cgmath;
-extern crate chrono;
 extern crate url;
 
 // #[cfg(feature = "async-tokio")]
 // extern crate tk_listen;
+
+#[cfg(feature = "cgmath")]
+extern crate cgmath;
 
 #[cfg(test)]
 #[macro_use]
