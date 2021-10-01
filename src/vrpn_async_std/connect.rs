@@ -21,6 +21,7 @@ use crate::{Result, Scheme, ServerInfo, VrpnError};
 use super::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie};
 
 pub struct ConnectResults {
+    pub(crate) server_info: ServerInfo,
     pub(crate) tcp: TcpStream,
     pub(crate) udp: Option<UdpSocket>,
 }
@@ -91,11 +92,19 @@ async fn lobbing(
     }
 }
 
-async fn handshake(tcp: TcpStream, udp: Option<UdpSocket>) -> Result<ConnectResults> {
+async fn handshake(
+    server_info: ServerInfo,
+    tcp: TcpStream,
+    udp: Option<UdpSocket>,
+) -> Result<ConnectResults> {
     let mut tcp = tcp;
     send_nonfile_cookie(&mut tcp).await?;
     read_and_check_nonfile_cookie(&mut tcp).await?;
-    Ok(ConnectResults { tcp, udp })
+    Ok(ConnectResults {
+        server_info,
+        tcp,
+        udp,
+    })
 }
 
 async fn connect_tcp_and_udp(server: ServerInfo) -> Result<ConnectResults> {
@@ -122,14 +131,14 @@ async fn connect_tcp_and_udp(server: ServerInfo) -> Result<ConnectResults> {
         if let Some((tcp_stream, _)) =
             lobbing(&udp, &lobbed_buf, &tcp_listener, server.clone()).await?
         {
-            return handshake(tcp_stream, Some(udp)).await;
+            return handshake(server, tcp_stream, Some(udp)).await;
         }
     }
     Err(VrpnError::CouldNotConnect)
 }
 async fn connect_tcp_only(server: ServerInfo) -> Result<ConnectResults> {
     let tcp = outgoing_tcp_connect(server.socket_addr).await?;
-    return handshake(tcp, None).await;
+    return handshake(server, tcp, None).await;
 }
 
 const MILLIS_BETWEEN_ATTEMPTS: u64 = 500;
