@@ -37,26 +37,25 @@ async fn sender<T: AsyncWrite>(
 type FusedBoxFuture<'a, T> = Pin<Box<dyn FusedFuture<Output = T> + Send + 'a>>;
 
 /// A structure that lets you send messages to some stream just like an unbounded channel
-pub(crate) struct UnboundedMessageSender<'a> {
+pub(crate) struct UnboundedMessageSender {
     channel_tx: mpsc::UnboundedSender<GenericMessage>,
-    send_future: FusedBoxFuture<'a, Result<()>>,
+    send_future: FusedBoxFuture<'static, Result<()>>,
 }
 
-impl<'a> UnboundedMessageSender<'a> {
+impl UnboundedMessageSender {
     /// Create a future that pumps transmission of sequenced messages to an AsyncWrite implementation.
-    pub(crate) fn new<T: 'a + AsyncWrite + Send>(
+    pub(crate) fn new<T: 'static + AsyncWrite + Send>(
         writer: T,
-    ) -> Pin<Box<UnboundedMessageSender<'a>>> {
+    ) -> Pin<Box<UnboundedMessageSender>> {
         let (channel_tx, channel_rx) = mpsc::unbounded();
-        let send_future = Box::pin(sender(writer, channel_rx).fuse());
         Box::pin(UnboundedMessageSender {
             channel_tx,
-            send_future,
+            send_future: Box::pin(sender(writer, channel_rx).fuse()),
         })
     }
 }
 
-impl UnboundedMessageSender<'_> {
+impl UnboundedMessageSender {
     /// Queues a message to be sequenced and sent.
     pub(crate) fn unbounded_send(mut self: Pin<&mut Self>, msg: GenericMessage) -> Result<()> {
         if self.is_terminated() {
@@ -76,8 +75,8 @@ impl UnboundedMessageSender<'_> {
     }
 }
 
-impl Debug for UnboundedMessageSender<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for UnboundedMessageSender {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("UnboundedMessageSender")
             .field("channel_tx", &self.channel_tx)
             .field("send_future", &!self.send_future.is_terminated())
@@ -85,7 +84,7 @@ impl Debug for UnboundedMessageSender<'_> {
     }
 }
 
-impl Future for UnboundedMessageSender<'_> {
+impl Future for UnboundedMessageSender {
     type Output = Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -93,9 +92,9 @@ impl Future for UnboundedMessageSender<'_> {
     }
 }
 
-impl Unpin for UnboundedMessageSender<'_> {}
+impl Unpin for UnboundedMessageSender {}
 
-impl FusedFuture for UnboundedMessageSender<'_> {
+impl FusedFuture for UnboundedMessageSender {
     fn is_terminated(&self) -> bool {
         self.send_future.is_terminated() || self.channel_tx.is_closed()
     }

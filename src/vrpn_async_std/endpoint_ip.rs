@@ -31,17 +31,17 @@ use std::{
 struct MessageFramedUdp(());
 
 #[derive(Debug)]
-pub struct EndpointIp<'ep> {
+pub struct EndpointIp {
     translation: TranslationTables,
-    reliable_tx: Pin<Box<UnboundedMessageSender<'ep>>>,
+    reliable_tx: Pin<Box<UnboundedMessageSender>>,
     reliable_rx: Arc<Mutex<EndpointRx<MessageStream<TcpStream>>>>,
     low_latency_channel: Option<MessageFramedUdp>,
     system_rx: Option<Pin<Box<mpsc::UnboundedReceiver<SystemCommand>>>>,
     system_tx: Option<Pin<Box<mpsc::UnboundedSender<SystemCommand>>>>,
 }
 
-impl<'ep> EndpointIp<'ep> {
-    pub(crate) fn new(reliable_stream: TcpStream) -> EndpointIp<'ep> {
+impl EndpointIp {
+    pub(crate) fn new(reliable_stream: TcpStream) -> EndpointIp {
         let reliable_tx = UnboundedMessageSender::new(reliable_stream.clone());
         let reliable_rx = EndpointRx::from_reader(reliable_stream);
         let (system_tx, system_rx) = mpsc::unbounded();
@@ -126,7 +126,7 @@ impl<'ep> EndpointIp<'ep> {
     }
 }
 
-impl Endpoint for EndpointIp<'_> {
+impl Endpoint for EndpointIp {
     fn translation_tables(&self) -> &TranslationTables {
         &self.translation
     }
