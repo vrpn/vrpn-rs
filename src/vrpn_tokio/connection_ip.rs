@@ -257,7 +257,7 @@ mod tests {
     use crate::{
         handler::{HandlerCode, TypedHandler},
         tracker::*,
-        Message, StaticSenderName, StaticTypeName, TypeSafeId,
+        Message, StaticMessageTypeName, StaticSenderName, TypeSafeId,
     };
     use std::sync::{Arc, Mutex};
 
@@ -351,7 +351,7 @@ mod tests {
             .and_then(|server| {
                 let conn = ConnectionIp::new_client(server, None, None)?;
                 let tracker_message_id = conn
-                    .register_type(StaticTypeName(b"vrpn_Tracker Pos_Quat"))
+                    .register_type(StaticMessageTypeName(b"vrpn_Tracker Pos_Quat"))
                     .expect("should be able to register type");
                 let sender = conn
                     .register_sender(StaticSenderName(b"Tracker0"))
