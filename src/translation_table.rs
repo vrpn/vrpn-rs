@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
+//! Code for associating names and local IDs with their remote equivalents.
+
 use std::convert::TryFrom;
 
 use crate::{
@@ -11,8 +13,9 @@ use crate::{
 };
 use bytes::Bytes;
 
+/// An entry in a translation table
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Entry<T: UnwrappedId> {
+pub(crate) struct Entry<T: UnwrappedId> {
     name: Bytes,
     local_id: LocalId<T>,
     remote_id: RemoteId<T>,
@@ -30,13 +33,13 @@ impl<T: UnwrappedId> Entry<T> {
         self.local_id = local_id;
     }
 
-    pub fn name(&self) -> &Bytes {
+    pub(crate) fn name(&self) -> &Bytes {
         &self.name
     }
-    pub fn local_id(&self) -> LocalId<T> {
+    pub(crate) fn local_id(&self) -> LocalId<T> {
         self.local_id
     }
-    pub fn remote_id(&self) -> RemoteId<T> {
+    pub(crate) fn remote_id(&self) -> RemoteId<T> {
         self.remote_id
     }
 }
@@ -49,21 +52,22 @@ impl<T: IntoDescriptionMessage + UnwrappedId> TryFrom<Entry<T>> for GenericMessa
     }
 }
 
+/// A structure mapping names and local IDs to their remote equivalents
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct Table<T: UnwrappedId> {
+pub struct TranslationTable<T: UnwrappedId> {
     entries: Vec<Option<Entry<T>>>,
 }
 
-impl<T: UnwrappedId> Default for Table<T> {
-    fn default() -> Table<T> {
-        Table::new()
+impl<T: UnwrappedId> Default for TranslationTable<T> {
+    fn default() -> TranslationTable<T> {
+        TranslationTable::new()
     }
 }
 
-impl<T: UnwrappedId> Table<T> {
+impl<T: UnwrappedId> TranslationTable<T> {
     /// Create a translation table
-    pub fn new() -> Table<T> {
-        Table {
+    pub fn new() -> TranslationTable<T> {
+        TranslationTable {
             entries: Vec::new(),
         }
     }
@@ -143,7 +147,7 @@ impl<T: UnwrappedId> Table<T> {
     }
 
     /// Get an iterator to non-None table entries.
-    pub fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
         self.entries.iter().flatten()
     }
 
@@ -153,17 +157,18 @@ impl<T: UnwrappedId> Table<T> {
     }
 }
 
+/// A type owning two translation tables: one for message types, one for senders.
 #[derive(Debug)]
-pub struct Tables {
-    pub types: Table<MessageTypeId>,
-    pub senders: Table<SenderId>,
+pub struct TranslationTables {
+    types: TranslationTable<MessageTypeId>,
+    senders: TranslationTable<SenderId>,
 }
 
-impl Tables {
-    pub fn new() -> Tables {
-        Tables {
-            types: Table::new(),
-            senders: Table::new(),
+impl TranslationTables {
+    pub fn new() -> TranslationTables {
+        TranslationTables {
+            types: TranslationTable::new(),
+            senders: TranslationTable::new(),
         }
     }
 
@@ -173,73 +178,65 @@ impl Tables {
     }
 }
 
-impl Default for Tables {
-    fn default() -> Tables {
-        Tables::new()
+impl Default for TranslationTables {
+    fn default() -> TranslationTables {
+        TranslationTables::new()
     }
 }
 
-/// Trait for type-based dispatching/access of the two translation tables.
-///
-/// Uniform interface for treating Tables just like the appropriate Table<T>
-pub trait MatchingTable<T: UnwrappedId> {
-    /// Borrow the correctly-typed translation table
-    fn table(&self) -> &Table<T>;
-    /// Mutably borrow the correctly-typed translation table
-    fn table_mut(&mut self) -> &mut Table<T>;
-
-    /// Convert a remote ID to a local ID, if found.
-    fn map_to_local_id(&self, id: RemoteId<T>) -> Result<Option<LocalId<T>>> {
-        self.table().map_to_local_id(id)
-    }
-
-    /// Record a remote and local ID with the corresponding name.
-    fn add_remote_entry(
-        &mut self,
-        name: Bytes,
-        remote_id: RemoteId<T>,
-        local_id: LocalId<T>,
-    ) -> Result<RemoteId<T>> {
-        self.table_mut().add_remote_entry(name, remote_id, local_id)
-    }
-
-    /// Gets a shared borrow of an entry, given its local ID.
-    fn find_by_local_id(&self, local_id: LocalId<T>) -> Option<&Entry<T>> {
-        self.table()
-            .find_by_predicate(|entry| entry.local_id() == local_id)
-    }
-
-    fn add_local_id(&mut self, name: Bytes, local_id: LocalId<T>) -> bool {
-        self.table_mut().add_local_id(name, local_id)
-    }
-}
-
-impl MatchingTable<SenderId> for Tables {
-    fn table(&self) -> &Table<SenderId> {
+impl AsRef<TranslationTable<SenderId>> for TranslationTables {
+    fn as_ref(&self) -> &TranslationTable<SenderId> {
         &self.senders
     }
-    fn table_mut(&mut self) -> &mut Table<SenderId> {
+}
+
+impl AsMut<TranslationTable<SenderId>> for TranslationTables {
+    fn as_mut(&mut self) -> &mut TranslationTable<SenderId> {
         &mut self.senders
     }
 }
 
-impl MatchingTable<MessageTypeId> for Tables {
-    fn table(&self) -> &Table<MessageTypeId> {
+impl AsRef<TranslationTable<MessageTypeId>> for TranslationTables {
+    fn as_ref(&self) -> &TranslationTable<MessageTypeId> {
         &self.types
     }
-    fn table_mut(&mut self) -> &mut Table<MessageTypeId> {
+}
+
+impl AsMut<TranslationTable<MessageTypeId>> for TranslationTables {
+    fn as_mut(&mut self) -> &mut TranslationTable<MessageTypeId> {
         &mut self.types
     }
 }
 
-impl<T: UnwrappedId> MatchingTable<T> for Table<T> {
-    fn table(&self) -> &Table<T> {
-        self
-    }
-    fn table_mut(&mut self) -> &mut Table<T> {
-        self
+pub(crate) trait InTranslationTables: UnwrappedId
+where
+    TranslationTables: AsRef<TranslationTable<Self>>,
+{
+}
+
+impl<T: UnwrappedId> InTranslationTables for T where TranslationTables: AsRef<TranslationTable<Self>>
+{}
+
+pub(crate) trait InMutTranslationTables: UnwrappedId
+where
+    TranslationTables: AsMut<TranslationTable<Self>>,
+{
+}
+
+impl<T: UnwrappedId> InMutTranslationTables for T where
+    TranslationTables: AsMut<TranslationTable<Self>>
+{
+}
+
+pub(crate) trait TranslationTableExt<I: UnwrappedId>: AsRef<TranslationTable<I>> {
+    /// Gets a shared borrow of an entry, given its local ID.
+    fn find_by_local_id(&self, local_id: LocalId<I>) -> Option<&Entry<I>> {
+        (self.as_ref() as &TranslationTable<I>)
+            .find_by_predicate(|entry| entry.local_id() == local_id)
     }
 }
+
+impl<T: AsRef<TranslationTable<I>>, I: UnwrappedId> TranslationTableExt<I> for T {}
 
 #[cfg(test)]
 mod tests {
@@ -247,7 +244,7 @@ mod tests {
     fn simple() {
         use super::*;
         use crate::data_types::id_types::{RemoteId, SenderId};
-        let mut table: Table<SenderId> = Table::new();
+        let mut table: TranslationTable<SenderId> = TranslationTable::new();
         table
             .add_remote_entry(
                 Bytes::from_static(b"asdf"),

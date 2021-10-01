@@ -157,7 +157,7 @@ impl Endpoint for EndpointIp {
     }
 
     fn send_all_descriptions(&mut self, dispatcher: &TypeDispatcher) -> Result<()> {
-        let mut messages = dispatcher.pack_all_descriptions()?;
+        let messages = dispatcher.pack_all_descriptions()?;
         for msg in messages.into_iter() {
             self.buffer_generic_message(msg, crate::data_types::ClassOfService::RELIABLE)?;
         }

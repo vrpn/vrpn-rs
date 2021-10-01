@@ -116,16 +116,15 @@ impl ConnectionIp {
             let ep_arc = self.endpoints();
             let mut endpoints = ep_arc.lock()?;
             let num_endpoints = endpoints.len();
-            match &mut *client_info {
-                ConnectionIpInfo::ClientConnectionSetupFuture(f) => match f.as_mut().poll(cx) {
+            if let ConnectionIpInfo::ClientConnectionSetupFuture(f) = &mut *client_info {
+                match f.as_mut().poll(cx) {
                     Poll::Ready(Ok(results)) => {
                         endpoints.push(Some(EndpointIp::new(results.tcp, results.udp)));
                         *client_info = ConnectionIpInfo::ClientConnectionInfo(results.server_info)
                     }
                     Poll::Ready(Err(e)) => Err(e)?,
                     Poll::Pending => return Poll::Pending,
-                },
-                _ => {}
+                }
             };
         }
 

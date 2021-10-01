@@ -60,4 +60,4 @@ pub use crate::{
     type_dispatcher::{RegisterMapping, TypeDispatcher},
 };
 
-pub(crate) use crate::translation_table::{MatchingTable, Tables as TranslationTables};
+pub(crate) use crate::translation_table::TranslationTables;

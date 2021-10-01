@@ -21,7 +21,7 @@ use crate::{
     endpoint::SystemCommand,
     error::VrpnError,
     handle_system_command, parse_system_message,
-    translation_table::Tables as TranslationTables,
+    translation_table::TranslationTables,
     Endpoint, EndpointGeneric, TypeDispatcher,
 };
 use bytes::BytesMut;

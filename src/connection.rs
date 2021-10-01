@@ -56,8 +56,9 @@ pub trait Connection: Send + Sync {
             RegisterMapping::NewMapping(id) => {
                 eprintln!("New mapping (coming from our side): {:?} -> {:?}", name, id);
                 let mut endpoints = self.connection_core().endpoints.lock()?;
+                let name = name.into_bytes();
                 for ep in endpoints.iter_mut().flatten() {
-                    ep.new_local_id(name.clone(), id)?;
+                    ep.new_local_id(&name, id)?;
                 }
                 Ok(id)
             }
@@ -76,8 +77,9 @@ pub trait Connection: Send + Sync {
             RegisterMapping::Found(id) => Ok(id),
             RegisterMapping::NewMapping(id) => {
                 let mut endpoints = self.connection_core().endpoints.lock()?;
+                let name = name.into_bytes();
                 for ep in endpoints.iter_mut().flatten() {
-                    ep.new_local_id(name.clone(), id)?;
+                    ep.new_local_id(&name, id)?;
                 }
                 Ok(id)
             }
@@ -170,7 +172,6 @@ pub trait Connection: Send + Sync {
     // where
     //     T: IdWithNameAndDescription + PackDescription,
     //     InnerDescription<T>: TypedMessageBody,
-    //     TranslationTables: MatchingTable<T>,
     // {
     //     let mut endpoints = self.connection_core().endpoints.lock()?;
     //     let dispatcher = self.connection_core().type_dispatcher.lock()?;

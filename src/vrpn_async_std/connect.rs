@@ -80,7 +80,7 @@ async fn lobbing(
     tcp_listener: &TcpListener,
     server: ServerInfo,
 ) -> std::result::Result<Option<(TcpStream, SocketAddr)>, io::Error> {
-    udp.send_to(&buf, server.socket_addr).await?;
+    udp.send_to(buf, server.socket_addr).await?;
     match timeout(
         Duration::from_millis(MILLIS_BETWEEN_ATTEMPTS),
         tcp_listener.accept(),
