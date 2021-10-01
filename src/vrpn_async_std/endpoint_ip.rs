@@ -12,7 +12,10 @@ use crate::{
     error::to_other_error,
     Result, TranslationTables, TypeDispatcher, VrpnError,
 };
-use async_std::{net::TcpStream, task::current};
+use async_std::{
+    net::{TcpStream, UdpSocket},
+    task::current,
+};
 use futures::{channel::mpsc, ready, task, Future, Stream, StreamExt};
 use futures::{future::BoxFuture, Sink};
 use socket2::TcpKeepalive;
@@ -27,8 +30,8 @@ use std::{
 
 /// mock so we can have the member.
 
-#[derive(Debug, Clone)]
-struct MessageFramedUdp(());
+#[derive(Debug)]
+struct MessageFramedUdp(UdpSocket);
 
 #[derive(Debug)]
 pub struct EndpointIp {
@@ -41,7 +44,7 @@ pub struct EndpointIp {
 }
 
 impl EndpointIp {
-    pub(crate) fn new(reliable_stream: TcpStream) -> EndpointIp {
+    pub(crate) fn new(reliable_stream: TcpStream, udp: Option<UdpSocket>) -> EndpointIp {
         let reliable_tx = UnboundedMessageSender::new(reliable_stream.clone());
         let reliable_rx = EndpointRx::from_reader(reliable_stream);
         let (system_tx, system_rx) = mpsc::unbounded();
@@ -49,7 +52,7 @@ impl EndpointIp {
             translation: TranslationTables::new(),
             reliable_tx,
             reliable_rx,
-            low_latency_channel: None,
+            low_latency_channel: udp.map(|x| MessageFramedUdp(x)),
             system_tx: Some(Box::pin(system_tx)),
             system_rx: Some(Box::pin(system_rx)),
         }
@@ -187,7 +190,7 @@ mod tests {
         let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>().unwrap();
         let result: Result<EndpointIp> = block_on(async {
             let tcp = connect_and_handshake(server).await?;
-            Ok(EndpointIp::new(tcp))
+            Ok(EndpointIp::new(tcp, None))
         });
         result.unwrap();
     }
@@ -199,7 +202,7 @@ mod tests {
         let result: Result<()> = block_on(async {
             let tcp = connect_and_handshake(server).await.unwrap();
 
-            let ep = EndpointIp::new(tcp);
+            let ep = EndpointIp::new(tcp, None);
             let rx = Arc::clone(&ep.reliable_rx);
             for _i in 0..4 {
                 let msg = rx
