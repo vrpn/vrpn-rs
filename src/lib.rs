@@ -42,6 +42,7 @@ pub mod constants;
 pub mod endpoint;
 pub mod error;
 pub mod handler;
+mod name_registration;
 mod parse_name;
 pub mod ping;
 #[deprecated]
