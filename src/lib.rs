@@ -21,8 +21,6 @@ extern crate proptest;
 #[macro_use]
 extern crate bitflags;
 
-#[macro_use]
-extern crate downcast_rs;
 
 extern crate futures;
 
