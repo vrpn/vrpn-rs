@@ -13,7 +13,6 @@ use crate::{
     handler::{HandlerCode, HandlerHandle, TypedBodylessHandler},
     Connection, VrpnError,
 };
-use chrono::{prelude::*, Duration};
 use std::{
     fmt,
     sync::{Arc, Mutex, Weak},
