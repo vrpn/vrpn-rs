@@ -117,7 +117,7 @@ impl EndpointIp {
                 Poll::Ready(Ok(new_status)) => {
                     endpoint_status = merge_status(endpoint_status, new_status)
                 }
-                Poll::Ready(Err(e)) => {}
+                Poll::Ready(Err(_e)) => {}
                 Poll::Pending => break,
             }
         }

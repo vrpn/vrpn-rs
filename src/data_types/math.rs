@@ -56,7 +56,6 @@ impl unbuffer::UnbufferFrom for Vec3 {
     }
 }
 
-
 /// A (typically unit) quaternion corresponding to a rotation.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Quat {

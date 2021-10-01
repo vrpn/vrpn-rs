@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-
 impl From<cgmath::Vector3<f64>> for Vec3 {
     fn from(v: cgmath::Vector3<f64>) -> Self {
         Vec3::new(v.x, v.y, v.z)

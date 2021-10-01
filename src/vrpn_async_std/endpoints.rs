@@ -3,13 +3,8 @@
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
 use super::MessageStream;
-use crate::buffer_unbuffer::BytesMutExtras;
-use crate::data_types::id_types::SequenceNumber;
 use crate::data_types::{GenericMessage, Message, SequencedGenericMessage};
-use crate::error::to_other_error;
-use crate::{endpoint::*, Result, TranslationTables, TypeDispatcher, VrpnError};
-use bytes::{Bytes, BytesMut};
-use futures::channel::mpsc;
+use crate::{endpoint::*, Result, TypeDispatcher, VrpnError};
 use futures::future::{BoxFuture, Fuse, FusedFuture, LocalBoxFuture};
 use futures::io::{BufReader, BufWriter};
 use futures::{pin_mut, ready, AsyncWriteExt, Future, FutureExt};
@@ -18,10 +13,8 @@ use std::fmt::Debug;
 use std::io;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
-use std::{
-    sync::{Arc, Mutex},
-};
 
 use super::AsyncReadMessagesExt;
 

@@ -215,18 +215,27 @@ mod tests {
         handler::{HandlerCode, TypedHandler},
         tracker::*,
     };
-    use std::sync::{Arc, Mutex};
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    };
 
     #[derive(Debug)]
     struct TrackerHandler {
-        flag: Arc<Mutex<bool>>,
+        flag: Arc<AtomicBool>,
+    }
+    impl TrackerHandler {
+        fn new(flag: &Arc<AtomicBool>) -> Box<TrackerHandler> {
+            Box::new(TrackerHandler {
+                flag: Arc::clone(flag),
+            })
+        }
     }
     impl TypedHandler for TrackerHandler {
         type Item = PoseReport;
         fn handle_typed(&mut self, msg: &TypedMessage<PoseReport>) -> Result<HandlerCode> {
             println!("{:?}", msg);
-            let mut flag = self.flag.lock()?;
-            *flag = true;
+            self.flag.store(true, Ordering::SeqCst);
             Ok(HandlerCode::ContinueProcessing)
         }
     }
@@ -234,20 +243,15 @@ mod tests {
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker_tcp() {
-        let flag = Arc::new(Mutex::new(false));
-        async fn function(flag: &Arc<Mutex<bool>>) -> Result<()> {
+        let flag = Arc::new(AtomicBool::new(false));
+        async fn function(flag: &Arc<AtomicBool>) -> Result<()> {
             let mut cx = futures::task::Context::from_waker(futures::task::noop_waker_ref());
             let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>()?;
             let conn = ConnectionIp::new_client(server, None, None)?;
             let sender = conn
                 .register_sender(StaticSenderName(b"Tracker0"))
                 .expect("should be able to register sender");
-            let handler_handle = conn.add_typed_handler(
-                Box::new(TrackerHandler {
-                    flag: Arc::clone(&flag),
-                }),
-                Some(sender),
-            )?;
+            let handler_handle = conn.add_typed_handler(TrackerHandler::new(flag), Some(sender))?;
             conn.send_all_descriptions()?;
             for _ in 0..4 {
                 let _ = conn.poll_endpoints(&mut cx)?;
@@ -258,27 +262,21 @@ mod tests {
         }
         futures::executor::block_on(function(&flag)).unwrap();
 
-        assert!(*flag.lock().unwrap());
+        assert!(flag.load(Ordering::SeqCst));
     }
 
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker() {
-        let flag = Arc::new(Mutex::new(false));
-
-        async fn function(flag: &Arc<Mutex<bool>>) -> Result<()> {
+        let flag = Arc::new(AtomicBool::new(false));
+        async fn function(flag: &Arc<AtomicBool>) -> Result<()> {
             let mut cx = futures::task::Context::from_waker(futures::task::noop_waker_ref());
             let server = "127.0.0.1:3883".parse::<ServerInfo>()?;
             let conn = ConnectionIp::new_client(server, None, None)?;
             let sender = conn
                 .register_sender(StaticSenderName(b"Tracker0"))
                 .expect("should be able to register sender");
-            let handler_handle = conn.add_typed_handler(
-                Box::new(TrackerHandler {
-                    flag: Arc::clone(flag),
-                }),
-                Some(sender),
-            )?;
+            let handler_handle = conn.add_typed_handler(TrackerHandler::new(flag), Some(sender))?;
             while conn.status() == ConnectionStatus::ClientConnecting {
                 let _ = conn.poll_endpoints(&mut cx)?;
             }
@@ -290,14 +288,13 @@ mod tests {
             Ok(())
         }
         futures::executor::block_on(function(&flag)).unwrap();
-        assert!(*flag.lock().unwrap());
+        assert!(flag.load(Ordering::SeqCst));
     }
     #[ignore] // because it requires an external server to be running.
     #[test]
     fn tracker_manual() {
-        let flag = Arc::new(Mutex::new(false));
-
-        async fn function(flag: &Arc<Mutex<bool>>) -> Result<()> {
+        let flag = Arc::new(AtomicBool::new(false));
+        async fn function(flag: &Arc<AtomicBool>) -> Result<()> {
             let mut cx = futures::task::Context::from_waker(futures::task::noop_waker_ref());
             let server = "tcp://127.0.0.1:3883".parse::<ServerInfo>()?;
             let conn = ConnectionIp::new_client(server, None, None)?;
@@ -308,9 +305,7 @@ mod tests {
                 .register_sender(StaticSenderName(b"Tracker0"))
                 .expect("should be able to register sender");
             conn.add_handler(
-                Box::new(TrackerHandler {
-                    flag: Arc::clone(flag),
-                }),
+                TrackerHandler::new(flag),
                 Some(tracker_message_id),
                 Some(sender),
             )?;
@@ -323,6 +318,6 @@ mod tests {
             Ok(())
         }
         futures::executor::block_on(function(&flag)).unwrap();
-        assert!(*flag.lock().unwrap());
+        assert!(flag.load(Ordering::SeqCst));
     }
 }

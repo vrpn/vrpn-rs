@@ -57,7 +57,7 @@ impl UnboundedMessageSender {
 
 impl UnboundedMessageSender {
     /// Queues a message to be sequenced and sent.
-    pub(crate) fn unbounded_send(mut self: Pin<&mut Self>, msg: GenericMessage) -> Result<()> {
+    pub(crate) fn unbounded_send(self: Pin<&mut Self>, msg: GenericMessage) -> Result<()> {
         if self.is_terminated() {
             return Err(VrpnError::EndpointClosed);
         }

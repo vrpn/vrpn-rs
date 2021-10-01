@@ -22,7 +22,6 @@ extern crate proptest;
 #[macro_use]
 extern crate bitflags;
 
-
 extern crate futures;
 
 #[cfg(feature = "async-tokio")]

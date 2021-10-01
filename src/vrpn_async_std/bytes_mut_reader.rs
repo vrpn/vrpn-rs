@@ -33,6 +33,9 @@ impl BytesMutReader {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
     pub fn take_contents(&mut self) -> BytesMut {
         self.0.split()
     }
@@ -69,8 +72,7 @@ pub async fn read_n_into_bytes_mut<T: AsyncRead + Unpin>(
     buf.reserve(max_len);
     let orig_cap = buf.capacity();
     let orig_len = buf.len();
-    let mut local_buf: Vec<u8> = Vec::with_capacity(max_len);
-    local_buf.resize(max_len, 0u8);
+    let mut local_buf: Vec<u8> = vec![0u8; max_len];
     async_std::io::ReadExt::read_exact(stream, &mut local_buf).await?;
     buf.extend_from_slice(&local_buf);
     assert_eq!(orig_cap, buf.capacity());
