@@ -5,10 +5,8 @@
 use std::borrow::BorrowMut;
 
 use crate::{buffer_unbuffer::BufferUnbufferError, data_types::SequencedGenericMessage, Result};
-use async_std::{prelude::*, task};
 use bytes::{Buf, BytesMut};
-
-use futures::{ready, AsyncRead, AsyncReadExt};
+use futures::{ready, task, AsyncRead, AsyncReadExt, Stream};
 use pin_project_lite::pin_project;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

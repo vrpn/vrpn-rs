@@ -10,9 +10,8 @@ use crate::{
     },
     VrpnError,
 };
-use async_std::prelude::*;
 use bytes::{Bytes, BytesMut};
-use futures::{AsyncRead, AsyncWrite};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 /// Writes the supplied cookie to a stream.
 async fn write_cookie<T>(stream: &mut T, cookie: CookieData) -> Result<(), VrpnError>
@@ -64,7 +63,7 @@ where
     Ok(())
 }
 
-/// Reads a cookie's worth of data from the stream, and cheacks to make sure it is the right version.
+/// Reads a cookie's worth of data from the stream, and checks to make sure it is the right version.
 pub async fn read_and_check_file_cookie<T>(stream: &mut T) -> Result<(), VrpnError>
 where
     T: AsyncRead + Unpin,

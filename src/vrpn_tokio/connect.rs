@@ -1,4 +1,4 @@
-// Copyright 2018-2021, Collabora, Ltd.
+// Copyright 2018-2022, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
@@ -6,7 +6,7 @@ use super::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie};
 use crate::{
     buffer_unbuffer::{BytesMutExtras, ConstantBufferSize, UnbufferFrom},
     data_types::{cookie::check_ver_nonfile_compatible, CookieData},
-    Result, Scheme, ServerInfo, VrpnError,
+    Result, Scheme, ServerInfo, VrpnError, ConnectionStatus,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::ready;
@@ -481,13 +481,13 @@ impl Connect {
         }
     }
 }
-pub(crate) async fn connect(server: ServerInfo) -> Result<()> {
-    let mut connect: Option<Connect> = None;
-    match server.scheme {
-        Scheme::UdpAndTcp => {}
-        Scheme::TcpOnly => {}
-    }
-}
+// pub(crate) async fn connect(server: ServerInfo) -> Result<()> {
+//     let mut connect: Option<Connect> = None;
+//     match server.scheme {
+//         Scheme::UdpAndTcp => {}
+//         Scheme::TcpOnly => {}
+//     }
+// }
 #[derive(Debug)]
 pub(crate) enum ConnectionIpInfo {
     ConnectionSetupFuture(Connect),

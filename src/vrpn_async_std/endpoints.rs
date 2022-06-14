@@ -1,11 +1,11 @@
-// Copyright 2018-2021, Collabora, Ltd.
+// Copyright 2018-2022, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
-use super::{AsyncReadMessagesExt, MessageStream};
 use crate::{
     data_types::{GenericMessage, Message, SequencedGenericMessage},
     endpoint::*,
+    vrpn_async::{AsyncReadMessagesExt, MessageStream},
     Result, TypeDispatcher, VrpnError,
 };
 

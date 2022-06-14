@@ -1,4 +1,4 @@
-// Copyright 2018, Collabora, Ltd.
+// Copyright 2018-2022, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
@@ -15,7 +15,7 @@ use crate::{
 };
 use futures::{ready, Future, FutureExt, Stream};
 use std::{
-    net::{Incoming, IpAddr, Ipv4Addr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex, Weak},
     task::Poll,
 };
@@ -260,10 +260,12 @@ impl Stream for ConnectionIpAcceptor {
 mod tests {
     use super::*;
     use crate::{
+        data_types::{Message, StaticMessageTypeName, StaticSenderName, TypedMessage},
         handler::{HandlerCode, TypedHandler},
         tracker::*,
-        Id, Message, StaticMessageTypeName, StaticSenderName,
+        Id,
     };
+    use futures::future::IntoFuture;
     use std::sync::{Arc, Mutex};
 
     #[derive(Debug)]
@@ -272,7 +274,7 @@ mod tests {
     }
     impl TypedHandler for TrackerHandler {
         type Item = PoseReport;
-        fn handle_typed(&mut self, msg: &Message<PoseReport>) -> Result<HandlerCode> {
+        fn handle_typed(&mut self, msg: &TypedMessage<PoseReport>) -> Result<HandlerCode> {
             println!("{:?}", msg);
             let mut flag = self.flag.lock()?;
             *flag = true;

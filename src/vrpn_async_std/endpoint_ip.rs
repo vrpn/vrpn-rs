@@ -4,12 +4,13 @@
 
 use super::{
     endpoints::{merge_status, poll_and_dispatch, EndpointRx, EndpointStatus, ToEndpointStatus},
-    MessageStream, UnboundedMessageSender,
+    UnboundedMessageSender,
 };
 use crate::{
     data_types::{ClassOfService, GenericMessage},
     endpoint::*,
     error::to_other_error,
+    vrpn_async::MessageStream,
     Result, TranslationTables, TypeDispatcher,
 };
 use async_std::net::{TcpStream, UdpSocket};
@@ -164,8 +165,7 @@ impl Endpoint for EndpointIp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vrpn_async_std::cookie;
-    use crate::{ServerInfo, VrpnError};
+    use crate::{vrpn_async::cookie, ServerInfo, VrpnError};
     use async_std::net::TcpStream;
     use futures::executor::block_on;
 

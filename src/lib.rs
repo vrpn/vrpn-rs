@@ -51,6 +51,7 @@ pub mod sync_io;
 pub mod tracker;
 pub mod translation_table;
 pub mod type_dispatcher;
+pub mod vrpn_async;
 
 pub use crate::{
     connection::{Connection, ConnectionStatus},

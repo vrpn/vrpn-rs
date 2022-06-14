@@ -1,4 +1,4 @@
-// Copyright 2018-2021, Collabora, Ltd.
+// Copyright 2018-2022, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 // Author: Ryan A. Pavlik <ryan.pavlik@collabora.com>
 
@@ -15,9 +15,10 @@ use async_std::{
 use bytes::{BufMut, Bytes, BytesMut};
 use socket2::{SockAddr, SockRef};
 
-use crate::{Result, Scheme, ServerInfo, VrpnError};
-
-use super::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie};
+use crate::{
+    vrpn_async::cookie::{read_and_check_nonfile_cookie, send_nonfile_cookie},
+    Result, Scheme, ServerInfo, VrpnError,
+};
 
 pub struct ConnectResults {
     pub(crate) server_info: ServerInfo,
