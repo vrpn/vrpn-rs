@@ -20,7 +20,7 @@ socket2 = "0.4.2"
 thiserror = "1.0"
 tk-listen = {version = "0.2.1", optional = true}
 tokio = {version = "1.1", features = ["full"], optional = true}
-tokio-util = {version = "0.6", features = ["net", "compat", "codec"], optional = true}
+tokio-util = {version = "0.7", features = ["net", "compat", "codec"], optional = true}
 url = "^2.2.2"
 
 [dev-dependencies]
