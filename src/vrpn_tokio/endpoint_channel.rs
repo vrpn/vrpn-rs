@@ -55,7 +55,7 @@ where
         let maybe_msg =
             ready!(self.rx.poll_next_unpin(cx)).map(SequencedGenericMessage::into_inner);
         match maybe_msg {
-            Some(msg) => Poll::Ready(Some(msg)),
+            Some(msg) => Poll::Ready(Some(Ok(msg))),
             None => Poll::Pending,
         }
     }
